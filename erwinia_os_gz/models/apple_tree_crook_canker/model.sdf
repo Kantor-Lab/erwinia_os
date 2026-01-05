@@ -1,0 +1,75 @@
+<?xml version="1.0" ?>
+<sdf version="1.7">
+  <model name="apple_tree_crook_canker">
+    <static>true</static>
+    <link name="ground">
+      <visual name="ground">
+        <geometry>
+          <mesh>
+            <uri>model://apple_tree_crook_canker/meshes/ground.obj</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.600 0.600 0.600 1</ambient>
+          <diffuse>1.000 1.000 1.000 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+          <emissive>0 0 0 1</emissive>
+          <pbr>
+            <metal>
+              <albedo_map>model://apple_tree_crook_canker/materials/dirt.jpg</albedo_map>
+              <roughness>0.7</roughness>
+              <metalness>0.0</metalness>
+            </metal>
+          </pbr>
+        </material>
+      </visual>
+      <collision name="collision">
+        <geometry>
+          <mesh>
+            <uri>model://apple_tree_crook_canker/meshes/ground.obj</uri>
+          </mesh>
+        </geometry>
+        <surface>
+          <contact/>
+        </surface>
+        <laser_retro>0.0</laser_retro>
+      </collision>
+    </link>
+    <link name="tree">
+      <visual name="tree">
+        <geometry>
+          <mesh>
+            <uri>model://apple_tree_crook_canker/meshes/apple_tree_crook_canker.obj</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.600 0.600 0.600 1</ambient>
+          <diffuse>1.000 1.000 1.000 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+          <emissive>0 0 0 1</emissive>
+          <pbr>
+            <metal>
+              <albedo_map>model://apple_tree_crook_canker/materials/crook_canker_bake_final.png</albedo_map>
+              <roughness>0.7</roughness>
+              <metalness>0.0</metalness>
+            </metal>
+          </pbr>
+        </material>
+      </visual>
+      <collision name="collision">
+        <geometry>
+          <mesh>
+            <uri>model://apple_tree_crook_canker/meshes/apple_tree_crook_canker.obj</uri>
+          </mesh>
+        </geometry>
+        <surface>
+          <contact>
+            <collide_without_contact>true</collide_without_contact>
+            <collide_bitmask>0x00</collide_bitmask>
+          </contact>
+        </surface>
+        <laser_retro>1.0</laser_retro>
+      </collision>
+    </link>
+  </model>
+</sdf>
