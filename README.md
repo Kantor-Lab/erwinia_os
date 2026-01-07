@@ -11,6 +11,45 @@ Repository to host all the code for the Farm Robotics Challenge 2026.
 
 - **`erwinia_os_description`** - Robot description package containing URDF/Xacro files, STL meshes, and RViz configurations for the Amiga platform. Includes modular macros for the base, wheels, camera, and LiDAR sensors with namespace/prefix support.
 
+## Contributing workflow (git)
+
+```bash
+# Start from latest main
+cd ~/ros2_ws/src/erwinia_os
+git checkout main     # Moves to main branch
+git pull origin main  # Updates main branch
+
+# Create a feature branch
+git checkout -b <username>/<feature-to-be>
+
+# Make changes, then stage and commit
+git status         # Shows you what files have been updated/added/removed
+git add <files>    # Can use git add . to add all of the updates/additions/deletions
+git commit -m "Brief description of change"
+
+# Push your branch and open a PR
+git push -u origin <username>/<feature-to-be>
+git push           # Should work after setting the upstream ('-u origin <username>/<feature-to-be>')
+# In GitHub/GitLab, open a merge request targeting main and fill in summary + testing
+
+# After PR is merged and successful, delete the old feature branch
+# This will be deleted remotely once merged by one of the repo managers
+
+# Please feel free to safely delete it from your local machine AFTER the merge request is accepted
+git checkout main
+git pull origin main      # Update local main with merged changes
+git branch -d <username>/<feature-to-be>  # Delete local branch
+
+# IN THE MEANTIME, you may begin a new feature branch for the next feature intented to be added
+
+
+# Useful git checks and navigation
+git branch               # Show current branch (* indicates active)
+git switch <name>        # Switch to another branch (or: git checkout <name>)
+git restore <file>       # Drop local changes to a file (or: git checkout -- <file>)
+git pull origin main     # Update the current branch (be sure to do this regularly)
+```
+
 ## Quick Start
 
 ### Launch Full System in Simulation
@@ -92,43 +131,4 @@ check_urdf <path_to_urdf>
    colcon build --symlink-install
    source install/setup.bash
    ```
-
-## Contributing workflow (git)
-
-```bash
-# Start from latest main
-cd ~/ros2_ws/src/erwinia_os
-git checkout main     # Moves to main branch
-git pull origin main  # Updates main branch
-
-# Create a feature branch
-git checkout -b <username>/<feature-to-be>
-
-# Make changes, then stage and commit
-git status         # Shows you what files have been updated/added/removed
-git add <files>    # Can use git add . to add all of the updates/additions/deletions
-git commit -m "Brief description of change"
-
-# Push your branch and open a PR
-git push -u origin <username>/<feature-to-be>
-git push           # Should work after setting the upstream ('-u origin <username>/<feature-to-be>')
-# In GitHub/GitLab, open a merge request targeting main and fill in summary + testing
-
-# After PR is merged and successful, delete the old feature branch
-# This will be deleted remotely once merged by one of the repo managers
-
-# Please feel free to safely delete it from your local machine AFTER the merge request is accepted
-git checkout main
-git pull origin main      # Update local main with merged changes
-git branch -d <username>/<feature-to-be>  # Delete local branch
-
-# IN THE MEANTIME, you may begin a new feature branch for the next feature intented to be added
-
-
-# Useful git checks and navigation
-git branch               # Show current branch (* indicates active)
-git switch <name>        # Switch to another branch (or: git checkout <name>)
-git restore <file>       # Drop local changes to a file (or: git checkout -- <file>)
-git pull origin main     # Update the current branch (be sure to do this regularly)
-```
 
