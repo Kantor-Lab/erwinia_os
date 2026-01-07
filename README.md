@@ -115,11 +115,14 @@ git push           # Should work after setting the upstream ('-u origin <usernam
 # In GitHub/GitLab, open a merge request targeting main and fill in summary + testing
 
 # After PR is merged and successful, delete the old feature branch
+# This will be deleted remotely once merged by one of the repo managers
+
+# Please feel free to safely delete it from your local machine AFTER the merge request is accepted
 git checkout main
 git pull origin main      # Update local main with merged changes
 git branch -d <username>/<feature-to-be>  # Delete local branch
 
-# Begin a new feature branch for the next feature intented to be added
+# IN THE MEANTIME, you may begin a new feature branch for the next feature intented to be added
 
 
 # Useful git checks and navigation
