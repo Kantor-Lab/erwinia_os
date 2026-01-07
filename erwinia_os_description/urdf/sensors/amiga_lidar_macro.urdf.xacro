@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot name="amiga_lidar" xmlns:xacro="http://www.ros.org/wiki/xacro">
+    
+    <xacro:macro name="amiga_lidar" params="prefix:='' parent:='base_link'">
+        
+        <!-- LIDAR -->
+        <link name="${prefix}lidar_hinge">
+            <inertial>
+                <origin xyz="0.12957 -0.043305 -0.00024862" rpy="0 0 0" />
+                <mass value="5.5092" />
+                <inertia ixx="0.0061651" ixy="0.0013206" ixz="-1.4672E-06" iyy="0.0076386" iyz="1.274E-06" izz="0.0071961" />
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0" />
+                <geometry>
+                    <mesh filename="file://$(find erwinia_os_description)/meshes/lidar.STL" />
+                </geometry>
+                <material name="">
+                    <color rgba="0 1 0 1" />
+                </material>
+            </visual>
+        </link>
+        <joint name="${prefix}lidar_hinge_joint" type="fixed">
+            <origin xyz="1.1572 0.18502 1.449" rpy="1.5708 -0.4363 0" />
+            <!-- change pitch to adjust camera angle. + is down.  -0.4363 makes it parallel to ground -->
+            <parent link="${parent}" />
+            <child link="${prefix}lidar_hinge" />
+        </joint>
+
+        <link name="${prefix}lidar" />
+        <joint name="${prefix}lidar_joint" type="fixed">
+            <origin xyz="0.14354 -0.042185 0" rpy="-1.5708 0 -0.43633" />
+            <!-- 0.82903 applied in ypr order -->
+            <parent link="${prefix}lidar_hinge" />
+            <child link="${prefix}lidar" />
+            <axis xyz="0 0 0" />
+        </joint>
+
+        <!-- GAZEBO LIDAR SENSOR PLUGIN -->
+        <gazebo reference="${prefix}lidar">
+            <sensor name="gpu_lidar" type="gpu_lidar">
+                <!-- block_laser_sensor might work for 3d? -->
+                <!-- <pose relative_to='lidar_frame'>0 0 0 0 0 0</pose> -->
+                <pose>0 0 0 0 0 0</pose>
+                <topic>scan</topic>
+                <update_rate>10</update_rate>
+                <ray>
+                    <scan>
+                        <horizontal>
+                            <samples>640</samples>
+                            <resolution>1</resolution>
+                            <min_angle>-1.396263</min_angle>
+                            <max_angle>1.396263</max_angle>
+                        </horizontal>
+                        <vertical>
+                            <!-- <samples>1</samples>
+                            <resolution>0.01</resolution>
+                            <min_angle>0</min_angle>
+                            <max_angle>0</max_angle> -->
+                            <samples>15</samples>
+                            <resolution>1</resolution>
+                            <min_angle>-0.2618</min_angle>
+                            <max_angle>0.2618</max_angle>
+                        </vertical>
+                    </scan>
+                    <range>
+                        <min>0.08</min>
+                        <max>10.0</max>
+                        <resolution>0.01</resolution>
+                    </range>
+                </ray>
+                <always_on>1</always_on>
+                <visualize>true</visualize>
+                <gz_frame_id>${prefix}lidar</gz_frame_id>
+            </sensor>
+        </gazebo>
+
+        <!-- untested addition of GPS sensor.  Requires adding spherical coordinate to world?
+             per: https://robotics.stackexchange.com/questions/29352/gps-sensor-plugin-in-ignition -->
+        <!-- <gazebo reference="${prefix}gps">
+            <sensor name="navsat" type="navsat">
+                <always_on>1</always_on>
+                <update_rate>1</update_rate>
+                <visualize>true</visualize>
+                <topic>navsat</topic>
+                <gz_frame_id>${prefix}front_camera_optical</gz_frame_id>
+            </sensor>
+        </gazebo> -->
+
+    </xacro:macro>
+</robot>

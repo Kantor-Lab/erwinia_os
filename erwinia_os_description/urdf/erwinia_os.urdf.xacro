@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro" name="erwinia_os">
+
+    <!-- Arguments -->
+    <xacro:arg name="use_gazebo" default="false"/>
+    <xacro:arg name="use_fake_hardware" default="false"/>
+    <xacro:arg name="config_file" default="$(find erwinia_os_control)/config/controllers.yaml"/>
+    <xacro:arg name="manipulator_ns" default="xarm"/>
+    <xacro:arg name="manipulator_prefix" default="xarm6_"/>
+    <xacro:arg name="platform_ns" default="amiga"/>
+    <xacro:arg name="platform_prefix" default=""/>
+
+    <!-- TODO: Fine tune Amiga model -->
+    <!-- AMIGA PLATFORM -->
+    <xacro:include filename="$(find erwinia_os_description)/urdf/amiga/amiga_macro.urdf.xacro"/>
+    <xacro:amiga_base 
+        namespace="$(arg platform_ns)" 
+        prefix="$(arg platform_prefix)" 
+        use_gazebo="$(arg use_gazebo)"/>
+
+    <!-- TODO: Add in sensors with proper params-->
+    <!-- SENSORS -->
+    <!-- <xacro:include filename="$(find erwinia_os_description)/urdf/sensors/amiga_camera_macro.urdf.xacro"/>
+    <xacro:include filename="$(find erwinia_os_description)/urdf/sensors/amiga_lidar_macro.urdf.xacro"/>
+    <xacro:amiga_camera 
+        prefix="$(arg platform_ns)/$(arg platform_prefix)" 
+        parent="$(arg platform_ns)/$(arg platform_prefix)base_link"/>
+    <xacro:amiga_lidar 
+        prefix="$(arg platform_ns)/$(arg platform_prefix)" 
+        parent="$(arg platform_ns)/$(arg platform_prefix)base_link"/> -->
+
+    <!-- TODO: Add in robotic manipulator -->
+
+    <!-- ROS2_CONTROL -->
+    <xacro:include filename="$(find erwinia_os_description)/urdf/amiga/amiga_ros2_control.xacro"/>
+    <xacro:amiga_ros2_control 
+        namespace="$(arg platform_ns)" 
+        prefix="$(arg platform_prefix)" 
+        use_gazebo="$(arg use_gazebo)" 
+        use_fake_hardware="$(arg use_fake_hardware)"/>
+
+    <!-- Gazebo plugin for controller manager (only needed once for whole robot) -->
+    <xacro:if value="$(arg use_gazebo)">
+        <gazebo>
+            <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+                <parameters>$(arg config_file)</parameters>
+            </plugin>
+        </gazebo>
+    </xacro:if>
+
+</robot>

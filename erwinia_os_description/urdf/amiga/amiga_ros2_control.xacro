@@ -1,0 +1,67 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+    
+    <xacro:macro name="amiga_ros2_control" params="namespace:='' prefix:='' use_gazebo:=true use_fake_hardware:=false">
+        
+        <xacro:property name="ns_prefix" value="${namespace}/${prefix}"/>
+        
+        <xacro:if value="${use_gazebo}">
+            <ros2_control name="amiga_hardware" type="system">
+                <hardware>
+                    <plugin>ign_ros2_control/IgnitionSystem</plugin>
+                </hardware>
+                <xacro:amiga_system_joints prefix="${ns_prefix}"/>
+            </ros2_control>
+        </xacro:if>
+
+        <xacro:unless value="${use_gazebo}">
+            <xacro:if value="${use_fake_hardware}">
+                <ros2_control name="amiga_hardware" type="system">
+                    <hardware>
+                        <plugin>mock_components/GenericSystem</plugin>
+                        <param name="calculate_dynamics">true</param>
+                    </hardware>
+                    <xacro:amiga_system_joints prefix="${ns_prefix}"/>
+                </ros2_control>
+            </xacro:if>
+        </xacro:unless>
+
+        <!-- TODO: Add real hardware configurations or controllers as needed if not using Gazebo or fake hardware -->
+
+    </xacro:macro>
+
+    <xacro:macro name="amiga_system_joints" params="prefix">
+        <joint name="${prefix}FL_wheel_joint">
+            <command_interface name="velocity">
+                <param name="min">-2.54</param>
+                <param name="max">2.54</param>
+            </command_interface>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+        <joint name="${prefix}FR_wheel_joint">
+            <command_interface name="velocity">
+                <param name="min">-2.54</param>
+                <param name="max">2.54</param>
+            </command_interface>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+        <joint name="${prefix}RL_wheel_joint">
+            <command_interface name="velocity">
+                <param name="min">-2.54</param>
+                <param name="max">2.54</param>
+            </command_interface>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+        <joint name="${prefix}RR_wheel_joint">
+            <command_interface name="velocity">
+                <param name="min">-2.54</param>
+                <param name="max">2.54</param>
+            </command_interface>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+    </xacro:macro>
+</robot>

@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot name="amiga_camera" xmlns:xacro="http://www.ros.org/wiki/xacro">
+    
+    <xacro:macro name="amiga_camera" params="prefix:='' parent:='base_link'">
+        
+        <!-- FRONT CAMERA -->
+        <link name="${prefix}front_camera_hinge">
+            <inertial>
+                <origin xyz="0.072808 -0.032484 -0.00017047" rpy="0 0 0" />
+                <mass value="0.21875" />
+                <inertia ixx="0.00029961" ixy="4.6954E-06" ixz="-3.6958E-07" iyy="0.00033063" iyz="2.5824E-07" izz="7.9946E-05" />
+            </inertial>
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0" />
+                <geometry>
+                    <mesh filename="file://$(find erwinia_os_description)/meshes/camera.STL" />
+                </geometry>
+                <material name="">
+                    <color rgba="1 0 0 1" />
+                </material>
+            </visual>
+        </link>
+        <joint name="${prefix}front_camera_hinge_joint" type="fixed">
+            <origin xyz="1.1572 0.18502 1.1633" rpy="1.5708 -0.523599 0" />
+            <!-- change pitch to adjust camera angle. + is down -->
+            <parent link="${parent}" />
+            <child link="${prefix}front_camera_hinge" />
+        </joint>
+
+        <link name="${prefix}front_camera" />
+        <joint name="${prefix}front_camera_joint" type="fixed">
+            <origin xyz="0.10238 -0.077341 0.0001016" rpy="-1.5708 0 -0.82903" />
+            <!-- 0.82903 applied in ypr order -->
+            <parent link="${prefix}front_camera_hinge" />
+            <child link="${prefix}front_camera" />
+            <axis xyz="0 0 0" />
+        </joint>
+
+        <link name="${prefix}front_camera_optical" />
+        <joint name="${prefix}front_camera_optical_joint" type="fixed">
+            <origin xyz="0 0 0" rpy="-1.5708 0 -1.5708" />
+            <!-- 0.82903 applied in ypr order -->
+            <parent link="${prefix}front_camera" />
+            <child link="${prefix}front_camera_optical" />
+            <axis xyz="0 0 0" />
+        </joint>
+
+        <!-- GAZEBO CAMERA SENSOR PLUGIN -->
+        <gazebo reference="${prefix}front_camera">
+            <sensor name="camera" type="camera">
+                <camera>
+                    <camera_info_topic>camera/camera_info</camera_info_topic>
+                    <horizontal_fov>1.047</horizontal_fov>
+                    <image>
+                        <width>320</width>
+                        <height>240</height>
+                    </image>
+                    <clip>
+                        <near>0.1</near>
+                        <far>100</far>
+                    </clip>
+                </camera>
+                <always_on>1</always_on>
+                <update_rate>10</update_rate>
+                <visualize>true</visualize>
+                <topic>camera/image_raw</topic>
+                <gz_frame_id>${prefix}front_camera_optical</gz_frame_id>
+            </sensor>
+        </gazebo>
+
+        <!-- untested addition of IMU sensor -->
+        <!-- <gazebo reference="${prefix}imu">
+            <sensor name="imu_sensor" type="imu">
+                <always_on>1</always_on>
+                <update_rate>10</update_rate>
+                <visualize>true</visualize>
+                <topic>imu</topic>
+                <gz_frame_id>${prefix}front_camera_optical</gz_frame_id>
+            </sensor>
+        </gazebo> -->
+
+    </xacro:macro>
+</robot>
