@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<robot name="amiga_macros" xmlns:xacro="http://www.ros.org/wiki/xacro">
+    <xacro:macro name="amiga_base" params="namespace:='' prefix:='' use_gazebo:=true">
+        <!-- Build namespace prefix -->
+        <xacro:property name="ns_prefix" value="${namespace}/${prefix}"/>
+
+        <!-- Wheel Mounting Positions -->
+        <xacro:property name="wheelbase" value="0.5316" />
+        <xacro:property name="track" value="0.65856" />
+        <!-- Wheel Properties -->
+        <xacro:property name="wheel_radius" value="0.2159" />
+
+        <link name="${ns_prefix}base_link">
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0" />
+                <geometry>
+                    <mesh filename="file://$(find erwinia_os_description)/meshes/frame_link.STL" />
+                </geometry>
+                <material name="">
+                    <color rgba="0.118 0.506 0.729 1" />
+                </material>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0" />
+                <geometry>
+                    <mesh filename="file://$(find erwinia_os_description)/meshes/frame_collision.STL"  />
+                </geometry>
+            </collision>
+        </link>
+
+        <!-- base_footprint is used with Nav2 -->
+        <link name="${ns_prefix}base_footprint" />
+        <joint name="${ns_prefix}base_footprint_joint" type="fixed">
+            <parent link="${ns_prefix}base_footprint" />
+            <child link="${ns_prefix}base_link" />
+        </joint>
+
+        <!-- Inertial link stores the robot's inertial information -->
+        <link name="${ns_prefix}inertial_link">
+            <inertial>
+                <mass value="381.19" />
+                <origin xyz="-0.054481 -0.015972 0.66252" />
+                <inertia ixx="5.717" ixy="-0.007109" ixz="0.0013622" iyy="12.857" iyz="1.2354E-05" izz="11.799" />
+            </inertial>
+        </link>
+        <joint name="${ns_prefix}inertial_joint" type="fixed">
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <parent link="${ns_prefix}base_link" />
+            <child link="${ns_prefix}inertial_link" />
+        </joint>
+
+        <!-- Amiga wheel macros -->
+        <xacro:include filename="$(find erwinia_os_description)/urdf/amiga/amiga_wheel_macro.urdf.xacro" />
+        <xacro:amiga_wheel wheel_prefix="${ns_prefix}FL" use_gazebo="${use_gazebo}" />
+        <xacro:amiga_wheel wheel_prefix="${ns_prefix}FR" use_gazebo="${use_gazebo}" />
+        <xacro:amiga_wheel wheel_prefix="${ns_prefix}RL" use_gazebo="${use_gazebo}" />
+        <xacro:amiga_wheel wheel_prefix="${ns_prefix}RR" use_gazebo="${use_gazebo}" />
+
+        <!-- Define wheel joints to use prefixed base_link -->
+        <joint name="${ns_prefix}FL_wheel_joint" type="continuous">
+            <parent link="${ns_prefix}base_link"/>
+            <child link="${ns_prefix}FL_wheel"/>
+            <origin xyz="${wheelbase/2} ${track/2} ${wheel_radius}" rpy="1.5708 0 3.1416" />
+            <axis xyz="0 0 1" />
+        </joint>
+        <joint name="${ns_prefix}FR_wheel_joint" type="continuous">
+            <parent link="${ns_prefix}base_link"/>
+            <child link="${ns_prefix}FR_wheel"/>
+            <origin xyz="${wheelbase/2} ${-track/2} ${wheel_radius}" rpy="1.5708 0 3.1416" />
+            <axis xyz="0 0 1" />
+        </joint>
+        <joint name="${ns_prefix}RL_wheel_joint" type="continuous">
+            <parent link="${ns_prefix}base_link"/>
+            <child link="${ns_prefix}RL_wheel"/>
+            <origin xyz="${-wheelbase/2} ${track/2} ${wheel_radius}" rpy="1.5708 0 3.1416" />
+            <axis xyz="0 0 1" />
+        </joint>
+        <joint name="${ns_prefix}RR_wheel_joint" type="continuous">
+            <parent link="${ns_prefix}base_link"/>
+            <child link="${ns_prefix}RR_wheel"/>
+            <origin xyz="${-wheelbase/2} ${-track/2} ${wheel_radius}" rpy="1.5708 0 3.1416" />
+            <axis xyz="0 0 1" />
+        </joint>
+
+    </xacro:macro>
+</robot>

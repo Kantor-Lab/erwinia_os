@@ -1,0 +1,32 @@
+# Output from generate_controllers_yaml.py
+
+controller_manager:
+  ros__parameters:
+    update_rate: 100
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+    platform_velocity_controller:
+      type: diff_drive_controller/DiffDriveController
+      
+platform_velocity_controller:
+  ros__parameters:
+    left_wheel_names:
+    - amiga/FL_wheel_joint
+    - amiga/RL_wheel_joint
+    right_wheel_names:
+    - amiga/FR_wheel_joint
+    - amiga/RR_wheel_joint
+    wheel_separation: 0.65856
+    wheel_radius: 0.2159
+    publish_rate: 50.0
+    base_frame_id: amiga/base_footprint
+    odom_frame_id: odom
+    use_stamped_vel: false
+    linear.x.has_velocity_limits: true
+    linear.x.max_velocity: 2.54
+    linear.x.has_acceleration_limits: true
+    linear.x.max_acceleration: 3.0
+    angular.z.has_velocity_limits: true
+    angular.z.max_velocity: 2.0
+    angular.z.has_acceleration_limits: true
+    angular.z.max_acceleration: 1.5
