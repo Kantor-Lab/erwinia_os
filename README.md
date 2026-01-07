@@ -111,7 +111,15 @@ git commit -m "Brief description of change"
 
 # Push your branch and open a PR
 git push -u origin <username>/<feature-to-be>
+git push           # Should work after setting the upstream ('-u origin <username>/<feature-to-be>')
 # In GitHub/GitLab, open a merge request targeting main and fill in summary + testing
+
+# After PR is merged and successful, delete the old feature branch
+git checkout main
+git pull origin main      # Update local main with merged changes
+git branch -d <username>/<feature-to-be>  # Delete local branch
+
+# Begin a new feature branch for the next feature intented to be added
 
 
 # Useful git checks and navigation
