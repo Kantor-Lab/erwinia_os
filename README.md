@@ -115,7 +115,7 @@ xacro $(ros2 pkg prefix erwinia_os_description)/share/erwinia_os_description/urd
 check_urdf <path_to_urdf>
 ```
 
-## Getting set up (ROS 2 Humble)
+## Getting set up (ROS 2 Humble on Ubuntu 22)
 
 1. Install ROS 2 Humble by following the official guide: https://docs.ros.org/en/humble/Installation.html (use the instructions for your OS).
 2. Create a workspace and clone this repo under `src`:
