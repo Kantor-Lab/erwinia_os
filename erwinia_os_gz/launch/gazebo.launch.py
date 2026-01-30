@@ -15,7 +15,7 @@ def launch_setup(context, *args, **kwargs):
     world = LaunchConfiguration('world')
     world_value = world.perform(context)
     
-    pkg_gz = get_package_share_directory('husky_xarm6_mcr_gz')
+    pkg_gz = get_package_share_directory('erwinia_os_gz')
     worlds_dir = os.path.join(pkg_gz, 'worlds')
     models_dir = os.path.join(pkg_gz, 'models')
 
