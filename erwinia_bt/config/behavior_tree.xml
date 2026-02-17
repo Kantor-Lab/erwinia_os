@@ -1,0 +1,45 @@
+<root main_tree_to_execute="Main">
+  <BehaviorTree ID="Main">
+    <Sequence>
+
+      <InitSystem/>
+
+      <LoadTargets targets="{targets}"/>
+
+      <ForEachTarget targets="{targets}" current="{current_target}">
+        <Sequence>
+
+          <!-- EnsureAtTree: succeed if already reached, else navigate -->
+          <Fallback>
+            <ReachedPose goal="{current_target}" tol="0.75"/>
+            <RetryUntilSuccessful num_attempts="3">
+              <NavigateToPose goal="{current_target}"/>
+            </RetryUntilSuccessful>
+          </Fallback>
+
+          <!-- Scan + detect (writes {detection_result}, {confidence}) -->
+          <ErwiniaDetector target="{current_target}"
+                           result="{detection_result}"/>
+
+          <!-- Marking decision: do nothing on healthy -->
+          <Fallback>
+            <Sequence>
+              <IsInfected result="{detection_result}"/>
+              <MarkLocation target="{current_target}" marked="{marked}" error="{mark_error}"/>
+            </Sequence>
+            <AlwaysSuccess/>
+          </Fallback>
+
+          <LogTreeResult target="{current_target}"
+                         result="{detection_result}"
+                         marked="{marked}"
+                         mark_error="{mark_error}"/>
+
+        </Sequence>
+      </ForEachTarget>
+
+      <ShutdownSystem/>
+
+    </Sequence>
+  </BehaviorTree>
+</root>
