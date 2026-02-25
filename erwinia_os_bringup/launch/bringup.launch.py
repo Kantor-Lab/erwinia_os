@@ -31,6 +31,7 @@ def launch_setup(context, *args, **kwargs):
     config_file = LaunchConfiguration('config_file')
     world = LaunchConfiguration('world')
     use_rviz = LaunchConfiguration('use_rviz')
+    use_foxglove = LaunchConfiguration('use_foxglove')
     manipulator_prefix = LaunchConfiguration('manipulator_prefix')
     manipulator_ns = LaunchConfiguration('manipulator_ns')
     platform_prefix = LaunchConfiguration('platform_prefix')
@@ -118,6 +119,17 @@ def launch_setup(context, *args, **kwargs):
         )
         launch_actions.append(map_frame_publisher)
     
+    # Optionally launch Foxglove Bridge
+    if use_foxglove.perform(context).lower() == 'true':
+        foxglove_bridge_node = Node(
+            package='foxglove_bridge',
+            executable='foxglove_bridge',
+            name='foxglove_bridge',
+            parameters=[{'use_sim_time': use_sim_time}],
+            output='screen'
+        )
+        launch_actions.append(foxglove_bridge_node)
+
     # Optionally launch RViz
     if use_rviz.perform(context).lower() == 'true':
         rviz_config = os.path.join(description_pkg, 'rviz', 'view.rviz')
@@ -165,6 +177,11 @@ def generate_launch_description():
             'use_rviz',
             default_value='true',
             description='Whether to launch RViz'
+        ),
+        DeclareLaunchArgument(
+            'use_foxglove',
+            default_value='true',
+            description='Whether to launch Foxglove Bridge'
         ),
         DeclareLaunchArgument(
             'manipulator_prefix',
