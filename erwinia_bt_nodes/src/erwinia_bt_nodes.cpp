@@ -161,10 +161,10 @@ public:
 
     auto options = rclcpp_action::Client<NavigateToPose>::SendGoalOptions();
     options.goal_response_callback =
-      [this](std::shared_future<GoalHandle::SharedPtr> future) {
+      [this](GoalHandle::SharedPtr goal_handle) {
         std::lock_guard<std::mutex> lock(mutex_);
         goal_response_received_ = true;
-        goal_handle_ = future.get();
+        goal_handle_ = goal_handle;
       };
     options.result_callback =
       [this](const GoalHandle::WrappedResult& result) {
@@ -282,10 +282,10 @@ public:
 
     auto options = rclcpp_action::Client<DetectErwinia>::SendGoalOptions();
     options.goal_response_callback =
-      [this](std::shared_future<GoalHandle::SharedPtr> future) {
+      [this](GoalHandle::SharedPtr goal_handle) {
         std::lock_guard<std::mutex> lock(mutex_);
         goal_response_received_ = true;
-        goal_handle_ = future.get();
+        goal_handle_ = goal_handle;
       };
     options.result_callback =
       [this](const GoalHandle::WrappedResult& result) {
@@ -411,10 +411,10 @@ public:
 
     auto options = rclcpp_action::Client<MarkLocation>::SendGoalOptions();
     options.goal_response_callback =
-      [this](std::shared_future<GoalHandle::SharedPtr> future) {
+      [this](GoalHandle::SharedPtr goal_handle) {
         std::lock_guard<std::mutex> lock(mutex_);
         goal_response_received_ = true;
-        goal_handle_ = future.get();
+        goal_handle_ = goal_handle;
       };
     options.result_callback =
       [this](const GoalHandle::WrappedResult& result) {
