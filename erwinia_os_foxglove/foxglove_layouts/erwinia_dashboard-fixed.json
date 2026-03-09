@@ -1,0 +1,625 @@
+{
+  "configById": {
+    "3D!main_3d": {
+      "cameraState": {
+        "distance": 8,
+        "perspective": true,
+        "phi": 55,
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOffset": [
+          0,
+          0,
+          0.5
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "thetaOffset": -45,
+        "fovy": 45,
+        "near": 0.1,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "followTf": "base_link",
+      "scene": {
+        "backgroundColor": "#1a1a2e",
+        "enableStats": false
+      },
+      "transforms": {
+        "frame:map": {
+          "visible": true
+        },
+        "frame:odom": {
+          "visible": false
+        }
+      },
+      "topics": {
+        "/occupancy_map_markers": {
+          "visible": true
+        },
+        "/firefly_left/points2": {
+          "visible": true,
+          "pointSize": 2,
+          "colorMode": "flat",
+          "flatColor": "#00ff88"
+        },
+        "/robot_description": {
+          "visible": true
+        },
+        "/tf": {
+          "visible": false
+        },
+        "/goal_pose": {
+          "visible": true
+        },
+        "/map": {
+          "visible": true
+        }
+      },
+      "layers": {
+        "grid": {
+          "visible": true,
+          "frameLocked": true,
+          "label": "Grid",
+          "instanceId": "a1b2c3d4-grid-layer-001",
+          "layerId": "foxglove.Grid",
+          "size": 20,
+          "divisions": 20,
+          "lineWidth": 1,
+          "color": "#333355",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "publish": {
+        "type": "point",
+        "poseTopic": "/goal_pose",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "imageMode": {},
+      "foxglovePanelTitle": "3D View"
+    },
+    "Image!yolo_view": {
+      "cameraState": {
+        "distance": 20,
+        "perspective": true,
+        "phi": 60,
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "thetaOffset": 45,
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "scene": {},
+      "transforms": {},
+      "topics": {},
+      "layers": {},
+      "publish": {
+        "type": "point",
+        "poseTopic": "/goal_pose",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "imageMode": {
+        "imageTopic": "/yolo/debug_image"
+      },
+      "foxglovePanelTitle": "YOLO Detections"
+    },
+    "Image!right_cam": {
+      "cameraState": {
+        "distance": 20,
+        "perspective": true,
+        "phi": 60,
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "thetaOffset": 45,
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "scene": {},
+      "transforms": {},
+      "topics": {},
+      "layers": {},
+      "publish": {
+        "type": "point",
+        "poseTopic": "/goal_pose",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "imageMode": {
+        "imageTopic": "/firefly_right/image_rect"
+      },
+      "foxglovePanelTitle": "Right Camera"
+    },
+    "RawMessages!spray_status": {
+      "diffEnabled": false,
+      "diffMethod": "custom",
+      "diffTopicPath": "",
+      "showFullMessageForDiff": false,
+      "topicPath": "/trigger/status",
+      "foxglovePanelTitle": "Spray Status"
+    },
+    "RawMessages!current_task": {
+      "diffEnabled": false,
+      "diffMethod": "custom",
+      "diffTopicPath": "",
+      "showFullMessageForDiff": false,
+      "topicPath": "/current_task",
+      "foxglovePanelTitle": "Current Task"
+    },
+    "RawMessages!robot_mode": {
+      "diffEnabled": false,
+      "diffMethod": "custom",
+      "diffTopicPath": "",
+      "showFullMessageForDiff": false,
+      "topicPath": "/robot_mode",
+      "foxglovePanelTitle": "Robot Mode"
+    },
+    "3D!nav_3d": {
+      "cameraState": {
+        "distance": 20,
+        "perspective": false,
+        "phi": 90,
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "thetaOffset": 0,
+        "fovy": 45,
+        "near": 0.1,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "followTf": "base_link",
+      "scene": {
+        "backgroundColor": "#0d1117",
+        "enableStats": false
+      },
+      "transforms": {},
+      "topics": {
+        "/map": {
+          "visible": true
+        },
+        "/goal_pose": {
+          "visible": true
+        },
+        "/robot_description": {
+          "visible": true
+        },
+        "/occupancy_map_markers": {
+          "visible": true
+        }
+      },
+      "layers": {
+        "grid": {
+          "visible": true,
+          "frameLocked": true,
+          "label": "Grid",
+          "instanceId": "a1b2c3d4-grid-layer-002",
+          "layerId": "foxglove.Grid",
+          "size": 30,
+          "divisions": 30,
+          "lineWidth": 1,
+          "color": "#222244",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "publish": {
+        "type": "pose",
+        "poseTopic": "/goal_pose",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "imageMode": {},
+      "foxglovePanelTitle": "Nav Map"
+    },
+    "Plot!velocity_plot": {
+      "paths": [
+        {
+          "value": "/cmd_vel.linear.x",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "Linear X"
+        },
+        {
+          "value": "/cmd_vel.linear.y",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "Linear Y"
+        },
+        {
+          "value": "/cmd_vel.angular.z",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "Angular Z"
+        },
+        {
+          "value": "/odom.twist.twist.linear.x",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "Odom Lin X"
+        },
+        {
+          "value": "/odom.twist.twist.angular.z",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "Odom Ang Z"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240,
+      "foxglovePanelTitle": "Platform Velocity (Francisco)"
+    },
+    "Image!left_cam": {
+      "cameraState": {
+        "distance": 20,
+        "perspective": true,
+        "phi": 60,
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "thetaOffset": 45,
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "scene": {},
+      "transforms": {},
+      "topics": {},
+      "layers": {},
+      "publish": {
+        "type": "point",
+        "poseTopic": "/goal_pose",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "imageMode": {
+        "imageTopic": "/firefly_left/image_rect"
+      },
+      "foxglovePanelTitle": "Left Camera"
+    },
+    "Image!disparity_view": {
+      "cameraState": {
+        "distance": 20,
+        "perspective": true,
+        "phi": 60,
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "thetaOffset": 45,
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "scene": {},
+      "transforms": {},
+      "topics": {},
+      "layers": {},
+      "publish": {
+        "type": "point",
+        "poseTopic": "/goal_pose",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "imageMode": {
+        "imageTopic": "/firefly_left/disparity"
+      },
+      "foxglovePanelTitle": "Stereo Disparity"
+    },
+    "Plot!joint_plot": {
+      "paths": [
+        {
+          "value": "/xarm/joint_states.position[0]",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "Joint 1"
+        },
+        {
+          "value": "/xarm/joint_states.position[1]",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "Joint 2"
+        },
+        {
+          "value": "/xarm/joint_states.position[2]",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "Joint 3"
+        },
+        {
+          "value": "/xarm/joint_states.position[3]",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "Joint 4"
+        },
+        {
+          "value": "/xarm/joint_states.position[4]",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "Joint 5"
+        },
+        {
+          "value": "/xarm/joint_states.position[5]",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "Joint 6"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240,
+      "foxglovePanelTitle": "Arm Joint Positions"
+    },
+    "Plot!servo_plot": {
+      "paths": [
+        {
+          "value": "/servo_node/delta_twist_cmds.twist.linear.x",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "Linear X"
+        },
+        {
+          "value": "/servo_node/delta_twist_cmds.twist.linear.y",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "Linear Y"
+        },
+        {
+          "value": "/servo_node/delta_twist_cmds.twist.linear.z",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "Linear Z"
+        },
+        {
+          "value": "/servo_node/delta_twist_cmds.twist.angular.x",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "Angular X"
+        },
+        {
+          "value": "/servo_node/delta_twist_cmds.twist.angular.y",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "Angular Y"
+        },
+        {
+          "value": "/servo_node/delta_twist_cmds.twist.angular.z",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "Angular Z"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240,
+      "foxglovePanelTitle": "Servo Twist Commands"
+    },
+    "RosOut!logs": {
+      "searchTerms": [],
+      "minLogLevel": 2,
+      "foxglovePanelTitle": "Logs"
+    },
+    "Tab!main_tabs": {
+      "activeTabIdx": 4,
+      "tabs": [
+        {
+          "title": "Operator",
+          "layout": {
+            "first": "3D!main_3d",
+            "second": {
+              "first": {
+                "first": "Image!yolo_view",
+                "second": "Image!right_cam",
+                "direction": "column",
+                "splitPercentage": 50
+              },
+              "second": {
+                "first": "RawMessages!spray_status",
+                "second": {
+                  "first": "RawMessages!current_task",
+                  "second": "RawMessages!robot_mode",
+                  "direction": "row",
+                  "splitPercentage": 50
+                },
+                "direction": "column",
+                "splitPercentage": 40
+              },
+              "direction": "column",
+              "splitPercentage": 65
+            },
+            "direction": "row",
+            "splitPercentage": 65
+          }
+        },
+        {
+          "title": "Navigation",
+          "layout": {
+            "first": "3D!nav_3d",
+            "second": "Plot!velocity_plot",
+            "direction": "column",
+            "splitPercentage": 65
+          }
+        },
+        {
+          "title": "Cameras",
+          "layout": {
+            "first": {
+              "first": "Image!left_cam",
+              "second": "Image!right_cam",
+              "direction": "row",
+              "splitPercentage": 50
+            },
+            "second": {
+              "first": "Image!yolo_view",
+              "second": "Image!disparity_view",
+              "direction": "row",
+              "splitPercentage": 50
+            },
+            "direction": "column",
+            "splitPercentage": 50
+          }
+        },
+        {
+          "title": "Arm Control",
+          "layout": {
+            "first": "3D!main_3d",
+            "second": {
+              "first": "Plot!joint_plot",
+              "second": "Plot!servo_plot",
+              "direction": "column",
+              "splitPercentage": 50
+            },
+            "direction": "row",
+            "splitPercentage": 55
+          }
+        },
+        {
+          "title": "Field Map",
+          "layout": "Erwinia Map Panel.ErwiniaMap!3sa6tcq"
+        },
+        {
+          "title": "Logs",
+          "layout": "RosOut!logs"
+        }
+      ]
+    },
+    "Erwinia Map Panel.ErwiniaMap!3sa6tcq": {}
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": "Tab!main_tabs"
+}
