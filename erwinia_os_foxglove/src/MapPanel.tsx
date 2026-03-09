@@ -1,5 +1,6 @@
 import { Immutable, PanelExtensionContext, RenderState, SettingsTreeAction, SettingsTreeNodes } from "@foxglove/extension";
 import L from "leaflet";
+import { CachedTileLayer, downloadTilesForArea } from "./CachedTileLayer";
 
 // Inline Leaflet CSS to avoid external file loading issues in extensions
 const LEAFLET_CSS = `
@@ -238,6 +239,142 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
   });
   panelEl.appendChild(clearBtn);
 
+  // Download tiles overlay
+  const downloadOverlay = document.createElement("div");
+  downloadOverlay.style.cssText = `
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    z-index:1001; background:rgba(0,0,0,0.9); border-radius:8px;
+    padding:16px 20px; color:#fff; font-size:13px; font-family:sans-serif;
+    display:none; min-width:280px;
+  `;
+
+  const dlTitle = document.createElement("div");
+  dlTitle.style.cssText = "font-weight:bold;font-size:15px;margin-bottom:12px;";
+  dlTitle.textContent = "Download Field Tiles";
+  downloadOverlay.appendChild(dlTitle);
+
+  // Lat input
+  const latLabel = document.createElement("label");
+  latLabel.textContent = "Latitude: ";
+  latLabel.style.cssText = "display:block;margin-bottom:8px;";
+  const latInput = document.createElement("input");
+  latInput.type = "number";
+  latInput.step = "0.0001";
+  latInput.style.cssText = "width:120px;padding:4px;border-radius:3px;border:1px solid #555;background:#222;color:#fff;";
+  latInput.value = "40.4400";
+  latLabel.appendChild(latInput);
+  downloadOverlay.appendChild(latLabel);
+
+  // Lon input
+  const lonLabel = document.createElement("label");
+  lonLabel.textContent = "Longitude: ";
+  lonLabel.style.cssText = "display:block;margin-bottom:8px;";
+  const lonInput = document.createElement("input");
+  lonInput.type = "number";
+  lonInput.step = "0.0001";
+  lonInput.style.cssText = "width:120px;padding:4px;border-radius:3px;border:1px solid #555;background:#222;color:#fff;";
+  lonInput.value = "-79.9400";
+  lonLabel.appendChild(lonInput);
+  downloadOverlay.appendChild(lonLabel);
+
+  // Size slider
+  const sizeLabel = document.createElement("label");
+  sizeLabel.style.cssText = "display:block;margin-bottom:8px;";
+  const sizeText = document.createElement("span");
+  sizeText.textContent = "Area: 1 km x 1 km";
+  sizeLabel.appendChild(sizeText);
+  sizeLabel.appendChild(document.createElement("br"));
+  const sizeSlider = document.createElement("input");
+  sizeSlider.type = "range";
+  sizeSlider.min = "1";
+  sizeSlider.max = "5";
+  sizeSlider.step = "0.5";
+  sizeSlider.value = "1";
+  sizeSlider.style.cssText = "width:100%;margin-top:4px;";
+  sizeSlider.addEventListener("input", () => {
+    sizeText.textContent = `Area: ${sizeSlider.value} km x ${sizeSlider.value} km`;
+  });
+  sizeLabel.appendChild(sizeSlider);
+  downloadOverlay.appendChild(sizeLabel);
+
+  // Progress bar
+  const progressContainer = document.createElement("div");
+  progressContainer.style.cssText = "display:none;margin-bottom:8px;";
+  const progressBar = document.createElement("div");
+  progressBar.style.cssText = "width:100%;height:8px;background:#333;border-radius:4px;overflow:hidden;";
+  const progressFill = document.createElement("div");
+  progressFill.style.cssText = "width:0%;height:100%;background:#4caf50;transition:width 0.2s;";
+  progressBar.appendChild(progressFill);
+  progressContainer.appendChild(progressBar);
+  const progressText = document.createElement("div");
+  progressText.style.cssText = "font-size:11px;color:#aaa;margin-top:4px;";
+  progressContainer.appendChild(progressText);
+  downloadOverlay.appendChild(progressContainer);
+
+  // Buttons row
+  const btnRow = document.createElement("div");
+  btnRow.style.cssText = "display:flex;gap:8px;margin-top:12px;";
+
+  const dlBtn = document.createElement("button");
+  dlBtn.textContent = "Download";
+  dlBtn.style.cssText = `
+    flex:1; padding:8px; border:none; border-radius:4px;
+    background:#4caf50; color:#fff; font-size:13px; cursor:pointer;
+  `;
+  dlBtn.addEventListener("click", async () => {
+    const lat = parseFloat(latInput.value);
+    const lon = parseFloat(lonInput.value);
+    const sizeKm = parseFloat(sizeSlider.value);
+    if (isNaN(lat) || isNaN(lon)) return;
+
+    dlBtn.disabled = true;
+    dlBtn.textContent = "Downloading...";
+    progressContainer.style.display = "block";
+
+    await downloadTilesForArea(lat, lon, sizeKm, (done, total) => {
+      const pct = Math.round((done / total) * 100);
+      progressFill.style.width = `${pct}%`;
+      progressText.textContent = `${done} / ${total} tiles`;
+    });
+
+    dlBtn.disabled = false;
+    dlBtn.textContent = "Download";
+    progressText.textContent = "Done!";
+  });
+  btnRow.appendChild(dlBtn);
+
+  const closeBtn = document.createElement("button");
+  closeBtn.textContent = "Close";
+  closeBtn.style.cssText = `
+    flex:1; padding:8px; border:1px solid rgba(255,255,255,0.3); border-radius:4px;
+    background:transparent; color:#fff; font-size:13px; cursor:pointer;
+  `;
+  closeBtn.addEventListener("click", () => {
+    downloadOverlay.style.display = "none";
+  });
+  btnRow.appendChild(closeBtn);
+  downloadOverlay.appendChild(btnRow);
+  panelEl.appendChild(downloadOverlay);
+
+  // Download tiles button (next to clear heatmap)
+  const openDlBtn = document.createElement("button");
+  openDlBtn.textContent = "Download Tiles";
+  openDlBtn.style.cssText = `
+    position:absolute; left:130px; bottom:12px; z-index:1000;
+    background:rgba(0,0,0,0.75); border:1px solid rgba(255,255,255,0.3);
+    border-radius:4px; padding:6px 12px; color:#fff; font-size:12px;
+    font-family:sans-serif; cursor:pointer;
+  `;
+  openDlBtn.addEventListener("click", () => {
+    // Pre-fill with current GPS if available
+    if (currentGpsLat !== 0 || currentGpsLon !== 0) {
+      latInput.value = currentGpsLat.toFixed(6);
+      lonInput.value = currentGpsLon.toFixed(6);
+    }
+    downloadOverlay.style.display = downloadOverlay.style.display === "none" ? "block" : "none";
+  });
+  panelEl.appendChild(openDlBtn);
+
   // State
   let settings: PanelSettings = { ...DEFAULT_SETTINGS };
   let map: L.Map | undefined;
@@ -273,7 +410,7 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     });
 
     const layer = TILE_LAYERS[settings.mapStyle] ?? TILE_LAYERS.satellite!;
-    tileLayer = L.tileLayer(layer.url, { attribution: layer.attribution, maxZoom: 22 }).addTo(map);
+    tileLayer = new CachedTileLayer(layer.url, { attribution: layer.attribution, maxZoom: 22 }).addTo(map);
 
     gridLayer = L.layerGroup().addTo(map);
     heatmapLayer = L.layerGroup().addTo(map);
@@ -322,7 +459,7 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     if (!map || !tileLayer) return;
     map.removeLayer(tileLayer);
     const layer = TILE_LAYERS[settings.mapStyle] ?? TILE_LAYERS.satellite!;
-    tileLayer = L.tileLayer(layer.url, { attribution: layer.attribution, maxZoom: 22 }).addTo(map);
+    tileLayer = new CachedTileLayer(layer.url, { attribution: layer.attribution, maxZoom: 22 }).addTo(map);
   }
 
   // Settings
