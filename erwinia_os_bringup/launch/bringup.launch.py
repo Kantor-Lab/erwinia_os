@@ -180,7 +180,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'use_foxglove',
-            default_value='true',
+            default_value='false',
             description='Whether to launch Foxglove Bridge'
         ),
         DeclareLaunchArgument(
