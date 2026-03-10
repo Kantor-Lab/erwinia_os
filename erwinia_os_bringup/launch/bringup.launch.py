@@ -78,7 +78,6 @@ def launch_setup(context, *args, **kwargs):
                     ),
                     launch_arguments={
                         'use_gazebo': use_gazebo,
-                        'use_fake_hardware': use_fake_hardware_str,
                         'use_sim_time': use_sim_time,
                         'config_file': config_file,
                         'manipulator_prefix': manipulator_prefix,
@@ -98,7 +97,6 @@ def launch_setup(context, *args, **kwargs):
             ),
             launch_arguments={
                 'use_gazebo': use_gazebo,
-                'use_fake_hardware': use_fake_hardware_str,
                 'use_sim_time': use_sim_time,
                 'config_file': config_file,
                 'manipulator_prefix': manipulator_prefix,
