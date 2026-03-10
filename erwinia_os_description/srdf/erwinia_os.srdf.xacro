@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="erwinia_os">
+
+    <!-- Arguments -->
+    <xacro:arg name="manipulator_ns" default="xarm"/>
+    <xacro:arg name="manipulator_prefix" default="xarm6_"/>
+    <xacro:arg name="platform_ns" default="amiga"/>
+    <xacro:arg name="platform_prefix" default=""/>
+    <xacro:property name="arm_prefix" value="$(arg manipulator_ns)/$(arg manipulator_prefix)"/>
+    <xacro:property name="base_prefix" value="$(arg platform_ns)/$(arg platform_prefix)"/>
+    
+    <!-- Define manipulator group -->
+    <group name="xarm6_manipulator">
+        <joint name="${arm_prefix}joint1"/>
+        <joint name="${arm_prefix}joint2"/>
+        <joint name="${arm_prefix}joint3"/>
+        <joint name="${arm_prefix}joint4"/>
+        <joint name="${arm_prefix}joint5"/>
+        <joint name="${arm_prefix}joint6"/>
+        <joint name="${arm_prefix}joint_eef"/>
+    </group>
+    <end_effector name="eef" parent_link="${arm_prefix}link6" group="xarm6_manipulator"/>
+    
+    <!-- Define group states -->
+    <group_state name="home" group="xarm6_manipulator">
+        <joint name="${arm_prefix}joint1" value="0.0"/>
+        <joint name="${arm_prefix}joint2" value="-0.7854"/>
+        <joint name="${arm_prefix}joint3" value="-0.7854"/>
+        <joint name="${arm_prefix}joint4" value="0.0"/>
+        <joint name="${arm_prefix}joint5" value="0.0"/>
+        <joint name="${arm_prefix}joint6" value="1.5708"/>
+    </group_state>
+    <group_state name="hold-up" group="xarm6_manipulator">
+        <joint name="${arm_prefix}joint1" value="0"/>
+        <joint name="${arm_prefix}joint2" value="0"/>
+        <joint name="${arm_prefix}joint3" value="0"/>
+        <joint name="${arm_prefix}joint4" value="0"/>
+        <joint name="${arm_prefix}joint5" value="-1.5708"/>
+        <joint name="${arm_prefix}joint6" value="0"/>
+    </group_state>
+
+    <!-- TODO: Add in collision matrix -->
+    <!-- <xacro:include filename="$(find multi_camera_rig_description)/srdf/multi_cam_rig.srdf.xacro"/> -->
+    <!-- <disable_collisions link1="${arm_prefix}link1" link2="${arm_prefix}link2" reason="Adjacent"/>
+    <disable_collisions link1="${arm_prefix}link1" link2="${arm_prefix}link3" reason="Never"/>
+    <disable_collisions link1="${arm_prefix}link1" link2="${arm_prefix}base_link" reason="Adjacent"/>
+    <disable_collisions link1="${arm_prefix}link2" link2="${arm_prefix}link3" reason="Adjacent"/>
+    <disable_collisions link1="${arm_prefix}link2" link2="${arm_prefix}base_link" reason="Never"/>
+    <disable_collisions link1="${arm_prefix}link3" link2="${arm_prefix}link4" reason="Adjacent"/>
+    <disable_collisions link1="${arm_prefix}link4" link2="${arm_prefix}link5" reason="Adjacent"/>
+    <disable_collisions link1="${arm_prefix}link5" link2="${arm_prefix}link6" reason="Adjacent"/>
+    <disable_collisions link1="${arm_prefix}base_link" link2="${base_prefix}base_link" reason="Never"/>
+    <disable_collisions link1="${arm_prefix}base_link" link2="${base_prefix}top_chassis_link" reason="Default"/>
+    <disable_collisions link1="${arm_prefix}base_link" link2="${base_prefix}front_left_wheel" reason="Never"/>
+    <disable_collisions link1="${arm_prefix}base_link" link2="${base_prefix}front_right_wheel" reason="Never"/>
+    <disable_collisions link1="${arm_prefix}base_link" link2="${base_prefix}rear_left_wheel" reason="Never"/>
+    <disable_collisions link1="${arm_prefix}base_link" link2="${base_prefix}rear_right_wheel" reason="Never"/>
+    <disable_collisions link1="${arm_prefix}base_link" link2="${base_prefix}x_rail_riser_link" reason="Adjacent"/>
+    <disable_collisions link1="${arm_prefix}link1" link2="${base_prefix}x_rail_riser_link" reason="Never"/>
+    <disable_collisions link1="${base_prefix}base_link" link2="${base_prefix}front_left_wheel" reason="Adjacent"/>
+    <disable_collisions link1="${base_prefix}base_link" link2="${base_prefix}front_right_wheel" reason="Adjacent"/>
+    <disable_collisions link1="${base_prefix}base_link" link2="${base_prefix}rear_left_wheel" reason="Adjacent"/>
+    <disable_collisions link1="${base_prefix}base_link" link2="${base_prefix}rear_right_wheel" reason="Adjacent"/>
+    <disable_collisions link1="${base_prefix}base_link" link2="${base_prefix}x_rail_riser_link" reason="Adjacent"/>
+    <disable_collisions link1="${arm_prefix}link6" link2="multi_camera_rig_link" reason="Adjacent"/> -->
+    <xacro:multi_camera_rig/>
+</robot>
