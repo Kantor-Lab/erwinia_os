@@ -9,6 +9,8 @@
     <xacro:arg name="manipulator_prefix" default="xarm6_"/>
     <xacro:arg name="platform_ns" default="amiga"/>
     <xacro:arg name="platform_prefix" default=""/>
+    <xacro:arg name="manipulator_ip" default="192.168.1.205"/>
+    <xacro:arg name="report_type" default="normal"/>
 
     <!-- TODO: Fine tune Amiga model -->
     <!-- AMIGA PLATFORM -->
@@ -29,15 +31,30 @@
         prefix="$(arg platform_ns)/$(arg platform_prefix)" 
         parent="$(arg platform_ns)/$(arg platform_prefix)base_link"/> -->
 
-    <!-- TODO: Add in robotic manipulator -->
+    <!-- xArm6 Robotic Manipulator -->
+    <xacro:include filename="$(find husky_xarm6_mcr_description)/urdf/xarm6/xarm6_macro.urdf.xacro"/>
+    <xacro:xarm6 namespace="$(arg manipulator_ns)" prefix="$(arg manipulator_prefix)" model_num="1303" 
+        parent_link="$(arg platform_ns)/$(arg platform_prefix)base_link">
+        <origin xyz="0.0 -0.8 1.0" rpy="0 0 ${-pi/2}"/>
+    </xacro:xarm6>
 
     <!-- ROS2_CONTROL -->
+    <!-- Controller config for the Amiga platform -->
     <xacro:include filename="$(find erwinia_os_description)/urdf/amiga/amiga_ros2_control.xacro"/>
     <xacro:amiga_ros2_control 
         namespace="$(arg platform_ns)" 
         prefix="$(arg platform_prefix)" 
         use_gazebo="$(arg use_gazebo)" 
         use_fake_hardware="$(arg use_fake_hardware)"/>
+    <!-- Controller config for the xArm6 manipulator -->
+    <xacro:include filename="$(find husky_xarm6_mcr_description)/urdf/xarm6/xarm6_ros2_control.xacro"/>
+    <xacro:xarm6_ros2_control 
+        namespace="$(arg manipulator_ns)" 
+        prefix="$(arg manipulator_prefix)" 
+        use_gazebo="$(arg use_gazebo)" 
+        use_fake_hardware="$(arg use_fake_hardware)"
+        robot_ip="$(arg manipulator_ip)" 
+        report_type="$(arg report_type)"/>
 
     <!-- Gazebo plugin for controller manager (only needed once for whole robot) -->
     <xacro:if value="$(arg use_gazebo)">
