@@ -124,11 +124,23 @@ check_urdf <path_to_urdf>
    cd ~/ros2_ws/src
    git clone https://github.com/Kantor-Lab/erwinia_os.git
    ```
-3. Source your ROS 2 environment, then build:
-   ```bash
-   cd ~/ros2_ws
-   source /opt/ros/humble/setup.bash
-   colcon build --symlink-install
-   source install/setup.bash
-   ```
+3. Import dependency repositories using vcstool:
+    ```bash
+    # Install vcs if needed
+    sudo apt install python3-vcstool
+
+    cd ~/ros2_ws
+    vcs import src/ < src/erwinia_os/dependencies.repos
+    ```
+4. Install ROS2 package dependencies via rosdep:
+    ```bash
+    source /opt/ros/humble/setup.bash
+    rosdep update
+    rosdep install --from-paths src/ --ignore-src -r -y
+    ```
+5. Build and source ROS2 workspace:
+    ```bash
+    colcon build --symlink-install
+    source install/setup.bash
+    ```
 
