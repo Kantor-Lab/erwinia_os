@@ -43,27 +43,22 @@ def launch_setup(context, *args, **kwargs):
 
     # Get launch arguments
     use_gazebo = LaunchConfiguration('use_gazebo')
-    use_fake_hardware = LaunchConfiguration('use_fake_hardware')
     use_sim_time = LaunchConfiguration('use_sim_time')
     config_file = LaunchConfiguration('config_file')
     manipulator_ns = LaunchConfiguration('manipulator_ns')
     manipulator_prefix = LaunchConfiguration('manipulator_prefix')
     platform_ns = LaunchConfiguration('platform_ns')
     platform_prefix = LaunchConfiguration('platform_prefix')
+    robot_ip = LaunchConfiguration('robot_ip')
+    report_type = LaunchConfiguration('report_type')
     
     # Perform context evaluation
     use_gazebo_val = use_gazebo.perform(context).lower() == 'true'
-    use_fake_hardware_val = use_fake_hardware.perform(context).lower() == 'true'
-    use_sim_time_val = use_sim_time.perform(context).lower() == 'true'
     config_file_val = config_file.perform(context)
     manipulator_ns_val = manipulator_ns.perform(context)
     manipulator_prefix_val = manipulator_prefix.perform(context)
     platform_ns_val = platform_ns.perform(context)
     platform_prefix_val = platform_prefix.perform(context)
-    
-    # Validate configuration
-    if use_gazebo_val and use_fake_hardware_val:
-        raise ValueError('Cannot use both Gazebo and fake hardware simultaneously')
     
     # Generate controller configuration
     if config_file_val == '':
@@ -73,7 +68,6 @@ def launch_setup(context, *args, **kwargs):
             platform_ns=platform_ns_val,
             platform_prefix=platform_prefix_val,
             use_gazebo=use_gazebo_val,
-            use_fake_hardware=use_fake_hardware_val
         )
         
         # Write config to temporary file
@@ -84,19 +78,21 @@ def launch_setup(context, *args, **kwargs):
     else:
         controllers_yaml_path = Path(config_file_val)
 
+    # Process xacro with launch-time parameters to generate robot description content
     robot_description = get_xacro_content(
         context,
         xacro_file=xacro_file,
         use_gazebo=use_gazebo,
-        use_fake_hardware='true' if use_fake_hardware_val else 'false',
         config_file=controllers_yaml_path,
         manipulator_prefix=manipulator_prefix,
         manipulator_ns=manipulator_ns,
         platform_prefix=platform_prefix,
-        platform_ns=platform_ns
+        platform_ns=platform_ns,
+        robot_ip=robot_ip,
+        report_type=report_type
     )
     
-    # Publish the robot state to tf (use simulated time)
+    # Publish the robot state to tf (use simulated time if in gazebo)
     robot_state_publisher = Node(
         package='robot_state_publisher',
         executable='robot_state_publisher',
@@ -122,8 +118,11 @@ def launch_setup(context, *args, **kwargs):
                 '-z', '0.3', # slight z offset to avoid collision with ground plane
                 # Initial joint positions to avoid collision
                 # '-j', 'xarm6_joint1', '0.0',
-                # '-j', 'xarm6_joint2', '-0.5',
-                # '-j', 'xarm6_joint3', '0.5',
+                # '-j', 'xarm6_joint2', '-0.7854',
+                # '-j', 'xarm6_joint3', '-0.7854',
+                # '-j', 'xarm6_joint4', '0.0',
+                # '-j', 'xarm6_joint5', '0.0',
+                # '-j', 'xarm6_joint6', '1.5708',
             ],
             parameters=[{'use_sim_time': use_sim_time}],
         )
@@ -146,25 +145,20 @@ def launch_setup(context, *args, **kwargs):
             parameters=[{'use_sim_time': use_sim_time}]
         )
 
-        # xarm6_traj_controller = Node(
-        #     package='controller_manager',
-        #     executable='spawner',
-        #     arguments=[
-        #         'xarm6_traj_controller',
-        #         '--controller-manager', '/controller_manager',
-        #         '--param-file', str(controllers_yaml_path)
-        #         ],
-        #     parameters=[{'use_sim_time': use_sim_time}]
-        # )
+        xarm6_traj_controller = Node(
+            package='controller_manager',
+            executable='spawner',
+            arguments=[
+                'xarm6_traj_controller',
+                '--controller-manager', '/controller_manager',
+                '--param-file', str(controllers_yaml_path)
+                ],
+            parameters=[{'use_sim_time': use_sim_time}]
+        )
 
         # Start platform controller and arm controller after joint state broadcaster
         jsb_then_controllers = RegisterEventHandler(
-            OnProcessExit(
-                target_action=joint_state_broadcaster, 
-                on_exit=[
-                    platform_velocity_controller, 
-                    # xarm6_traj_controller
-                ])
+            OnProcessExit(target_action=joint_state_broadcaster, on_exit=[platform_velocity_controller, xarm6_traj_controller])
         )
 
         # Control bridge - handles robot control topics only
@@ -209,7 +203,7 @@ def launch_setup(context, *args, **kwargs):
         # Build controller list based on configuration
         controllers = [
             'joint_state_broadcaster', 
-            # 'xarm6_traj_controllers',
+            'xarm6_traj_controller',
             'platform_velocity_controller'
         ]
 
@@ -234,45 +228,14 @@ def launch_setup(context, *args, **kwargs):
 
 def generate_launch_description():
     return LaunchDescription([
-        DeclareLaunchArgument(
-            'use_gazebo', 
-            default_value='false', 
-            description='Enable Gazebo simulation mode'
-        ),
-        DeclareLaunchArgument(
-            'use_fake_hardware', 
-            default_value='true', 
-            description='Use fake hardware interface if true (default for testing)'
-        ),
-        DeclareLaunchArgument(
-            'use_sim_time', 
-            default_value='false', 
-            description='Use simulated time if true'
-        ),
-        DeclareLaunchArgument(
-            'config_file', 
-            default_value='',
-            description='Path to controllers YAML configuration file'
-        ),
-        DeclareLaunchArgument(
-            'manipulator_ns', 
-            default_value='xarm', 
-            description='Namespace for manipulator'
-        ),
-        DeclareLaunchArgument(
-            'manipulator_prefix', 
-            default_value='xarm6_', 
-            description='Prefix for manipulator joint names or frames'
-        ),
-        DeclareLaunchArgument(
-            'platform_ns', 
-            default_value='amiga', 
-            description='Namespace for Amiga platform'
-        ),
-        DeclareLaunchArgument(
-            'platform_prefix', 
-            default_value='', 
-            description='Prefix for platform joint names or frames'
-        ),
+        DeclareLaunchArgument('use_gazebo', default_value='false', description='Enable Gazebo simulation mode'),
+        DeclareLaunchArgument('use_sim_time', default_value='false', description='Use simulated time if true'),
+        DeclareLaunchArgument('config_file', default_value='', description='Path to controllers YAML configuration file'),
+        DeclareLaunchArgument('manipulator_ns', default_value='xarm', description='Namespace for manipulator'),
+        DeclareLaunchArgument('manipulator_prefix', default_value='xarm6_', description='Prefix for manipulator joint names or frames'),
+        DeclareLaunchArgument('platform_ns', default_value='amiga', description='Namespace for Amiga platform'),
+        DeclareLaunchArgument('platform_prefix', default_value='', description='Prefix for platform joint names or frames'),
+        DeclareLaunchArgument('robot_ip', default_value='192.168.1.205', description='IP address of the xArm6 robot'),
+        DeclareLaunchArgument('report_type', default_value='normal', description='Report type for xArm (normal, rich, dev)'),
         OpaqueFunction(function=launch_setup)
     ])

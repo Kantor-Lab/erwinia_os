@@ -10,13 +10,15 @@ from pathlib import Path
 
 def generate_controllers_yaml(manipulator_ns='xarm', manipulator_prefix='xarm6_',
                               platform_ns='amiga', platform_prefix='', 
-                              use_gazebo=False, use_fake_hardware=False):
+                              use_gazebo=False):
     """
     Generate controller configuration with proper namespacing for Amiga platform.
     
     Args:
         platform_ns: Namespace for the mobile platform
         platform_prefix: Prefix for platform joint/link names
+        manipulator_ns: Namespace for the manipulator
+        manipulator_prefix: Prefix for manipulator joint names
         use_gazebo: Whether using Gazebo simulation
         use_fake_hardware: Whether using fake hardware interface
     
@@ -24,20 +26,21 @@ def generate_controllers_yaml(manipulator_ns='xarm', manipulator_prefix='xarm6_'
         dict: Controller configuration dictionary
     """
     # Build namespace prefix
-    manipulator_ns_prefix = f"{manipulator_ns}/{manipulator_prefix}" # Not yet implmemented
     platform_ns_prefix = f"{platform_ns}/{platform_prefix}"
+    manipulator_ns_prefix = f"{manipulator_ns}/{manipulator_prefix}"
     
     # Start with base controller manager config
     controller_manager_params = {
         'update_rate': 100,
         'joint_state_broadcaster': {
             'type': 'joint_state_broadcaster/JointStateBroadcaster'
+        },
+        'platform_velocity_controller': {
+            'type': 'diff_drive_controller/DiffDriveController'
+        },
+        'xarm6_traj_controller': {
+            'type': 'joint_trajectory_controller/JointTrajectoryController'
         }
-    }
-    
-    # Add platform controller only if needed
-    controller_manager_params['platform_velocity_controller'] = {
-        'type': 'diff_drive_controller/DiffDriveController'
     }
     
     config = {
@@ -71,6 +74,29 @@ def generate_controllers_yaml(manipulator_ns='xarm', manipulator_prefix='xarm6_'
             'angular.z.max_velocity': 2.0,
             'angular.z.has_acceleration_limits': True,
             'angular.z.max_acceleration': 1.5
+        }
+    }
+
+    # Add the manipulator trajectory controller configuration
+    config['xarm6_traj_controller'] = {
+        'ros__parameters': {
+            'joints': [
+                f'{manipulator_ns_prefix}joint1',
+                f'{manipulator_ns_prefix}joint2',
+                f'{manipulator_ns_prefix}joint3',
+                f'{manipulator_ns_prefix}joint4',
+                f'{manipulator_ns_prefix}joint5',
+                f'{manipulator_ns_prefix}joint6'
+            ],
+            'command_interfaces': ['position'],
+            'state_interfaces': ['position', 'velocity'],
+            'state_publish_rate': 100.0,
+            'action_monitor_rate': 20.0,
+            'allow_partial_joints_goal': False,
+            'constraints': {
+                'stopped_velocity_tolerance': 0.01,
+                'goal_time': 0.0
+            }
         }
     }
     
