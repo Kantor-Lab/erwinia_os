@@ -22,20 +22,21 @@
 
     <!-- TODO: Add in sensors with proper params-->
     <!-- SENSORS -->
-    <!-- <xacro:include filename="$(find erwinia_os_description)/urdf/sensors/amiga_camera_macro.urdf.xacro"/>
     <xacro:include filename="$(find erwinia_os_description)/urdf/sensors/amiga_lidar_macro.urdf.xacro"/>
-    <xacro:amiga_camera 
-        prefix="$(arg platform_ns)/$(arg platform_prefix)" 
-        parent="$(arg platform_ns)/$(arg platform_prefix)base_link"/>
     <xacro:amiga_lidar 
         prefix="$(arg platform_ns)/$(arg platform_prefix)" 
+        parent="$(arg platform_ns)/$(arg platform_prefix)lidar_mount"
+        angle_offset="${30.0 * (pi/180)}"/>
+    <!-- <xacro:include filename="$(find erwinia_os_description)/urdf/sensors/amiga_camera_macro.urdf.xacro"/>
+    <xacro:amiga_camera 
+        prefix="$(arg platform_ns)/$(arg platform_prefix)" 
         parent="$(arg platform_ns)/$(arg platform_prefix)base_link"/> -->
-
+    
     <!-- xArm6 Robotic Manipulator -->
     <xacro:include filename="$(find erwinia_os_description)/urdf/xarm6/xarm6_macro.urdf.xacro"/>
     <xacro:xarm6 namespace="$(arg manipulator_ns)" prefix="$(arg manipulator_prefix)" model_num="1303" 
-        parent_link="$(arg platform_ns)/$(arg platform_prefix)base_link">
-        <origin xyz="0.0 -0.8 1.0" rpy="0 0 ${-pi/2}"/>
+        parent_link="$(arg platform_ns)/$(arg platform_prefix)arm_mount">
+        <origin xyz="0 0 0" rpy="0 0 ${-pi/2}"/>
     </xacro:xarm6>
 
     <!-- ROS2_CONTROL -->

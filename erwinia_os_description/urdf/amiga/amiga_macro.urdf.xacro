@@ -5,26 +5,61 @@
         <!-- Build namespace prefix -->
         <xacro:property name="ns_prefix" value="${namespace}/${prefix}"/>
 
-        <!-- Wheel Mounting Positions -->
-        <xacro:property name="wheelbase" value="0.5316" />
-        <xacro:property name="track" value="0.65856" />
-        <!-- Wheel Properties -->
+        <!-- Wheel properties -->
+        <xacro:property name="wheel_z_offset" value="-0.393" /> <!-- Vertical offset of the wheel center from the base_link -->
+        <xacro:property name="wheelbase" value="0.77" /> <!-- Distance between front and rear wheel centers -->
+        <xacro:property name="track" value="0.98" /> <!-- Distance between left and right wheel centers (measured at the ground) -->
         <xacro:property name="wheel_radius" value="0.2159" />
 
+        <!-- Chasis properties -->
+        <xacro:property name="length" value="1.240" />
+        <xacro:property name="width" value="1.610" />
+        <xacro:property name="height_pos_z" value="1.181" /> <!-- Height from the base_link origin to the highest point of the robot -->
+        <xacro:property name="height_neg_z" value="${wheel_z_offset - wheel_radius}" /> <!-- Height from the base_link origin to the lowest point of the robot -->
+        <xacro:property name="height" value="${height_pos_z - height_neg_z}" /> <!-- Total height of the robot -->
+
+        <xacro:property name="bracket_top_height" value="0.353" />
+        <xacro:property name="imu_height" value="0.730" /> <!-- Height from the top of bracket to IMU mounting plate -->
+        <xacro:property name="lidar_height" value="0.657" /> <!-- Height from the top of bracket to lidar swivel bracket center -->
+        <xacro:property name="camera_height" value="0.4" /> <!-- Height from the top of bracket to camera swivel bracket center -->
+        
+        <!-- Arm properties -->
+        <xacro:property name="arm_height" value="0.3212" /> <!-- Height from the top of bracket to IMU mounting plate -->
+
+        <!-- Collision properties -->
+        <xacro:property name="collision_buffer" value="0.05" /> <!-- Buffer added to a dimension of collision geometry dimensions for safety -->
+
+        <!-- Add in the main chassis/base_link -->
         <link name="${ns_prefix}base_link">
+            <inertial>
+                <origin xyz="-0.067 0.023 0.076" rpy="0 0 0" />
+                <mass value="456.0111243" />
+                <inertia ixx="154.11052182" ixy="6.17559451" ixz="18.36789382" iyy="127.1230648" iyz="-9.25081139" izz="162.24200762" />
+            </inertial>
             <visual>
-                <origin xyz="0 0 0" rpy="0 0 0" />
                 <geometry>
-                    <mesh filename="file://$(find erwinia_os_description)/meshes/frame_link.STL" />
+                    <mesh filename="file://$(find erwinia_os_description)/meshes/mid_level_asm.dae" />
                 </geometry>
-                <material name="">
-                    <color rgba="0.118 0.506 0.729 1" />
-                </material>
             </visual>
+            <!-- Lower chassis box -->
             <collision>
                 <origin xyz="0 0 0" rpy="0 0 0" />
                 <geometry>
-                    <mesh filename="file://$(find erwinia_os_description)/meshes/frame_collision.STL"  />
+                    <box size="${length + collision_buffer} ${width} ${arm_height*2 + collision_buffer}" />
+                </geometry>
+            </collision>
+            <!-- Upper body box -->
+            <collision>
+                <origin xyz="0 ${(1/6)*width} ${height_pos_z/2}" rpy="0 0 0" />
+                <geometry>
+                    <box size="${length + collision_buffer} ${(2/3)*width + collision_buffer} ${height_pos_z + collision_buffer}" />
+                </geometry>
+            </collision>
+            <!-- Display box -->
+            <collision>
+                <origin xyz="${-length/2} ${-width/4} ${height_pos_z/3}" rpy="0 0 0" />
+                <geometry>
+                    <box size="0.4 ${width/4 + collision_buffer} ${height_pos_z/4 + collision_buffer}" />
                 </geometry>
             </collision>
         </link>
@@ -32,22 +67,78 @@
         <!-- base_footprint is used with Nav2 -->
         <link name="${ns_prefix}base_footprint" />
         <joint name="${ns_prefix}base_footprint_joint" type="fixed">
+            <origin xyz="0 0 ${-wheel_z_offset + wheel_radius}" rpy="0 0 0" />
             <parent link="${ns_prefix}base_footprint" />
             <child link="${ns_prefix}base_link" />
         </joint>
 
-        <!-- Inertial link stores the robot's inertial information -->
-        <link name="${ns_prefix}inertial_link">
+        <!-- Positioning of the vertical rail holding the IMU -->
+        <link name="${ns_prefix}imu_mount">
             <inertial>
-                <mass value="381.19" />
-                <origin xyz="-0.054481 -0.015972 0.66252" />
-                <inertia ixx="5.717" ixy="-0.007109" ixz="0.0013622" iyy="12.857" iyz="1.2354E-05" izz="11.799" />
+                <origin xyz="0 0 -0.443" rpy="0 0 0" />
+                <mass value="3.431" />
+                <inertia ixx="0.26482927" ixy="0" ixz="0" iyy="0.26482927" iyz="0" izz="0.001" />
             </inertial>
+            <visual>
+                <geometry>
+                    <mesh filename="file://$(find erwinia_os_description)/meshes/vertical_rail.dae" />
+                </geometry>
+            </visual>
         </link>
-        <joint name="${ns_prefix}inertial_joint" type="fixed">
-            <origin xyz="0 0 0" rpy="0 0 0" />
+        <joint name="${ns_prefix}imu_mount_joint" type="fixed">
+            <origin xyz="0.032 -0.011 ${bracket_top_height + imu_height}" rpy="0 0 0" />
             <parent link="${ns_prefix}base_link" />
-            <child link="${ns_prefix}inertial_link" />
+            <child link="${ns_prefix}imu_mount" />
+        </joint>
+
+        <!-- Positioning of the swivel brackets -->
+        <!-- Lidar swivel bracket mount -->
+        <link name="${ns_prefix}swivel_bracket_lidar">
+            <visual>
+                <geometry>
+                    <mesh filename="file://$(find erwinia_os_description)/meshes/swivel_bracket.dae" />
+                </geometry>
+            </visual>
+        </link>
+        <joint name="${ns_prefix}swivel_bracket_lidar_joint" type="fixed">
+            <origin xyz="0.052 -0.011 ${bracket_top_height + lidar_height}" rpy="0 0 0" />
+            <parent link="${ns_prefix}base_link" />
+            <child link="${ns_prefix}swivel_bracket_lidar" />
+        </joint>
+        <!-- Lidar mount point — attach the lidar sensor here in a higher-level URDF -->
+        <link name="${ns_prefix}lidar_mount" />
+        <joint name="${ns_prefix}lidar_mount_joint" type="fixed">
+            <origin xyz="0.03 0 0" rpy="0 0 0" />
+            <parent link="${ns_prefix}swivel_bracket_lidar" />
+            <child link="${ns_prefix}lidar_mount" />
+        </joint>
+        <!-- Camera swivel bracket mount -->
+        <link name="${ns_prefix}swivel_bracket_camera">
+            <visual>
+                <geometry>
+                    <mesh filename="file://$(find erwinia_os_description)/meshes/swivel_bracket.dae" />
+                </geometry>
+            </visual>
+        </link>
+        <joint name="${ns_prefix}swivel_bracket_camera_joint" type="fixed">
+            <origin xyz="0.052 -0.011 ${bracket_top_height + camera_height}" rpy="0 0 0" />
+            <parent link="${ns_prefix}base_link" />
+            <child link="${ns_prefix}swivel_bracket_camera" />
+        </joint>
+        <!-- Camera mount point — attach the camera sensor here in a higher-level URDF -->
+        <link name="${ns_prefix}camera_mount" />
+        <joint name="${ns_prefix}camera_mount_joint" type="fixed">
+            <origin xyz="0.03 0 0" rpy="0 0 0" />
+            <parent link="${ns_prefix}swivel_bracket_camera" />
+            <child link="${ns_prefix}camera_mount" />
+        </joint>
+
+        <!-- arm mount -->
+        <link name="${ns_prefix}arm_mount" />
+        <joint name="${ns_prefix}arm_mount_joint" type="fixed">
+            <origin xyz="-0.02235400 -0.59689771 ${arm_height}" rpy="0 0 0" />
+            <parent link="${ns_prefix}base_link" />
+            <child link="${ns_prefix}arm_mount" />
         </joint>
 
         <!-- Amiga wheel macros -->
@@ -61,25 +152,25 @@
         <joint name="${ns_prefix}FL_wheel_joint" type="continuous">
             <parent link="${ns_prefix}base_link"/>
             <child link="${ns_prefix}FL_wheel"/>
-            <origin xyz="${wheelbase/2} ${track/2} ${wheel_radius}" rpy="1.5708 0 3.1416" />
+            <origin xyz="${wheelbase/2} ${track/2} ${wheel_z_offset}" rpy="0 0 0" />
             <axis xyz="0 0 1" />
         </joint>
         <joint name="${ns_prefix}FR_wheel_joint" type="continuous">
             <parent link="${ns_prefix}base_link"/>
             <child link="${ns_prefix}FR_wheel"/>
-            <origin xyz="${wheelbase/2} ${-track/2} ${wheel_radius}" rpy="1.5708 0 3.1416" />
+            <origin xyz="${wheelbase/2} ${-track/2} ${wheel_z_offset}" rpy="0 0 0" />
             <axis xyz="0 0 1" />
         </joint>
         <joint name="${ns_prefix}RL_wheel_joint" type="continuous">
             <parent link="${ns_prefix}base_link"/>
             <child link="${ns_prefix}RL_wheel"/>
-            <origin xyz="${-wheelbase/2} ${track/2} ${wheel_radius}" rpy="1.5708 0 3.1416" />
+            <origin xyz="${-wheelbase/2} ${track/2} ${wheel_z_offset}" rpy="0 0 0" />
             <axis xyz="0 0 1" />
         </joint>
         <joint name="${ns_prefix}RR_wheel_joint" type="continuous">
             <parent link="${ns_prefix}base_link"/>
             <child link="${ns_prefix}RR_wheel"/>
-            <origin xyz="${-wheelbase/2} ${-track/2} ${wheel_radius}" rpy="1.5708 0 3.1416" />
+            <origin xyz="${-wheelbase/2} ${-track/2} ${wheel_z_offset}" rpy="0 0 0" />
             <axis xyz="0 0 1" />
         </joint>
 
