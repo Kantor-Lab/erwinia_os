@@ -138,6 +138,10 @@ check_urdf <path_to_urdf>
     rosdep update
     rosdep install --from-paths src/ --ignore-src -r -y
     ```
+5. To update the git modules inside of the multi camera rig package:
+    ```bash
+    git -C src/multi_camera_rig_v3 submodule update --init --recursive
+    ```
 5. Build and source ROS2 workspace:
     ```bash
     colcon build --symlink-install
