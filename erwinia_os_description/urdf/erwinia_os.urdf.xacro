@@ -39,6 +39,15 @@
         <origin xyz="0 0 0" rpy="0 0 ${-pi/2}"/>
     </xacro:xarm6>
 
+    <!-- MULTI CAMERA RIG -->
+    <xacro:include filename="$(find multi_camera_rig_description)/urdf/multi_camera_rig_macro.urdf.xacro"/>
+    <xacro:multi_camera_rig use_gazebo="$(arg use_gazebo)"/>
+    <joint name="tool_mount" type="fixed">
+        <parent link="$(arg manipulator_ns)/$(arg manipulator_prefix)link_eef"/>
+        <child link="multi_camera_rig_mount"/>
+        <origin xyz="0.0 0.0 0.0" rpy="${pi/2} 0 0"/>
+    </joint>
+
     <!-- ROS2_CONTROL -->
     <!-- Controller config for the Amiga platform -->
     <xacro:include filename="$(find erwinia_os_description)/urdf/amiga/amiga_ros2_control.xacro"/>
