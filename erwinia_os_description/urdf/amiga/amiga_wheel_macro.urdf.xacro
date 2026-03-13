@@ -16,7 +16,7 @@
             </inertial>
             <visual>
                 <geometry>
-                    <mesh filename="file://$(find erwinia_os_description)/meshes/wheel.dae" />
+                    <mesh filename="file://$(find erwinia_os_description)/meshes/wheel/wheel.obj" />
                 </geometry>
             </visual>
             <collision>

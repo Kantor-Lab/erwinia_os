@@ -7,7 +7,7 @@
         <link name="${prefix}lidar_hinge">
             <visual>
                 <geometry>
-                    <mesh filename="file://$(find erwinia_os_description)/meshes/lidar.dae" />
+                    <mesh filename="file://$(find erwinia_os_description)/meshes/lidar/lidar.obj" />
                 </geometry>
             </visual>
         </link>

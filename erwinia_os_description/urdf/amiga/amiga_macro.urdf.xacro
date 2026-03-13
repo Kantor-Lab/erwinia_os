@@ -38,7 +38,7 @@
             </inertial>
             <visual>
                 <geometry>
-                    <mesh filename="file://$(find erwinia_os_description)/meshes/mid_level_asm.dae" />
+                    <mesh filename="file://$(find erwinia_os_description)/meshes/mid_level_asm/mid_level_asm.obj" />
                 </geometry>
             </visual>
             <!-- Lower chassis box -->
@@ -81,7 +81,7 @@
             </inertial>
             <visual>
                 <geometry>
-                    <mesh filename="file://$(find erwinia_os_description)/meshes/vertical_rail.dae" />
+                    <mesh filename="file://$(find erwinia_os_description)/meshes/vertical_rail/vertical_rail.obj" />
                 </geometry>
             </visual>
         </link>
@@ -96,7 +96,7 @@
         <link name="${ns_prefix}swivel_bracket_lidar">
             <visual>
                 <geometry>
-                    <mesh filename="file://$(find erwinia_os_description)/meshes/swivel_bracket.dae" />
+                    <mesh filename="file://$(find erwinia_os_description)/meshes/swivel_bracket/swivel_bracket.obj" />
                 </geometry>
             </visual>
         </link>
@@ -116,7 +116,7 @@
         <link name="${ns_prefix}swivel_bracket_camera">
             <visual>
                 <geometry>
-                    <mesh filename="file://$(find erwinia_os_description)/meshes/swivel_bracket.dae" />
+                    <mesh filename="file://$(find erwinia_os_description)/meshes/swivel_bracket/swivel_bracket.obj" />
                 </geometry>
             </visual>
         </link>
@@ -153,25 +153,25 @@
             <parent link="${ns_prefix}base_link"/>
             <child link="${ns_prefix}FL_wheel"/>
             <origin xyz="${wheelbase/2} ${track/2} ${wheel_z_offset}" rpy="0 0 0" />
-            <axis xyz="0 0 1" />
+            <axis xyz="0 1 0" />
         </joint>
         <joint name="${ns_prefix}FR_wheel_joint" type="continuous">
             <parent link="${ns_prefix}base_link"/>
             <child link="${ns_prefix}FR_wheel"/>
             <origin xyz="${wheelbase/2} ${-track/2} ${wheel_z_offset}" rpy="0 0 0" />
-            <axis xyz="0 0 1" />
+            <axis xyz="0 1 0" />
         </joint>
         <joint name="${ns_prefix}RL_wheel_joint" type="continuous">
             <parent link="${ns_prefix}base_link"/>
             <child link="${ns_prefix}RL_wheel"/>
             <origin xyz="${-wheelbase/2} ${track/2} ${wheel_z_offset}" rpy="0 0 0" />
-            <axis xyz="0 0 1" />
+            <axis xyz="0 1 0" />
         </joint>
         <joint name="${ns_prefix}RR_wheel_joint" type="continuous">
             <parent link="${ns_prefix}base_link"/>
             <child link="${ns_prefix}RR_wheel"/>
             <origin xyz="${-wheelbase/2} ${-track/2} ${wheel_z_offset}" rpy="0 0 0" />
-            <axis xyz="0 0 1" />
+            <axis xyz="0 1 0" />
         </joint>
 
     </xacro:macro>
