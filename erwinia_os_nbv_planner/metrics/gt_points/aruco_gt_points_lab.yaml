@@ -1,0 +1,54 @@
+# ArUco Marker Positions
+# Generated at: 1.77165e+09
+# Reference frame: husky/a200_base_footprint
+frame_id: husky/a200_base_footprint
+markers:
+  - id: 0
+    class_id: 0
+    position:
+      x: -0.324198
+      y: -0.932143
+      z: 1.29805
+    last_seen: 106.512  # seconds ago
+  - id: 1
+    class_id: 0
+    position:
+      x: -0.232975
+      y: -0.876203
+      z: 1.60051
+    last_seen: 76.54  # seconds ago
+  - id: 2
+    class_id: 0
+    position:
+      x: 0.0942766
+      y: -1.06979
+      z: 1.59441
+    last_seen: 45.5674  # seconds ago
+  - id: 3
+    class_id: 0
+    position:
+      x: 0.20307
+      y: -1.0327
+      z: 1.40581
+    last_seen: 0.611049  # seconds ago
+  - id: 4
+    class_id: 0
+    position:
+      x: 0.403096
+      y: -1.00387
+      z: 1.18506
+    last_seen: 311.315  # seconds ago
+  - id: 5
+    class_id: 0
+    position:
+      x: -0.122057
+      y: -1.31407
+      z: 1.14239
+    last_seen: 14.597  # seconds ago
+  - id: 6
+    class_id: 0
+    position:
+      x: -0.284944
+      y: -1.30708
+      z: 1.49925
+    last_seen: 25.5873  # seconds ago

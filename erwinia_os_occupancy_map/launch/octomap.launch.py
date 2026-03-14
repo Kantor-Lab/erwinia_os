@@ -93,7 +93,7 @@ def generate_launch_description():
             'bbx_max_x': 0.5,
             'bbx_min_y': -1.8,
             'bbx_max_y': -0.8,
-            'bbx_min_z': 0.0,
+            'bbx_min_z': 0.1, # Increased this to avoid floor
             'bbx_max_z': 2.0,
 
             # Semantic mode
