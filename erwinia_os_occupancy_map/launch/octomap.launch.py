@@ -88,34 +88,20 @@ def generate_launch_description():
 
             # Bounding box (limits octomap updates to this region)
             'use_bounding_box': LaunchConfiguration('use_bbox'),
-            # # Side Box
-            # 'bbx_min_x': -1.0,
-            # 'bbx_min_y': -2.0,
-            # 'bbx_min_z': 0.0,
-            # 'bbx_max_x': 1.0,
-            # 'bbx_max_y': -0.5,
-            # 'bbx_max_z': 2.0,
-            # Side Box (smaller)
-            'bbx_min_x': -0.6,
+            # Side Box
+            'bbx_min_x': -0.5,
+            'bbx_max_x': 0.5,
             'bbx_min_y': -1.8,
+            'bbx_max_y': -0.8,
             'bbx_min_z': 0.0,
-            'bbx_max_x': 0.6,
-            'bbx_max_y': -0.6,
             'bbx_max_z': 2.0,
-            # # Rear Box
-            # 'bbx_min_x': -2.0,
-            # 'bbx_min_y': -1.0,
-            # 'bbx_min_z': 0.0,
-            # 'bbx_max_x': -0.5,
-            # 'bbx_max_y': 1.0,
-            # 'bbx_max_z': 2.0,
 
             # Semantic mode
             'use_semantics': LaunchConfiguration('use_semantics'),
 
             # Semantic fusion parameters
-            'semantic_confidence_boost': 0.05,
-            'semantic_mismatch_penalty': 0.1,
+            'semantic_confidence_boost': 0.3,
+            'semantic_mismatch_penalty': 0.2,
 
             # PointCloud updater
             'pointcloud_topic': LaunchConfiguration('pointcloud_topic'),
