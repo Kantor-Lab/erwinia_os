@@ -1,39 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <robot name="amiga_lidar" xmlns:xacro="http://www.ros.org/wiki/xacro">
     
-    <xacro:macro name="amiga_lidar" params="prefix:='' parent:='base_link'">
+    <xacro:macro name="amiga_lidar" params="prefix:='' parent:='lidar_mount' angle_offset:='0'">
         
         <!-- LIDAR -->
         <link name="${prefix}lidar_hinge">
-            <inertial>
-                <origin xyz="0.12957 -0.043305 -0.00024862" rpy="0 0 0" />
-                <mass value="5.5092" />
-                <inertia ixx="0.0061651" ixy="0.0013206" ixz="-1.4672E-06" iyy="0.0076386" iyz="1.274E-06" izz="0.0071961" />
-            </inertial>
             <visual>
-                <origin xyz="0 0 0" rpy="0 0 0" />
                 <geometry>
-                    <mesh filename="file://$(find erwinia_os_description)/meshes/lidar.STL" />
+                    <mesh filename="file://$(find erwinia_os_description)/meshes/lidar/lidar.obj" />
                 </geometry>
-                <material name="">
-                    <color rgba="0 1 0 1" />
-                </material>
             </visual>
         </link>
         <joint name="${prefix}lidar_hinge_joint" type="fixed">
-            <origin xyz="1.1572 0.18502 1.449" rpy="1.5708 -0.4363 0" />
-            <!-- change pitch to adjust camera angle. + is down.  -0.4363 makes it parallel to ground -->
+            <origin xyz="0 0 0" rpy="0 ${angle_offset} 0" />
             <parent link="${parent}" />
             <child link="${prefix}lidar_hinge" />
         </joint>
 
         <link name="${prefix}lidar" />
         <joint name="${prefix}lidar_joint" type="fixed">
-            <origin xyz="0.14354 -0.042185 0" rpy="-1.5708 0 -0.43633" />
-            <!-- 0.82903 applied in ypr order -->
+            <origin xyz="0.14791768 0 0.02247100" rpy="0 0 0" />
             <parent link="${prefix}lidar_hinge" />
             <child link="${prefix}lidar" />
-            <axis xyz="0 0 0" />
         </joint>
 
         <!-- GAZEBO LIDAR SENSOR PLUGIN -->

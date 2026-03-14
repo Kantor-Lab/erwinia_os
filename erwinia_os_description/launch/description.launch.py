@@ -24,7 +24,6 @@ def get_xacro_content(context, xacro_file, **kwargs):
 
 def launch_setup(context, *args, **kwargs):
     use_gazebo = LaunchConfiguration('use_gazebo')
-    use_fake_hardware = LaunchConfiguration('use_fake_hardware')
     config_file = LaunchConfiguration('config_file')
     manipulator_prefix = LaunchConfiguration('manipulator_prefix')
     manipulator_ns = LaunchConfiguration('manipulator_ns')
@@ -38,7 +37,6 @@ def launch_setup(context, *args, **kwargs):
         context,
         xacro_file=urdf_file,
         use_gazebo=use_gazebo,
-        use_fake_hardware=use_fake_hardware,
         config_file=config_file,
         manipulator_prefix=manipulator_prefix,
         manipulator_ns=manipulator_ns,
@@ -78,7 +76,6 @@ def launch_setup(context, *args, **kwargs):
 def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('use_gazebo', default_value='false', description='Whether to launch in Gazebo simulation mode'),
-        DeclareLaunchArgument('use_fake_hardware', default_value='false', description='Whether to use fake hardware'),
         DeclareLaunchArgument('config_file', default_value=os.path.join(get_package_share_directory('erwinia_os_control'), 'config', 'controllers.yaml'), description='Path to controller configuration file'),
         DeclareLaunchArgument('manipulator_prefix', default_value='xarm6_', description='Prefix for manipulator joint names'),
         DeclareLaunchArgument('manipulator_ns', default_value='xarm', description='Namespace for manipulator'),

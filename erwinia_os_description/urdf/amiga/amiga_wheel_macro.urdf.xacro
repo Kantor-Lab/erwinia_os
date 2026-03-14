@@ -4,23 +4,25 @@
 
         <link name="${wheel_prefix}_wheel">
             <inertial>
-                <origin xyz="4.3098E-07 5.5068E-07 -0.00020749" rpy="0 0 0" />
-                <mass value="15.628" />
-                <inertia ixx="0.153" ixy="1.1085E-06" ixz="2.7485E-07" iyy="0.153" iyz="2.341E-07" izz="0.28441" />
+                <origin xyz="-2.068e-7 -0.00020402 -1.642e-8" rpy="0 0 0" />
+                <mass value="15.62628337" />
+                <inertia 
+                    ixx="0.15298774" 
+                    ixy="-8.514e-7" 
+                    ixz="1.530e-7" 
+                    iyy="0.28438071" 
+                    iyz="-7.993e-7" 
+                    izz="0.15298827" />
             </inertial>
             <visual>
-                <origin xyz="0 0 0" rpy="0 0 0" />
                 <geometry>
-                    <mesh filename="file://$(find erwinia_os_description)/meshes/wheel.STL" />
+                    <mesh filename="file://$(find erwinia_os_description)/meshes/wheel/wheel.obj" />
                 </geometry>
-                <material name="">
-                    <color rgba="0 0 0 1" />
-                </material>
             </visual>
             <collision>
-                <origin xyz="0 0 0" rpy="0 0 0" />
+                <origin xyz="0 0 0" rpy="${pi/2} 0 0" />
                 <geometry>
-                    <mesh filename="file://$(find erwinia_os_description)/meshes/wheel_collision.STL" />
+                    <cylinder radius="0.2159" length="0.2" />
                 </geometry>
                 <!-- <surface>
                     <friction>
