@@ -34,7 +34,7 @@ def launch_setup(context, *args, **kwargs):
     manipulator_ns = LaunchConfiguration('manipulator_ns')
     platform_prefix = LaunchConfiguration('platform_prefix')
     platform_ns = LaunchConfiguration('platform_ns')
-    robot_ip = LaunchConfiguration('robot_ip')
+    manipulator_ip = LaunchConfiguration('manipulator_ip')
     report_type = LaunchConfiguration('report_type')
     
     # Get package directories
@@ -73,7 +73,7 @@ def launch_setup(context, *args, **kwargs):
                         'manipulator_ns': manipulator_ns,
                         'platform_prefix': platform_prefix,
                         'platform_ns': platform_ns,
-                        'robot_ip': robot_ip,
+                        'manipulator_ip': manipulator_ip,
                         'report_type': report_type,
                     }.items()
                 )
@@ -93,7 +93,7 @@ def launch_setup(context, *args, **kwargs):
                 'manipulator_ns': manipulator_ns,
                 'platform_prefix': platform_prefix,
                 'platform_ns': platform_ns,
-                'robot_ip': robot_ip,
+                'manipulator_ip': manipulator_ip,
                 'report_type': report_type,
             }.items()
         )
@@ -204,8 +204,8 @@ def generate_launch_description():
             description='Namespace for Amiga platform'
         ),
         DeclareLaunchArgument(
-            'robot_ip',
-            default_value='192.168.1.205',
+            'manipulator_ip',
+            default_value='192.168.1.196',
             description='IP address of the xArm6 robot'
         ),
         DeclareLaunchArgument(
