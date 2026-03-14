@@ -11,9 +11,9 @@ namespace erwinia_os_occupancy_map
         const std::string &point_cloud_topic,
         const OccupancyMapParameters &params)
         : OccupancyMapUpdater("semantic_pointcloud"),
+          logger_(rclcpp::get_logger("semantic_pointcloud_updater")),
           point_cloud_topic_(point_cloud_topic),
-          params_(params),
-          logger_(rclcpp::get_logger("semantic_pointcloud_updater"))
+          params_(params)
     {
     }
 
