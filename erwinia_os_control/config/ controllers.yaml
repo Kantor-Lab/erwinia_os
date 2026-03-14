@@ -11,12 +11,12 @@ controller_manager:
 platform_velocity_controller:
   ros__parameters:
     left_wheel_names:
-    - amiga/FL_wheel_joint
-    - amiga/RL_wheel_joint
+    - amiga/front_left_wheel_joint
+    - amiga/rear_left_wheel_joint
     right_wheel_names:
-    - amiga/FR_wheel_joint
-    - amiga/RR_wheel_joint
-    wheel_separation: 0.65856
+    - amiga/front_right_wheel_joint
+    - amiga/rear_right_wheel_joint
+    wheel_separation: 0.98
     wheel_radius: 0.2159
     publish_rate: 50.0
     base_frame_id: amiga/base_footprint

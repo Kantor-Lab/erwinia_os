@@ -204,7 +204,7 @@ def launch_setup(context, *args, **kwargs):
         controllers = [
             'joint_state_broadcaster', 
             'xarm6_traj_controller',
-            'platform_velocity_controller'
+            # 'platform_velocity_controller'
         ]
 
         controller_nodes = []
