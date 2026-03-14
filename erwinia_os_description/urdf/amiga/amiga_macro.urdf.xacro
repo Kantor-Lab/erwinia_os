@@ -143,33 +143,33 @@
 
         <!-- Amiga wheel macros -->
         <xacro:include filename="$(find erwinia_os_description)/urdf/amiga/amiga_wheel_macro.urdf.xacro" />
-        <xacro:amiga_wheel wheel_prefix="${ns_prefix}FL" use_gazebo="${use_gazebo}" />
-        <xacro:amiga_wheel wheel_prefix="${ns_prefix}FR" use_gazebo="${use_gazebo}" />
-        <xacro:amiga_wheel wheel_prefix="${ns_prefix}RL" use_gazebo="${use_gazebo}" />
-        <xacro:amiga_wheel wheel_prefix="${ns_prefix}RR" use_gazebo="${use_gazebo}" />
+        <xacro:amiga_wheel wheel_prefix="${ns_prefix}front_left" use_gazebo="${use_gazebo}" />
+        <xacro:amiga_wheel wheel_prefix="${ns_prefix}front_right" use_gazebo="${use_gazebo}" />
+        <xacro:amiga_wheel wheel_prefix="${ns_prefix}rear_left" use_gazebo="${use_gazebo}" />
+        <xacro:amiga_wheel wheel_prefix="${ns_prefix}rear_right" use_gazebo="${use_gazebo}" />
 
         <!-- Define wheel joints to use prefixed base_link -->
-        <joint name="${ns_prefix}FL_wheel_joint" type="continuous">
+        <joint name="${ns_prefix}front_left_wheel_joint" type="continuous">
             <parent link="${ns_prefix}base_link"/>
-            <child link="${ns_prefix}FL_wheel"/>
+            <child link="${ns_prefix}front_left_wheel"/>
             <origin xyz="${wheelbase/2} ${track/2} ${wheel_z_offset}" rpy="0 0 0" />
             <axis xyz="0 1 0" />
         </joint>
-        <joint name="${ns_prefix}FR_wheel_joint" type="continuous">
+        <joint name="${ns_prefix}front_right_wheel_joint" type="continuous">
             <parent link="${ns_prefix}base_link"/>
-            <child link="${ns_prefix}FR_wheel"/>
+            <child link="${ns_prefix}front_right_wheel"/>
             <origin xyz="${wheelbase/2} ${-track/2} ${wheel_z_offset}" rpy="0 0 0" />
             <axis xyz="0 1 0" />
         </joint>
-        <joint name="${ns_prefix}RL_wheel_joint" type="continuous">
+        <joint name="${ns_prefix}rear_left_wheel_joint" type="continuous">
             <parent link="${ns_prefix}base_link"/>
-            <child link="${ns_prefix}RL_wheel"/>
+            <child link="${ns_prefix}rear_left_wheel"/>
             <origin xyz="${-wheelbase/2} ${track/2} ${wheel_z_offset}" rpy="0 0 0" />
             <axis xyz="0 1 0" />
         </joint>
-        <joint name="${ns_prefix}RR_wheel_joint" type="continuous">
+        <joint name="${ns_prefix}rear_right_wheel_joint" type="continuous">
             <parent link="${ns_prefix}base_link"/>
-            <child link="${ns_prefix}RR_wheel"/>
+            <child link="${ns_prefix}rear_right_wheel"/>
             <origin xyz="${-wheelbase/2} ${-track/2} ${wheel_z_offset}" rpy="0 0 0" />
             <axis xyz="0 1 0" />
         </joint>
