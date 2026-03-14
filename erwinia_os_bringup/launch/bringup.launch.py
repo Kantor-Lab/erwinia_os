@@ -160,12 +160,12 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
             'use_gazebo',
-            default_value='false',
+            default_value='true',
             description='Whether to use Gazebo simulation'
         ),
         DeclareLaunchArgument(
             'use_sim_time',
-            default_value='false',
+            default_value='true',
             description='Use simulation time'
         ),
         DeclareLaunchArgument(
@@ -205,7 +205,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'robot_ip',
-            default_value='192.168.1.169',
+            default_value='192.168.1.205',
             description='IP address of the xArm6 robot'
         ),
         DeclareLaunchArgument(
