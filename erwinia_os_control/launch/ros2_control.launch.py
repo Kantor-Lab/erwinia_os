@@ -49,7 +49,7 @@ def launch_setup(context, *args, **kwargs):
     manipulator_prefix = LaunchConfiguration('manipulator_prefix')
     platform_ns = LaunchConfiguration('platform_ns')
     platform_prefix = LaunchConfiguration('platform_prefix')
-    robot_ip = LaunchConfiguration('robot_ip')
+    manipulator_ip = LaunchConfiguration('manipulator_ip')
     report_type = LaunchConfiguration('report_type')
     
     # Perform context evaluation
@@ -88,7 +88,7 @@ def launch_setup(context, *args, **kwargs):
         manipulator_ns=manipulator_ns,
         platform_prefix=platform_prefix,
         platform_ns=platform_ns,
-        robot_ip=robot_ip,
+        manipulator_ip=manipulator_ip,
         report_type=report_type
     )
     
@@ -204,7 +204,7 @@ def launch_setup(context, *args, **kwargs):
         controllers = [
             'joint_state_broadcaster', 
             'xarm6_traj_controller',
-            'platform_velocity_controller'
+            # 'platform_velocity_controller'
         ]
 
         controller_nodes = []
@@ -235,7 +235,7 @@ def generate_launch_description():
         DeclareLaunchArgument('manipulator_prefix', default_value='xarm6_', description='Prefix for manipulator joint names or frames'),
         DeclareLaunchArgument('platform_ns', default_value='amiga', description='Namespace for Amiga platform'),
         DeclareLaunchArgument('platform_prefix', default_value='', description='Prefix for platform joint names or frames'),
-        DeclareLaunchArgument('robot_ip', default_value='192.168.1.205', description='IP address of the xArm6 robot'),
+        DeclareLaunchArgument('manipulator_ip', default_value='192.168.1.205', description='IP address of the xArm6 robot'),
         DeclareLaunchArgument('report_type', default_value='normal', description='Report type for xArm (normal, rich, dev)'),
         OpaqueFunction(function=launch_setup)
     ])

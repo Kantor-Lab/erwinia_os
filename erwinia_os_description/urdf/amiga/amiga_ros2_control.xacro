@@ -31,7 +31,7 @@
     </xacro:macro>
 
     <xacro:macro name="amiga_system_joints" params="prefix">
-        <joint name="${prefix}FL_wheel_joint">
+        <joint name="${prefix}front_left_wheel_joint">
             <command_interface name="velocity">
                 <param name="min">-2.54</param>
                 <param name="max">2.54</param>
@@ -39,7 +39,7 @@
             <state_interface name="position"/>
             <state_interface name="velocity"/>
         </joint>
-        <joint name="${prefix}FR_wheel_joint">
+        <joint name="${prefix}front_right_wheel_joint">
             <command_interface name="velocity">
                 <param name="min">-2.54</param>
                 <param name="max">2.54</param>
@@ -47,7 +47,7 @@
             <state_interface name="position"/>
             <state_interface name="velocity"/>
         </joint>
-        <joint name="${prefix}RL_wheel_joint">
+        <joint name="${prefix}rear_left_wheel_joint">
             <command_interface name="velocity">
                 <param name="min">-2.54</param>
                 <param name="max">2.54</param>
@@ -55,7 +55,7 @@
             <state_interface name="position"/>
             <state_interface name="velocity"/>
         </joint>
-        <joint name="${prefix}RR_wheel_joint">
+        <joint name="${prefix}rear_right_wheel_joint">
             <command_interface name="velocity">
                 <param name="min">-2.54</param>
                 <param name="max">2.54</param>

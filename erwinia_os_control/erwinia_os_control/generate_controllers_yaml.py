@@ -20,7 +20,6 @@ def generate_controllers_yaml(manipulator_ns='xarm', manipulator_prefix='xarm6_'
         manipulator_ns: Namespace for the manipulator
         manipulator_prefix: Prefix for manipulator joint names
         use_gazebo: Whether using Gazebo simulation
-        use_fake_hardware: Whether using fake hardware interface
     
     Returns:
         dict: Controller configuration dictionary
@@ -35,13 +34,15 @@ def generate_controllers_yaml(manipulator_ns='xarm', manipulator_prefix='xarm6_'
         'joint_state_broadcaster': {
             'type': 'joint_state_broadcaster/JointStateBroadcaster'
         },
-        'platform_velocity_controller': {
-            'type': 'diff_drive_controller/DiffDriveController'
-        },
         'xarm6_traj_controller': {
             'type': 'joint_trajectory_controller/JointTrajectoryController'
         }
     }
+
+    if use_gazebo:
+        controller_manager_params['platform_velocity_controller'] = {
+            'type': 'diff_drive_controller/DiffDriveController'
+        }
     
     config = {
         'controller_manager': {
@@ -50,32 +51,33 @@ def generate_controllers_yaml(manipulator_ns='xarm', manipulator_prefix='xarm6_'
     }
     
     # Add the platform velocity controller configuration
-    config['platform_velocity_controller'] = {
-        'ros__parameters': {
-            'left_wheel_names': [
-                f'{platform_ns_prefix}FL_wheel_joint',
-                f'{platform_ns_prefix}RL_wheel_joint'
-            ],
-            'right_wheel_names': [
-                f'{platform_ns_prefix}FR_wheel_joint',
-                f'{platform_ns_prefix}RR_wheel_joint'
-            ],
-            'wheel_separation': 0.65856, # Amiga track width
-            'wheel_radius': 0.2159, # Amiga wheel radius
-            'publish_rate': 50.0,
-            'base_frame_id': f'{platform_ns_prefix}base_footprint',
-            'odom_frame_id': 'odom',
-            'use_stamped_vel': False,
-            'linear.x.has_velocity_limits': True,
-            'linear.x.max_velocity': 2.54,
-            'linear.x.has_acceleration_limits': True,
-            'linear.x.max_acceleration': 3.0,
-            'angular.z.has_velocity_limits': True,
-            'angular.z.max_velocity': 2.0,
-            'angular.z.has_acceleration_limits': True,
-            'angular.z.max_acceleration': 1.5
+    if use_gazebo:
+        config['platform_velocity_controller'] = {
+            'ros__parameters': {
+                'left_wheel_names': [
+                    f'{platform_ns_prefix}front_left_wheel_joint',
+                    f'{platform_ns_prefix}rear_left_wheel_joint'
+                ],
+                'right_wheel_names': [
+                    f'{platform_ns_prefix}front_right_wheel_joint',
+                    f'{platform_ns_prefix}rear_right_wheel_joint'
+                ],
+                'wheel_separation': 0.98, # Amiga track width
+                'wheel_radius': 0.2159, # Amiga wheel radius
+                'publish_rate': 50.0,
+                'base_frame_id': f'{platform_ns_prefix}base_footprint',
+                'odom_frame_id': 'odom',
+                'use_stamped_vel': False,
+                'linear.x.has_velocity_limits': True,
+                'linear.x.max_velocity': 2.54,
+                'linear.x.has_acceleration_limits': True,
+                'linear.x.max_acceleration': 3.0,
+                'angular.z.has_velocity_limits': True,
+                'angular.z.max_velocity': 2.0,
+                'angular.z.has_acceleration_limits': True,
+                'angular.z.max_acceleration': 1.5
+            }
         }
-    }
 
     # Add the manipulator trajectory controller configuration
     config['xarm6_traj_controller'] = {
@@ -113,7 +115,6 @@ def main():
     parser.add_argument('--platform-ns', default='amiga', help='Platform namespace')
     parser.add_argument('--platform-prefix', default='', help='Platform prefix')
     parser.add_argument('--use-gazebo', action='store_true', help='Using Gazebo simulation')
-    parser.add_argument('--use-fake-hardware', action='store_true', help='Using fake hardware interface')
     parser.add_argument('--output', '-o', type=str, help='Output file path (optional)')
     
     args = parser.parse_args()
@@ -124,8 +125,7 @@ def main():
         manipulator_prefix=args.manipulator_prefix,
         platform_ns=args.platform_ns,
         platform_prefix=args.platform_prefix,
-        use_gazebo=args.use_gazebo,
-        use_fake_hardware=args.use_fake_hardware
+        use_gazebo=args.use_gazebo
     )
     
     # Output YAML
