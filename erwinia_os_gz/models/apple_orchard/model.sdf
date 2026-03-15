@@ -1,12 +1,12 @@
 <?xml version="1.0" ?>
 <sdf version="1.7">
-  <model name="apple_tree_crook_canker">
+  <model name="apple_orchard">
     <static>true</static>
     <link name="ground">
       <visual name="ground">
         <geometry>
           <mesh>
-            <uri>model://apple_tree_crook_canker/meshes/ground.obj</uri>
+            <uri>model://apple_orchard/meshes/ground.obj</uri>
           </mesh>
         </geometry>
         <material>
@@ -16,7 +16,7 @@
           <emissive>0 0 0 1</emissive>
           <pbr>
             <metal>
-              <albedo_map>model://apple_tree_crook_canker/materials/dirt.jpg</albedo_map>
+              <albedo_map>model://apple_orchard/materials/dirt.jpg</albedo_map>
               <roughness>0.7</roughness>
               <metalness>0.0</metalness>
             </metal>
@@ -26,7 +26,7 @@
       <collision name="collision">
         <geometry>
           <mesh>
-            <uri>model://apple_tree_crook_canker/meshes/ground.obj</uri>
+            <uri>model://apple_orchard/meshes/ground.obj</uri>
           </mesh>
         </geometry>
         <surface>
@@ -35,11 +35,11 @@
         <laser_retro>0.0</laser_retro>
       </collision>
     </link>
-    <link name="tree">
-      <visual name="tree">
+    <link name="bed1">
+      <visual name="bed1">
         <geometry>
           <mesh>
-            <uri>model://apple_tree_crook_canker/meshes/apple_tree_crook_canker.obj</uri>
+            <uri>model://apple_orchard/meshes/bed1.obj</uri>
           </mesh>
         </geometry>
         <material>
@@ -49,7 +49,7 @@
           <emissive>0 0 0 1</emissive>
           <pbr>
             <metal>
-              <albedo_map>model://apple_tree_crook_canker/materials/crook_canker_bake_final.png</albedo_map>
+              <albedo_map>model://apple_orchard/materials/apple_tree_atlas.jpg</albedo_map>
               <roughness>0.7</roughness>
               <metalness>0.0</metalness>
             </metal>
@@ -59,7 +59,7 @@
       <collision name="collision">
         <geometry>
           <mesh>
-            <uri>model://apple_tree_crook_canker/meshes/apple_tree_crook_canker.obj</uri>
+            <uri>model://apple_orchard/meshes/bed1.obj</uri>
           </mesh>
         </geometry>
         <surface>

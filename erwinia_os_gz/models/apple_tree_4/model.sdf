@@ -1,0 +1,90 @@
+<sdf version="1.7">
+    <model name="apple_tree_4">
+        <static>true</static>
+        <link name="ground">
+        <visual name="ground">
+            <geometry>
+            <mesh>
+                <uri>model://apple_tree_4/meshes/ground.obj</uri>
+            </mesh>
+            </geometry>
+            <material>
+            <ambient>0.600 0.600 0.600 1</ambient>
+            <diffuse>1.000 1.000 1.000 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+            <emissive>0 0 0 1</emissive>
+            <pbr>
+                <metal>
+                <albedo_map>model://apple_tree_4/materials/dirt.jpg</albedo_map>
+                <roughness>0.7</roughness>
+                <metalness>0.0</metalness>
+                </metal>
+            </pbr>
+            </material>
+        </visual>
+        <collision name="collision">
+            <geometry>
+            <mesh>
+                <uri>model://apple_tree_4/meshes/ground.obj</uri>
+            </mesh>
+            </geometry>
+            <surface>
+            <contact/>
+            </surface>
+            <laser_retro>0.0</laser_retro>
+        </collision>
+        </link>
+        <link name="apple_tree_4_link">
+
+            <visual name="apple_tree_4_visual">
+                <geometry>
+                <mesh>
+                    <uri>model://apple_tree_4/meshes/apple_tree_4.obj</uri>
+                </mesh>
+                </geometry>
+
+                <material>
+                    <ambient>0.6 0.6 0.6 1</ambient>
+                    <diffuse>1 1 1 1</diffuse>
+                    <specular>0.1 0.1 0.1 1</specular>
+                    <emissive>0 0 0 1</emissive>
+
+                    <pbr>
+                        <metal>
+                        <!-- Base color -->
+                        <albedo_map>model://apple_tree_4/materials/tree_basecolor_baked.png</albedo_map>
+
+                        <!-- Normal map -->
+                        <normal_map>model://apple_tree_4/materials/tree_normal_baked.png</normal_map>
+
+                        <!-- Roughness map (preferred) -->
+                        <roughness_map>model://apple_tree_4/materials/tree_roughness_baked.png</roughness_map>
+
+                        <!-- For bark -->
+                        <metalness>0.0</metalness>
+
+                        <!-- Optional: if your roughness map is missing/ignored, fallback constant -->
+                        <!-- <roughness>0.7</roughness> -->
+                        </metal>
+                    </pbr>
+                </material>
+
+            </visual>
+
+            <collision name="apple_tree_4_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://apple_tree_4/meshes/apple_tree_4.obj</uri>
+                    </mesh>
+                </geometry>
+                <surface>
+                <contact>
+                    <collide_without_contact>true</collide_without_contact>
+                    <collide_bitmask>0x00</collide_bitmask>
+                </contact>
+                </surface>
+            </collision>
+
+        </link>
+    </model>
+</sdf>

@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <sdf version="1.7">
-    <world name="apple_orchard_world">
+    <world name="apple_tree_3">
 
         <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
         <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
@@ -55,9 +55,9 @@
 
         <!-- Apple tree with crook canker disease -->
         <include>
-            <uri>model://apple_tree_crook_canker</uri>
-            <name>apple_tree_crook_canker</name>
-            <pose>0 -1.2 0 0 0 0</pose>
+            <uri>model://apple_tree_3</uri>
+            <name>apple_tree_3</name>
+            <pose>0 -1.6 0 0 0 1.57</pose>
         </include>
     </world>
 </sdf>

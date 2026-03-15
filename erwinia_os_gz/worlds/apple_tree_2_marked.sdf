@@ -1,0 +1,131 @@
+<?xml version="1.0"?>
+<sdf version="1.7">
+    <world name="apple_tree_2_marked">
+
+        <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+        <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+        <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+        <plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact"/>
+        <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+            <render_engine>ogre2</render_engine>
+        </plugin>
+        <!-- <plugin filename="gz-sim-navsat-system" name="gz::sim::systems::NavSat"/>
+        <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/> -->
+
+        <physics type="ode">
+            <max_step_size>0.01</max_step_size>
+            <real_time_factor>1</real_time_factor>
+            <max_contacts>10</max_contacts>
+            <real_time_update_rate>1000</real_time_update_rate>
+        </physics>
+
+        <gravity>0 0 -9.8</gravity>
+
+        <scene>
+            <ambient>0.5 0.5 0.5 1</ambient>
+            <background>0.3 0.7 0.9 1</background>
+            <grid>false</grid>
+            <sky>
+                <clouds>
+                    <speed>12</speed>
+                </clouds>
+            </sky>
+            <shadows>true</shadows>
+        </scene>
+        
+        <light name='sun' type='directional'>
+            <pose>0 0 10 0 -0 0</pose>
+            <cast_shadows>true</cast_shadows>
+            <intensity>1</intensity>
+            <direction>-0.5 0.1 -0.9</direction>
+            <diffuse>0.8 0.8 0.8 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+            <attenuation>
+                <range>1000</range>
+                <linear>0.01</linear>
+                <constant>0.90000000000000002</constant>
+                <quadratic>0.001</quadratic>
+            </attenuation>
+            <spot>
+                <inner_angle>0</inner_angle>
+                <outer_angle>0</outer_angle>
+                <falloff>0</falloff>
+            </spot>
+        </light>
+
+        <!-- Apple tree with crook canker disease -->
+        <include>
+            <uri>model://apple_tree_2</uri>
+            <name>apple_tree_2</name>
+            <pose>0 -1.0 0 0 0 -1.57</pose>
+        </include>
+
+        <!-- Marker 0 (Shepherd's Crook) -->
+        <include>
+            <uri>model://aruco_marker_0</uri>
+            <name>aruco_marker_0</name>
+            <pose>0.161949 -1.00402 1.61664 -0.525076 1.46049 -0</pose>
+        </include>
+
+        <include>
+            <uri>model://aruco_marker_1</uri>
+            <name>aruco_marker_1</name>
+            <pose>-0.142604 -0.76261 1.50875 3.14159 1.10339 3.14159</pose>
+        </include>
+
+        <include>
+            <uri>model://aruco_marker_2</uri>
+            <name>aruco_marker_2</name>
+            <pose>-0.312943 -0.772364 0.81773 -1.54595 0.027565 -0.837108</pose>
+        </include>
+
+        <include>
+            <uri>model://aruco_marker_3</uri>
+            <name>aruco_marker_3</name>
+            <pose>0.299244 -1.23236 0.942958 -1.87746 1.44645 -0.997911</pose>
+        </include>
+
+        <include>
+            <uri>model://aruco_marker_4</uri>
+            <name>aruco_marker_4</name>
+            <pose>0.219314 -1.44266 1.31237 -0.031546 -1.48167 -0.20966</pose>
+        </include>
+
+        <include>
+            <uri>model://aruco_marker_5</uri>
+            <name>aruco_marker_5</name>
+            <pose>-0.133897 -1.11634 1.16624 -0.092719 -1.44131 0</pose>
+        </include>
+
+        <!-- Marker 1 (Canker) -->
+        <include>
+            <uri>model://aruco_marker_6</uri>
+            <name>aruco_marker_6</name>
+            <pose>-0.006851 -0.976957 0.391018 -1.54097 -0.01411 0.441732</pose>
+        </include>
+
+        <include>
+            <uri>model://aruco_marker_7</uri>
+            <name>aruco_marker_7</name>
+            <pose>-0.170831 -0.757821 1.32427 -1.59273 0 0</pose>
+        </include>
+
+        <include>
+            <uri>model://aruco_marker_8</uri>
+            <name>aruco_marker_8</name>
+            <pose>0.110091 -0.984795 1.40589 -0.901663 -0.384491 0.914137</pose>
+        </include>
+
+        <include>
+            <uri>model://aruco_marker_9</uri>
+            <name>aruco_marker_9</name>
+            <pose>0.228297 -1.23003 1.06177 1.51928 1.53615 2.18989</pose>
+        </include>
+
+        <include>
+            <uri>model://aruco_marker_10</uri>
+            <name>aruco_marker_10</name>
+            <pose>-0.010114 -1.00737 1.13784 0 -1.45258 0</pose>
+        </include>
+    </world>
+</sdf>
