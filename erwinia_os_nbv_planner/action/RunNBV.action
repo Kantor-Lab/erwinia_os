@@ -1,0 +1,17 @@
+# Goal: trigger a single NBV scan/run
+string planner_type          # planner type to run (e.g. "baseline", "volumetric", "semantic")
+
+---
+# Result: summary after scan is complete
+bool success
+string message
+int32 total_viewpoints          # total viewpoints visited during run
+int32 final_cluster_count       # total semantic clusters detected
+float64 final_bbox_coverage     # bbox coverage at end of run (0-1)
+
+---
+# Feedback: per-viewpoint progress
+int32 current_viewpoint     # current viewpoint number (0-based)
+int32 cluster_count         # current semantic cluster count
+float64 bbox_coverage       # bbox coverage fraction after this viewpoint
+string state

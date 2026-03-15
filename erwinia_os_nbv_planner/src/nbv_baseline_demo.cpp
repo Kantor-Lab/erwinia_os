@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <iomanip>
 #include <sstream>
+#include <thread>
 
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
@@ -39,14 +40,8 @@ static std::string formatRunName(int idx)
     return oss.str();
 }
 
-int main(int argc, char **argv)
+static int run(std::shared_ptr<rclcpp::Node> node)
 {
-    rclcpp::init(argc, argv);
-
-    auto node = std::make_shared<rclcpp::Node>(
-        "moveit_interface_node",
-        rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true));
-
     int n_runs = node->get_parameter("n_runs").as_int();
     if (n_runs < 1) n_runs = 1;
 
@@ -83,7 +78,6 @@ int main(int argc, char **argv)
     auto manip_workspace = setupWorkspace(moveit_interface, visualizer, config, node->get_logger());
     if (!manip_workspace)
     {
-        rclcpp::shutdown();
         return 1;
     }
 
@@ -143,7 +137,6 @@ int main(int argc, char **argv)
         // Clear occupancy map before starting run (includes run 1)
         if (!callClearMap(node, clear_client, node->get_logger()))
         {
-            rclcpp::shutdown();
             return 1;
         }
 
@@ -158,7 +151,6 @@ int main(int argc, char **argv)
         if (!moveit_interface->planToJointStateWithRetries(config.init_joint_angles_rad))
         {
             RCLCPP_ERROR(node->get_logger(), "Failed to move to initial joint configuration");
-            rclcpp::shutdown();
             return 1;
         }
 
@@ -168,7 +160,6 @@ int main(int argc, char **argv)
         if (!moveit_interface->getLinkPose(config.camera_optical_link, init_cam_position, init_cam_orientation))
         {
             RCLCPP_ERROR(node->get_logger(), "Failed to get camera link pose");
-            rclcpp::shutdown();
             return 1;
         }
 
@@ -183,7 +174,6 @@ int main(int argc, char **argv)
         else
         {
             RCLCPP_ERROR(node->get_logger(), "Failed to get current end-effector pose for orientation constraints");
-            rclcpp::shutdown();
             return 1;
         }
 
@@ -205,7 +195,6 @@ int main(int argc, char **argv)
             if (!octomap_interface->loadGroundTruthSemantics(config.gt_points_file))
             {
                 RCLCPP_ERROR(node->get_logger(), "Failed to load ground truth file: %s", config.gt_points_file.c_str());
-                rclcpp::shutdown();
                 return 1;
             }
             RCLCPP_INFO(node->get_logger(), "Ground truth loaded successfully");
@@ -249,7 +238,6 @@ int main(int argc, char **argv)
         }
         catch (const tf2::TransformException &)
         {
-            rclcpp::shutdown();
             return 1;
         }
 
@@ -259,7 +247,6 @@ int main(int argc, char **argv)
         if (!geometry_utils::isIdentityTransform(transform_eigen))
         {
             RCLCPP_ERROR(node->get_logger(), "MoveIt and OctoMap frames are not aligned, they must be the same for this demo");
-            rclcpp::shutdown();
             return 1;
         }
 
@@ -308,7 +295,6 @@ int main(int argc, char **argv)
         if (reachable_viewpoints.empty())
         {
             RCLCPP_ERROR(node->get_logger(), "No reachable viewpoints found");
-            rclcpp::shutdown();
             return 1;
         }
 
@@ -398,7 +384,6 @@ int main(int argc, char **argv)
             if (!rclcpp::ok())
             {
                 RCLCPP_INFO(node->get_logger(), "\nNBV planning interrupted by shutdown signal, exiting...");
-                rclcpp::shutdown();
                 return 1;
             }
         }
@@ -409,7 +394,6 @@ int main(int argc, char **argv)
         if (!moveit_interface->planToJointStateWithRetries(config.init_joint_angles_rad))
         {
             RCLCPP_ERROR(node->get_logger(), "Failed to move to initial joint configuration");
-            rclcpp::shutdown();
             return 1;
         }
         RCLCPP_INFO(node->get_logger(), "Moved to initial joint configuration successfully");
@@ -427,9 +411,30 @@ int main(int argc, char **argv)
     if (node->get_parameter("keep_alive").as_bool())
     {
         RCLCPP_INFO(node->get_logger(), "Press Ctrl+C to exit.");
-        rclcpp::spin(node);
+        while (rclcpp::ok())
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
     }
 
-    rclcpp::shutdown();
     return 0;
+}
+
+int main(int argc, char **argv)
+{
+    rclcpp::init(argc, argv);
+
+    auto node = std::make_shared<rclcpp::Node>(
+        "moveit_interface_node",
+        rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true));
+
+    rclcpp::executors::SingleThreadedExecutor executor;
+    executor.add_node(node);
+    std::thread spinner([&executor]() { executor.spin(); });
+
+    int result = run(node);
+
+    rclcpp::shutdown();
+    spinner.join();
+    return result;
 }

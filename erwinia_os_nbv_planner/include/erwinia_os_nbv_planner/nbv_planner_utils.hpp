@@ -117,7 +117,6 @@ void waitForSimClock(const std::shared_ptr<rclcpp::Node> &node)
     auto start = std::chrono::steady_clock::now();
     while (rclcpp::ok())
     {
-        rclcpp::spin_some(node);
         if (node->now().seconds() > 0.0)
         {
             RCLCPP_INFO(node->get_logger(), "Clock synchronized at %.2f seconds",
@@ -375,7 +374,7 @@ TriggerClients createTriggerClients(const std::shared_ptr<rclcpp::Node> &node)
 }
 
 bool callClearMap(
-    const std::shared_ptr<rclcpp::Node> &node,
+    const std::shared_ptr<rclcpp::Node> & /*node*/,
     const rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr &clear_client,
     const rclcpp::Logger &logger)
 {
@@ -388,10 +387,9 @@ bool callClearMap(
     auto req = std::make_shared<std_srvs::srv::Trigger::Request>();
     auto future = clear_client->async_send_request(req);
 
-    auto ret = rclcpp::spin_until_future_complete(node, future, std::chrono::seconds(10));
-    if (ret != rclcpp::FutureReturnCode::SUCCESS)
+    if (future.wait_for(std::chrono::seconds(10)) != std::future_status::ready)
     {
-        RCLCPP_ERROR(logger, "Failed to call /occupancy_map/clear");
+        RCLCPP_ERROR(logger, "Failed to call /occupancy_map/clear (timeout)");
         return false;
     }
 
@@ -407,7 +405,7 @@ bool callClearMap(
 }
 
 bool startContinuousCapture(
-    const std::shared_ptr<rclcpp::Node> &node,
+    const std::shared_ptr<rclcpp::Node> & /*node*/,
     const TriggerClients &clients,
     const rclcpp::Logger &logger)
 {
@@ -419,7 +417,7 @@ bool startContinuousCapture(
 
     auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
     auto future = clients.start_video->async_send_request(request);
-    if (rclcpp::spin_until_future_complete(node, future, std::chrono::seconds(5)) == rclcpp::FutureReturnCode::SUCCESS)
+    if (future.wait_for(std::chrono::seconds(5)) == std::future_status::ready)
     {
         auto response = future.get();
         if (response->success)
@@ -436,7 +434,7 @@ bool startContinuousCapture(
 }
 
 bool stopVideoCapture(
-    const std::shared_ptr<rclcpp::Node> &node,
+    const std::shared_ptr<rclcpp::Node> & /*node*/,
     const TriggerClients &clients,
     const rclcpp::Logger &logger)
 {
@@ -448,7 +446,7 @@ bool stopVideoCapture(
 
     auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
     auto future = clients.stop_video->async_send_request(request);
-    if (rclcpp::spin_until_future_complete(node, future, std::chrono::seconds(5)) == rclcpp::FutureReturnCode::SUCCESS)
+    if (future.wait_for(std::chrono::seconds(5)) == std::future_status::ready)
     {
         auto response = future.get();
         RCLCPP_DEBUG(logger, "Stop video service called: %s", response->message.c_str());
@@ -456,6 +454,7 @@ bool stopVideoCapture(
     }
     return false;
 }
+
 bool waitForOctomapWithTriggers(
     const std::shared_ptr<rclcpp::Node> &node,
     const std::shared_ptr<OctoMapInterface> &octomap_interface,
@@ -479,8 +478,6 @@ bool waitForOctomapWithTriggers(
             RCLCPP_ERROR(logger, "Octomap not available after %.0f seconds. Exiting.", timeout_seconds);
             return false;
         }
-
-        rclcpp::spin_some(node);
 
         // Send trigger every 1 second in triggered mode
         if (config.capture_type == "triggered" && (node->now() - last_trigger_time).seconds() >= 1.0)
@@ -518,8 +515,6 @@ void waitForOctomap(
 
     while (rclcpp::ok())
     {
-        rclcpp::spin_some(node);
-
         // Send trigger every 1 second in triggered mode
         if (config.capture_type == "triggered" && (node->now() - last_trigger_time).seconds() >= 1.0)
         {
@@ -829,7 +824,7 @@ std::optional<moveit::planning_interface::MoveGroupInterface::Plan> planPathsToV
 
 bool executeAndWaitForMotion(
     const std::shared_ptr<MoveItInterface> &moveit_interface,
-    const std::shared_ptr<rclcpp::Node> &node,
+    const std::shared_ptr<rclcpp::Node> & /*node*/,
     const moveit::planning_interface::MoveGroupInterface::Plan &plan,
     const rclcpp::Logger &logger)
 {
@@ -847,8 +842,6 @@ bool executeAndWaitForMotion(
     RCLCPP_DEBUG(logger, "Waiting for manipulator to reach goal");
     while (rclcpp::ok())
     {
-        rclcpp::spin_some(node);
-
         std::vector<double> current_joints;
         if (moveit_interface->getCurrentJointAngles(current_joints))
         {

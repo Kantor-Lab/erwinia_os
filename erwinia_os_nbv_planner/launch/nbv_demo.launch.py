@@ -38,7 +38,6 @@ def _xacro_param(xacro_path, *args):
 def launch_setup(context, *args, **kwargs):
     use_sim_time = LaunchConfiguration('use_sim_time')
     use_gazebo = LaunchConfiguration('use_gazebo')
-    use_fake_hardware = LaunchConfiguration('use_fake_hardware')
     manipulator_prefix = LaunchConfiguration('manipulator_prefix')
     manipulator_ns = LaunchConfiguration('manipulator_ns')
     platform_prefix = LaunchConfiguration('platform_prefix')
@@ -489,7 +488,6 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('use_gazebo', default_value='false'),
-        DeclareLaunchArgument('use_fake_hardware', default_value='false'),
         DeclareLaunchArgument('manipulator_prefix', default_value='xarm6_'),
         DeclareLaunchArgument('manipulator_ns', default_value='xarm'),
         DeclareLaunchArgument('platform_prefix', default_value=''),

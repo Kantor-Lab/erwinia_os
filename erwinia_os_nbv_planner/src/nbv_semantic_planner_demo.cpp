@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <iomanip>
 #include <sstream>
+#include <thread>
 
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
@@ -39,14 +40,8 @@ static std::string formatRunName(int idx)
     return oss.str();
 }
 
-int main(int argc, char **argv)
+static int run(std::shared_ptr<rclcpp::Node> node)
 {
-    rclcpp::init(argc, argv);
-
-    auto node = std::make_shared<rclcpp::Node>(
-        "moveit_interface_node",
-        rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true));
-
     int n_runs = node->get_parameter("n_runs").as_int();
     if (n_runs < 1) n_runs = 1;
 
@@ -511,9 +506,30 @@ int main(int argc, char **argv)
     if (node->get_parameter("keep_alive").as_bool())
     {
         RCLCPP_INFO(node->get_logger(), "Press Ctrl+C to exit.");
-        rclcpp::spin(node);
+        while (rclcpp::ok())
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
     }
 
-    rclcpp::shutdown();
     return 0;
+}
+
+int main(int argc, char **argv)
+{
+    rclcpp::init(argc, argv);
+
+    auto node = std::make_shared<rclcpp::Node>(
+        "moveit_interface_node",
+        rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true));
+
+    rclcpp::executors::SingleThreadedExecutor executor;
+    executor.add_node(node);
+    std::thread spinner([&executor]() { executor.spin(); });
+
+    int result = run(node);
+
+    rclcpp::shutdown();
+    spinner.join();
+    return result;
 }

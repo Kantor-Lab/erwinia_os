@@ -16,12 +16,20 @@ find_package(visualization_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(octomap REQUIRED)
 find_package(octomap_msgs REQUIRED)
-find_package(semantic_octomap REQUIRED)
 find_package(vision_msgs REQUIRED)
 find_package(erwinia_os_occupancy_map REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(yaml-cpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+
+# Generate custom action interfaces
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "action/RunNBV.action"
+  DEPENDENCIES std_msgs
+)
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} rosidl_typesupport_cpp)
 
 # Define the MoveIt interface library
 add_library(moveit_interface SHARED
@@ -177,6 +185,24 @@ ament_target_dependencies(nbv_baseline_demo
   geometry_msgs
 )
 
+# Define the NBV Baseline action server executable
+add_executable(nbv_action_server src/nbv_action_server.cpp)
+target_link_libraries(nbv_action_server
+  moveit_interface
+  manipulation_workspace
+  octomap_interface
+  nbv_visualizer
+  viewpoint_generation
+  "${cpp_typesupport_target}"
+)
+ament_target_dependencies(nbv_action_server
+  rclcpp
+  rclcpp_action
+  moveit_ros_planning_interface
+  moveit_ros_planning
+  geometry_msgs
+)
+
 # Install rules
 install(TARGETS 
   moveit_interface 
@@ -189,12 +215,13 @@ install(TARGETS
   nbv_semantic_planner_demo
   nbv_volumetric_planner_demo
   nbv_baseline_demo
+  nbv_action_server
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY include/
   DESTINATION include)
 
-install(DIRECTORY launch metrics
+install(DIRECTORY launch metrics config
   DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)

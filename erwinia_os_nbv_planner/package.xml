@@ -8,8 +8,14 @@
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>rosidl_default_generators</buildtool_depend>
+
+  <exec_depend>rosidl_default_runtime</exec_depend>
+
+  <member_of_group>rosidl_interface_packages</member_of_group>
 
   <depend>rclcpp</depend>
+  <depend>rclcpp_action</depend>
   <depend>std_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>sensor_msgs</depend>
@@ -18,7 +24,6 @@
   <depend>moveit_ros_planning</depend>
   <depend>octomap</depend>
   <depend>octomap_msgs</depend>
-  <depend>semantic_octomap</depend>
   <depend>vision_msgs</depend>
   <depend>erwinia_os_occupancy_map</depend>
   <depend>tf2_ros</depend>
