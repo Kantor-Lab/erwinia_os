@@ -43,9 +43,58 @@ Complete implementation of a Next-Best-View (NBV) planner for autonomous robotic
 
 ## Launch
 
+There are two launch modes:
+
+### 1. Standalone Demo Node (`nbv_demo.launch.py`)
+
+Launches the full NBV pipeline as a self-contained node, including the Firefly cameras, occupancy mapping, and the NBV planner. The node runs autonomously and terminates when a stopping condition is met.
+
 ```bash
-ros2 launch erwinia_os_nbv_planner nbv_volumetric_planner_demo.launch.py
+ros2 launch erwinia_os_nbv_planner nbv_demo.launch.py \
+  planner_type:=baseline \ # or: volumetric, semantic
+  learn_workspace:=false \
+  visualize_nbv:=false \
+  n_runs:=1 \
+  capture_type:=triggered \
+  camera_max_range:=0.9 \
+  map_frame:=amiga/base_footprint
 ```
+
+### 2. Action Server (`nbv_action_server.launch.py`)
+
+Launches only the NBV action server node. The Firefly cameras and occupancy mapping must already be running before launching this. The server exposes a `/run_nbv` action and waits for goals.
+
+```bash
+# Prerequisites (must be running first):
+# - Firefly camera pipeline
+# - Octomap server (erwinia_os_occupancy_map)
+
+ros2 launch erwinia_os_nbv_planner nbv_action_server.launch.py \
+  params_file:=<path_to_params.yaml>
+```
+
+Trigger a run once the server is up:
+
+```bash
+ros2 action send_goal /run_nbv erwinia_os_nbv_planner/action/RunNBV \
+  "{planner_type: baseline}" --feedback
+```
+
+**Goal fields:**
+- `planner_type` — planner to use: `baseline`, `volumetric`, `semantic`, or `paper`
+
+**Feedback** (published after each viewpoint):
+- `current_viewpoint` — index of the viewpoint just visited
+- `cluster_count` — current number of detected semantic clusters
+- `bbox_coverage` — bounding-box coverage fraction so far (0–1)
+- `state` — short status string describing the current step
+
+**Result** (on completion):
+- `success` — whether the run completed successfully
+- `message` — human-readable summary
+- `total_viewpoints` — total viewpoints visited during the run
+- `final_cluster_count` — semantic clusters at end of run
+- `final_bbox_coverage` — final bounding-box coverage (0–1)
 
 ### Key Parameters
 - `max_iterations`: Maximum NBV iterations (default: 50)
