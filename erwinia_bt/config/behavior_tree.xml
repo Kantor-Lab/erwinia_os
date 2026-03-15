@@ -18,7 +18,7 @@
           </Fallback>
 
           <!-- Scan + detect (writes {detection_result}, {confidence}) -->
-          <ErwiniaDetector target="{current_target}"
+          <ErwiniaDetector planner_type="baseline"
                            result="{detection_result}"/>
 
           <!-- Marking decision: do nothing on healthy -->

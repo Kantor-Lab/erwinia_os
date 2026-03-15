@@ -6,7 +6,7 @@
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <nav2_msgs/action/navigate_to_pose.hpp>
-#include <erwinia_msgs/action/detect_erwinia.hpp>
+#include <erwinia_os_nbv_planner/action/run_nbv.hpp>
 #include <erwinia_msgs/action/mark_location.hpp>
 
 #include <chrono>
@@ -229,8 +229,8 @@ private:
 class ErwiniaDetectorNode : public BT::StatefulActionNode
 {
 public:
-  using DetectErwinia = erwinia_msgs::action::DetectErwinia;
-  using GoalHandle = rclcpp_action::ClientGoalHandle<DetectErwinia>;
+  using RunNBV = erwinia_os_nbv_planner::action::RunNBV;
+  using GoalHandle = rclcpp_action::ClientGoalHandle<RunNBV>;
 
   ErwiniaDetectorNode(const std::string& name, const BT::NodeConfiguration& config)
   : BT::StatefulActionNode(name, config)
@@ -249,9 +249,9 @@ public:
   static BT::PortsList providedPorts()
   {
     return {
-      BT::InputPort<std::string>("target"),
+      BT::InputPort<std::string>("planner_type", "baseline"),
       BT::OutputPort<std::string>("result"),
-      BT::InputPort<std::string>("server_name", "erwinia_detector_server"),
+      BT::InputPort<std::string>("server_name", "run_nbv"),
       BT::InputPort<int>("server_timeout_ms", 2000, "")
     };
   }
@@ -260,27 +260,31 @@ public:
   {
     resetState();
 
-    std::string server_name = "erwinia_detector_server";
+    std::string server_name = "run_nbv";
     getInput("server_name", server_name);
 
     if (!client_ || server_name != server_name_)
     {
       server_name_ = server_name;
-      client_ = rclcpp_action::create_client<DetectErwinia>(node_, server_name_);
+      client_ = rclcpp_action::create_client<RunNBV>(node_, server_name_);
     }
 
     int timeout_ms = 2000;
     getInput("server_timeout_ms", timeout_ms);
     if (!client_->wait_for_action_server(std::chrono::milliseconds(timeout_ms)))
     {
-      RCLCPP_ERROR(node_->get_logger(), "DetectErwinia action server not available: %s",
+      RCLCPP_ERROR(node_->get_logger(), "RunNBV action server not available: %s",
                    server_name_.c_str());
       return BT::NodeStatus::FAILURE;
     }
 
-    DetectErwinia::Goal goal;
+    std::string planner_type = "baseline";
+    getInput("planner_type", planner_type);
 
-    auto options = rclcpp_action::Client<DetectErwinia>::SendGoalOptions();
+    RunNBV::Goal goal;
+    goal.planner_type = planner_type;
+
+    auto options = rclcpp_action::Client<RunNBV>::SendGoalOptions();
     options.goal_response_callback =
       [this](GoalHandle::SharedPtr goal_handle) {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -293,7 +297,7 @@ public:
         result_code_ = result.code;
         if (result.result)
         {
-          infected_ = result.result->infected;
+          final_cluster_count_ = result.result->final_cluster_count;
         }
         result_ready_ = true;
       };
@@ -313,7 +317,7 @@ public:
 
     if (result_ready_)
     {
-      setOutput("result", infected_ ? "infected" : "healthy");
+      setOutput("result", final_cluster_count_ > 0 ? "infected" : "healthy");
       return (result_code_ == rclcpp_action::ResultCode::SUCCEEDED)
                ? BT::NodeStatus::SUCCESS
                : BT::NodeStatus::FAILURE;
@@ -338,19 +342,19 @@ private:
     goal_handle_.reset();
     goal_response_received_ = false;
     result_ready_ = false;
-    infected_ = false;
+    final_cluster_count_ = 0;
     result_code_ = rclcpp_action::ResultCode::UNKNOWN;
   }
 
   rclcpp::Node::SharedPtr node_;
-  rclcpp_action::Client<DetectErwinia>::SharedPtr client_;
+  rclcpp_action::Client<RunNBV>::SharedPtr client_;
   std::string server_name_;
 
   std::mutex mutex_;
   GoalHandle::SharedPtr goal_handle_;
   bool goal_response_received_{false};
   bool result_ready_{false};
-  bool infected_{false};
+  int32_t final_cluster_count_{0};
   rclcpp_action::ResultCode result_code_{rclcpp_action::ResultCode::UNKNOWN};
 };
 
