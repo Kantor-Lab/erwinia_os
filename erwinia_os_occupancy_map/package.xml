@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>erwinia_os_occupancy_map</name>
+  <version>0.1.0</version>
+  <description>
+    Octomap-based 3D occupancy mapping for Erwinia OS system.
+    Provides thread-safe octomap integration with MoveIt2 planning scene.
+  </description>
+  
+  <maintainer email="hfeddock@andrew.cmu.edu">Hayden Feddock</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- Core dependencies -->
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
+  
+  <!-- Octomap dependencies -->
+  <depend>octomap</depend>
+  <depend>octomap_msgs</depend>
+  
+  <!-- MoveIt integration -->
+  <depend>moveit_msgs</depend>
+  
+  <!-- Message generation -->
+  <build_depend>rosidl_default_generators</build_depend>
+  <exec_depend>rosidl_default_runtime</exec_depend>
+  <member_of_group>rosidl_interface_packages</member_of_group>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
