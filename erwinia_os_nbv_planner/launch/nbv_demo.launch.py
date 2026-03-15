@@ -140,7 +140,7 @@ def launch_setup(context, *args, **kwargs):
         'ik_attempts': 10,
 
         # Camera Parameters
-        'capture_type': 'triggered',
+        'capture_type': LaunchConfiguration('capture_type').perform(context),
         'camera_optical_link': LaunchConfiguration('camera_optical_link').perform(context),
         'camera_horizontal_fov_deg': 45.0,
         'camera_vertical_fov_deg': 35.0,
@@ -439,23 +439,23 @@ def launch_setup(context, *args, **kwargs):
                 node_parameters,
             ],
         )
-    elif LaunchConfiguration('planner_type').perform(context).lower() == 'paper': # This is just a demo for the paper figures
-        nbv_node = Node(
-            package='erwinia_os_nbv_planner',
-            executable='paper_demo',
-            output='screen',
-            parameters=[
-                {'use_sim_time': use_sim_time},
-                robot_description,
-                robot_description_semantic,
-                kinematics_config,
-                joint_limits_config,
-                planner_config,
-                controller_config,
-                planning_scene_monitor_config,
-                node_parameters,
-            ],
-        )
+    # elif LaunchConfiguration('planner_type').perform(context).lower() == 'paper': # This is just a demo for the paper figures
+    #     nbv_node = Node(
+    #         package='erwinia_os_nbv_planner',
+    #         executable='paper_demo',
+    #         output='screen',
+    #         parameters=[
+    #             {'use_sim_time': use_sim_time},
+    #             robot_description,
+    #             robot_description_semantic,
+    #             kinematics_config,
+    #             joint_limits_config,
+    #             planner_config,
+    #             controller_config,
+    #             planning_scene_monitor_config,
+    #             node_parameters,
+    #         ],
+    #     )
     else:
         nbv_node = Node(
             package='erwinia_os_nbv_planner',
@@ -523,6 +523,8 @@ def generate_launch_description():
                               description='Number of viewpoint candidates per frontier cluster'),
 
         # Camera Parameters
+        DeclareLaunchArgument('capture_type', default_value='triggered',
+                              description='Whether to use triggered captures ("triggered") or simulated continuous captures ("continuous")'),
         DeclareLaunchArgument('camera_optical_link', default_value='firefly_left_camera_optical_frame',
                               description='TF frame of the camera optical link'),
         DeclareLaunchArgument('camera_scaled_width', default_value='448',
