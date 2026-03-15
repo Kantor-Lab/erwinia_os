@@ -56,7 +56,7 @@ int main(int argc, char** argv)
               groot_pub_port, groot_srv_port);
 
 
-  rclcpp::Rate rate(0.1);
+  rclcpp::Rate rate(50);
   while (rclcpp::ok())
   {
     tree.tickRoot();
