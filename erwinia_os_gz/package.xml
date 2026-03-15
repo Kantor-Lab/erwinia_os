@@ -3,24 +3,25 @@
 <package format="3">
   <name>erwinia_os_gz</name>
   <version>0.0.0</version>
-  <description>Gazebo worlds, models, and launch files for the Erwinia platform.</description>
+  <description>TODO: Package description</description>
   <maintainer email="hayden4feddock@gmail.com">hayden</maintainer>
   <license>MIT</license>
 
-  <buildtool_depend>ament_cmake</buildtool_depend>
-  <build_depend>controller_manager</build_depend>
-  <build_depend>ros2_controllers</build_depend>
-  <build_depend>joint_state_broadcaster</build_depend>
-  <build_depend>joint_trajectory_controller</build_depend>
+  <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>sensor_msgs</depend>
 
-  <depend>rclcpp</depend>
-  <depend>ros2_control</depend>
-  <depend>controller_manager_msgs</depend>
+  <!-- Launch file deps -->
+  <depend>multi_camera_rig_description</depend>
+  <depend>multi_camera_rig_reconstruction</depend>
 
-  <test_depend>ament_lint_auto</test_depend>
-  <test_depend>ament_lint_common</test_depend>
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
 
   <export>
-    <build_type>ament_cmake</build_type>
+    <build_type>ament_python</build_type>
   </export>
 </package>
