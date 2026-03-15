@@ -132,15 +132,15 @@ def launch_setup(context, *args, **kwargs):
         'planner_id': 'RRTConnect',
         'planning_time': 0.5,
         'num_planning_attempts': 1,
-        'max_velocity_scaling_factor': 0.8,
-        'max_acceleration_scaling_factor': 0.8,
+        'max_velocity_scaling_factor': 0.3,
+        'max_acceleration_scaling_factor': 0.3,
         'num_ik_seeds': 10,
         'plans_per_seed': 1,
         'ik_timeout': 0.01,
         'ik_attempts': 10,
 
         # Camera Parameters
-        'capture_type': 'triggered',
+        'capture_type': LaunchConfiguration('capture_type').perform(context),
         'camera_optical_link': LaunchConfiguration('camera_optical_link').perform(context),
         'camera_horizontal_fov_deg': 45.0,
         'camera_vertical_fov_deg': 35.0,
@@ -203,6 +203,8 @@ def launch_setup(context, *args, **kwargs):
 
     # Capture firefly parameters
     firefly_parameters = {
+        'trigger_serial_port': LaunchConfiguration('trigger_serial_port').perform(context),
+        'trigger_baudrate': int(LaunchConfiguration('trigger_baudrate').perform(context)),
         'trigger_flash_duration_ms': int(LaunchConfiguration('trigger_flash_duration_ms').perform(context)),
         'trigger_frame_rate_hz': int(LaunchConfiguration('trigger_frame_rate_hz').perform(context)),
         'trigger_auto_start': LaunchConfiguration('trigger_auto_start').perform(context).lower() == 'true',
@@ -345,6 +347,8 @@ def launch_setup(context, *args, **kwargs):
             'calib_dir': LaunchConfiguration('calib_dir'),
             'spinnaker_config_file': LaunchConfiguration('spinnaker_config_file'),
             'spinnaker_param_file': LaunchConfiguration('spinnaker_param_file'),
+            'trigger_serial_port': LaunchConfiguration('trigger_serial_port'),
+            'trigger_baudrate': LaunchConfiguration('trigger_baudrate'),
             'trigger_flash_duration_ms': LaunchConfiguration('trigger_flash_duration_ms'),
             'trigger_frame_rate_hz': LaunchConfiguration('trigger_frame_rate_hz'),
             'trigger_auto_start': LaunchConfiguration('trigger_auto_start'),
@@ -435,23 +439,23 @@ def launch_setup(context, *args, **kwargs):
                 node_parameters,
             ],
         )
-    elif LaunchConfiguration('planner_type').perform(context).lower() == 'paper': # This is just a demo for the paper figures
-        nbv_node = Node(
-            package='erwinia_os_nbv_planner',
-            executable='paper_demo',
-            output='screen',
-            parameters=[
-                {'use_sim_time': use_sim_time},
-                robot_description,
-                robot_description_semantic,
-                kinematics_config,
-                joint_limits_config,
-                planner_config,
-                controller_config,
-                planning_scene_monitor_config,
-                node_parameters,
-            ],
-        )
+    # elif LaunchConfiguration('planner_type').perform(context).lower() == 'paper': # This is just a demo for the paper figures
+    #     nbv_node = Node(
+    #         package='erwinia_os_nbv_planner',
+    #         executable='paper_demo',
+    #         output='screen',
+    #         parameters=[
+    #             {'use_sim_time': use_sim_time},
+    #             robot_description,
+    #             robot_description_semantic,
+    #             kinematics_config,
+    #             joint_limits_config,
+    #             planner_config,
+    #             controller_config,
+    #             planning_scene_monitor_config,
+    #             node_parameters,
+    #         ],
+    #     )
     else:
         nbv_node = Node(
             package='erwinia_os_nbv_planner',
@@ -519,6 +523,8 @@ def generate_launch_description():
                               description='Number of viewpoint candidates per frontier cluster'),
 
         # Camera Parameters
+        DeclareLaunchArgument('capture_type', default_value='triggered',
+                              description='Whether to use triggered captures ("triggered") or simulated continuous captures ("continuous")'),
         DeclareLaunchArgument('camera_optical_link', default_value='firefly_left_camera_optical_frame',
                               description='TF frame of the camera optical link'),
         DeclareLaunchArgument('camera_scaled_width', default_value='448',
@@ -555,6 +561,10 @@ def generate_launch_description():
                               description='Path to the Spinnaker camera configuration YAML file'),
         DeclareLaunchArgument('spinnaker_param_file', default_value=PathJoinSubstitution([FindPackageShare('firefly-ros2-wrapper-bringup'), 'params', 'firefly.yaml']),
                               description='Path to the Spinnaker camera parameter definitions YAML file'),
+        DeclareLaunchArgument('trigger_serial_port', default_value='/dev/ttyUSB0',
+                              description='Serial port for trigger connection (real hardware only)'),
+        DeclareLaunchArgument('trigger_baudrate', default_value='9600',
+                              description='Baudrate for trigger serial connection (real hardware only)'),
         DeclareLaunchArgument('trigger_flash_duration_ms', default_value='200',
                               description='Flash duration in milliseconds (0-300)'),
         DeclareLaunchArgument('trigger_frame_rate_hz', default_value='1',
