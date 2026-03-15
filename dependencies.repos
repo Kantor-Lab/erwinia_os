@@ -1,0 +1,9 @@
+repositories:
+  xarm_ros2:
+    type: git
+    url: https://github.com/xArm-Developer/xarm_ros2.git
+    version: humble
+  multi_camera_rig_v3:
+    type: git
+    url: https://github.com/Feddockh/multi_camera_rig_v3.git
+    version: main

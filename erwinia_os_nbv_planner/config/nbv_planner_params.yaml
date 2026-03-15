@@ -1,0 +1,78 @@
+nbv_action_server:
+  ros__parameters:
+
+    # Workspace Parameters
+    num_samples: 10000000
+
+    # Octomap Parameters
+    octomap_topic: /octomap_binary
+    min_unknown_neighbors: 1
+
+    # Manipulation Parameters
+    planning_pipeline_id: ompl
+    planner_id: RRTConnect
+    planning_time: 0.5
+    num_planning_attempts: 1
+    max_velocity_scaling_factor: 0.8
+    max_acceleration_scaling_factor: 0.8
+    num_ik_seeds: 10
+    plans_per_seed: 1
+    ik_timeout: 0.01
+    ik_attempts: 10
+
+    # Camera Parameters
+    capture_type: triggered
+    camera_optical_link: firefly_left_camera_optical_frame
+    camera_horizontal_fov_deg: 45.0
+    camera_vertical_fov_deg: 35.0
+    camera_scaled_width: 448
+    camera_scaled_height: 224
+    camera_max_range: 0.9
+    ideal_camera_distance: 0.4
+    ideal_distance_tolerance: 0.1
+    num_camera_rays: 25
+
+    # Evaluation Parameters
+    enable_evaluation: false
+    eval_threshold_radius: 0.10
+    gt_points_file: ""
+    metrics_plots_dir: /tmp/nbv_metrics/plots
+    metrics_data_dir: /tmp/nbv_metrics/data
+
+    # General Parameters
+    init_joint_angles_deg: [0.0, -20.0, -70.0, 0.0, 0.0, 90.0]
+    hint_joint_angles_deg: [
+      -42.0, -8.0, -119.0,  57.0, 54.0,   48.0,
+       42.0, -8.0, -119.0,  57.0, 54.0,  132.0,
+      -38.0,-35.0,  -53.0,  92.0, 38.0,   -3.0,
+       38.0,-34.0,  -54.0, -92.0, 38.0,  183.0,
+      -50.0, 27.0,  -31.0, 130.0, 87.0,  -87.0,
+       50.0, 27.0,  -31.0, 230.0, 87.0,  -93.0,
+      -56.0, 97.0,  -92.0, 124.0, 93.0,  -94.0,
+      -56.0, 97.0,  -92.0, 124.0, 93.0,  -94.0,
+       56.0, 97.0,  -91.0, 230.0, 93.0,  -85.0,
+    ]
+    map_frame: amiga/base_footprint
+
+    # NBV Planning Parameters
+    max_iterations: 100
+    min_information_gain: 1.0
+    alpha_cost_weight: 0.1
+    beta_semantic_weight: 0.7
+    conf_thresh: 0.3
+    semantic_confidence_boost: 0.3
+    semantic_mismatch_penalty: 0.2
+    max_semantic_certainty: 1.0
+
+    # Viewpoint Parameters
+    plane_half_extent: 1.0
+    plane_spatial_resolution: 0.1
+    cap_max_theta_deg: 60.0
+    cap_min_theta_deg: 30.0
+    num_viewpoints_per_frontier: 7
+    z_bias_sigma: 0.5
+    viewpoint_overlap_ratio: 0.40
+
+    # Debug Parameters
+    visualize: true
+    visualization_topic: nbv_planner_visualization
