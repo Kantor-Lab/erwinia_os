@@ -18,6 +18,7 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(behaviortree_cpp_v3 REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 # uncomment the following section in order to fill in
@@ -26,7 +27,7 @@ find_package(ament_index_cpp REQUIRED)
 
 add_executable(bt_executor src/bt_executor_main.cpp)
 target_include_directories(bt_executor PRIVATE src)
-ament_target_dependencies(bt_executor rclcpp behaviortree_cpp_v3)
+ament_target_dependencies(bt_executor rclcpp sensor_msgs behaviortree_cpp_v3)
 ament_target_dependencies(bt_executor ament_index_cpp)
 
 install(TARGETS bt_executor

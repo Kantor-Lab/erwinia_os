@@ -5,11 +5,17 @@
 #include <behaviortree_cpp_v3/control_node.h>
 #include <behaviortree_cpp_v3/basic_types.h>
 
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/joy.hpp>
+
+#include <chrono>
 #include <cstdlib>
 #include <cctype>
 #include <iostream>
+#include <mutex>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace erwinia_bt
@@ -29,6 +35,239 @@ inline std::string readLine()
   std::string line;
   std::getline(std::cin, line);
   return line;
+}
+
+enum class InteractiveDevice
+{
+  Keyboard,
+  XboxController
+};
+
+enum class InteractiveChoice
+{
+  Auto,
+  Success,
+  Failure,
+  Running
+};
+
+class InteractiveInput
+{
+public:
+  static InteractiveInput& instance()
+  {
+    static InteractiveInput input;
+    return input;
+  }
+
+  void configure(const rclcpp::Node::SharedPtr& node)
+  {
+    if (!node)
+    {
+      return;
+    }
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (node_ == node)
+    {
+      return;
+    }
+
+    node_ = node;
+
+    const std::string device =
+      node_->declare_parameter<std::string>("interactive_input_device", "keyboard");
+    joy_topic_ = node_->declare_parameter<std::string>("interactive_joy_topic", "joy");
+    button_auto_ = node_->declare_parameter<int>("interactive_button_auto", 4);
+    button_success_ = node_->declare_parameter<int>("interactive_button_success", 0);
+    button_failure_ = node_->declare_parameter<int>("interactive_button_failure", 3);
+    button_running_ = node_->declare_parameter<int>("interactive_button_running", 1);
+    poll_ms_ = node_->declare_parameter<int>("interactive_joy_poll_ms", 50);
+
+    device_ = (device == "xbox" || device == "controller" || device == "xbox_controller")
+                ? InteractiveDevice::XboxController
+                : InteractiveDevice::Keyboard;
+
+    joy_sub_.reset();
+    previous_buttons_.clear();
+    has_pending_choice_ = false;
+
+    if (device_ == InteractiveDevice::XboxController)
+    {
+      joy_sub_ = node_->create_subscription<sensor_msgs::msg::Joy>(
+        joy_topic_, rclcpp::QoS(10),
+        [this](const sensor_msgs::msg::Joy::SharedPtr msg) { onJoy(msg); });
+
+      RCLCPP_INFO(
+        node_->get_logger(),
+        "Interactive input: xbox controller on topic '%s' (auto=%d success=%d failure=%d running=%d)",
+        joy_topic_.c_str(), button_auto_, button_success_, button_failure_, button_running_);
+    }
+    else
+    {
+      RCLCPP_INFO(node_->get_logger(), "Interactive input: keyboard");
+    }
+  }
+
+  bool isController() const
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return device_ == InteractiveDevice::XboxController;
+  }
+
+  std::string readCommand(const std::string& prompt, bool allow_running)
+  {
+    if (!interactiveEnabled())
+    {
+      return "";
+    }
+
+    if (isController())
+    {
+      return waitForControllerCommand(prompt, allow_running);
+    }
+
+    std::cout << prompt << std::flush;
+    return readLine();
+  }
+
+private:
+  std::string waitForControllerCommand(const std::string& prompt, bool allow_running)
+  {
+    rclcpp::Node::SharedPtr node;
+    int poll_ms = 50;
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      node = node_;
+      poll_ms = poll_ms_;
+      has_pending_choice_ = false;
+    }
+
+    if (!node)
+    {
+      return "";
+    }
+
+    std::cout << prompt
+              << " [controller: auto/success/failure"
+              << (allow_running ? "/running" : "")
+              << "] > " << std::flush;
+
+    while (rclcpp::ok())
+    {
+      rclcpp::spin_some(node);
+
+      bool has_choice = false;
+      InteractiveChoice choice = InteractiveChoice::Auto;
+      {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (has_pending_choice_)
+        {
+          choice = pending_choice_;
+          has_pending_choice_ = false;
+          has_choice = true;
+        }
+      }
+
+      if (has_choice)
+      {
+        switch (choice)
+        {
+          case InteractiveChoice::Auto:
+            std::cout << "auto" << std::endl;
+            return "a";
+          case InteractiveChoice::Success:
+            std::cout << "success" << std::endl;
+            return "s";
+          case InteractiveChoice::Failure:
+            std::cout << "failure" << std::endl;
+            return "f";
+          case InteractiveChoice::Running:
+            if (allow_running)
+            {
+              std::cout << "running" << std::endl;
+              return "r";
+            }
+            break;
+        }
+      }
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(poll_ms));
+    }
+
+    return "";
+  }
+
+  void onJoy(const sensor_msgs::msg::Joy::SharedPtr& msg)
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    if (previous_buttons_.size() != msg->buttons.size())
+    {
+      previous_buttons_.assign(msg->buttons.size(), 0);
+    }
+
+    const auto detect_edge = [&](int index) -> bool {
+      return index >= 0 &&
+             static_cast<size_t>(index) < msg->buttons.size() &&
+             msg->buttons[index] != 0 &&
+             previous_buttons_[index] == 0;
+    };
+
+    if (detect_edge(button_auto_))
+    {
+      pending_choice_ = InteractiveChoice::Auto;
+      has_pending_choice_ = true;
+    }
+    else if (detect_edge(button_success_))
+    {
+      pending_choice_ = InteractiveChoice::Success;
+      has_pending_choice_ = true;
+    }
+    else if (detect_edge(button_failure_))
+    {
+      pending_choice_ = InteractiveChoice::Failure;
+      has_pending_choice_ = true;
+    }
+    else if (detect_edge(button_running_))
+    {
+      pending_choice_ = InteractiveChoice::Running;
+      has_pending_choice_ = true;
+    }
+
+    previous_buttons_ = msg->buttons;
+  }
+
+  mutable std::mutex mutex_;
+  rclcpp::Node::SharedPtr node_;
+  rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
+  InteractiveDevice device_{InteractiveDevice::Keyboard};
+  std::string joy_topic_{"joy"};
+  int button_auto_{0};
+  int button_success_{1};
+  int button_failure_{2};
+  int button_running_{3};
+  int poll_ms_{50};
+  std::vector<int32_t> previous_buttons_;
+  InteractiveChoice pending_choice_{InteractiveChoice::Auto};
+  bool has_pending_choice_{false};
+};
+
+inline void configureInteractiveInput(const BT::NodeConfiguration& config)
+{
+  if (!config.blackboard)
+  {
+    return;
+  }
+
+  try
+  {
+    auto node = config.blackboard->get<rclcpp::Node::SharedPtr>("node");
+    InteractiveInput::instance().configure(node);
+  }
+  catch (...)
+  {
+  }
 }
 
 inline BT::NodeStatus parseStatus(const std::string& input, BT::NodeStatus def, bool allow_running)
@@ -52,17 +291,10 @@ inline BT::NodeStatus promptStatus(const std::string& node_name,
   {
     return def;
   }
-  if (allow_running)
-  {
-    std::cout << "[" << node_name << "] status? (s=success, f=failure, r=running, enter=default) > "
-              << std::flush;
-  }
-  else
-  {
-    std::cout << "[" << node_name << "] status? (s=success, f=failure, enter=default) > "
-              << std::flush;
-  }
-  const std::string line = readLine();
+  const std::string prompt = allow_running
+                               ? "[" + node_name + "] status? (s=success, f=failure, r=running, enter=default) > "
+                               : "[" + node_name + "] status? (s=success, f=failure, enter=default) > ";
+  const std::string line = InteractiveInput::instance().readCommand(prompt, allow_running);
   return parseStatus(line, def, allow_running);
 }
 
@@ -92,6 +324,7 @@ public:
   InitSystem(const std::string& name, const BT::NodeConfiguration& config)
   : BT::StatefulActionNode(name, config)
   {
+    configureInteractiveInput(config);
   }
 
   static BT::PortsList providedPorts()
@@ -119,6 +352,7 @@ public:
   ShutdownSystem(const std::string& name, const BT::NodeConfiguration& config)
   : BT::StatefulActionNode(name, config)
   {
+    configureInteractiveInput(config);
   }
 
   static BT::PortsList providedPorts()
@@ -146,6 +380,7 @@ public:
   LoadTargets(const std::string& name, const BT::NodeConfiguration& config)
   : BT::StatefulActionNode(name, config)
   {
+    configureInteractiveInput(config);
   }
 
   static BT::PortsList providedPorts()
@@ -160,7 +395,10 @@ public:
     {
       std::cout << "[LoadTargets] targets (comma-separated, enter=default tree_1,tree_2,tree_3) > "
                 << std::flush;
-      targets = parseList(readLine(), targets);
+      targets = parseList(InteractiveInput::instance().readCommand(
+                            "[LoadTargets] targets (comma-separated, enter=default tree_1,tree_2,tree_3)",
+                            false),
+                          targets);
     }
     setOutput("targets", targets);
     std::cout << "[LoadTargets] loaded " << targets.size() << " targets" << std::endl;
@@ -181,6 +419,7 @@ public:
   ForEachTarget(const std::string& name, const BT::NodeConfiguration& config)
   : BT::ControlNode(name, config), index_(0)
   {
+    configureInteractiveInput(config);
   }
 
   static BT::PortsList providedPorts()
@@ -193,9 +432,8 @@ public:
   {
     if (interactiveEnabled())
     {
-      std::cout << "[ForEachTarget] mode? (a=auto, s=success, f=failure, r=running) > "
-                << std::flush;
-      const std::string line = readLine();
+      const std::string line = InteractiveInput::instance().readCommand(
+        "[ForEachTarget] mode? (a=auto, s=success, f=failure, r=running)", true);
       const char c = line.empty() ? 'a' : static_cast<char>(std::tolower(line[0]));
       if (c == 's') return BT::NodeStatus::SUCCESS;
       if (c == 'f') return BT::NodeStatus::FAILURE;
@@ -258,6 +496,7 @@ public:
   ReachedPose(const std::string& name, const BT::NodeConfiguration& config)
   : BT::ConditionNode(name, config)
   {
+    configureInteractiveInput(config);
   }
 
   static BT::PortsList providedPorts()
@@ -289,6 +528,7 @@ public:
   NavigateToPose(const std::string& name, const BT::NodeConfiguration& config)
   : BT::StatefulActionNode(name, config)
   {
+    configureInteractiveInput(config);
   }
 
   static BT::PortsList providedPorts()
@@ -320,6 +560,7 @@ public:
   ErwiniaDetector(const std::string& name, const BT::NodeConfiguration& config)
   : BT::StatefulActionNode(name, config)
   {
+    configureInteractiveInput(config);
   }
 
   static BT::PortsList providedPorts()
@@ -340,7 +581,8 @@ public:
     {
       std::cout << "[ErwiniaDetector] result? (infected/healthy, enter=default) > "
                 << std::flush;
-      const std::string line = readLine();
+      const std::string line = InteractiveInput::instance().readCommand(
+        "[ErwiniaDetector] result? (infected/healthy, enter=default)", false);
       if (!line.empty())
       {
         result = line;
@@ -366,6 +608,7 @@ public:
   IsInfected(const std::string& name, const BT::NodeConfiguration& config)
   : BT::ConditionNode(name, config)
   {
+    configureInteractiveInput(config);
   }
 
   static BT::PortsList providedPorts()
@@ -382,8 +625,8 @@ public:
     }
     if (interactiveEnabled())
     {
-      std::cout << "[IsInfected] mode? (a=auto, s=success, f=failure) > " << std::flush;
-      const std::string line = readLine();
+      const std::string line = InteractiveInput::instance().readCommand(
+        "[IsInfected] mode? (a=auto, s=success, f=failure)", false);
       const char c = line.empty() ? 'a' : static_cast<char>(std::tolower(line[0]));
       if (c == 's') return BT::NodeStatus::SUCCESS;
       if (c == 'f') return BT::NodeStatus::FAILURE;
@@ -398,6 +641,7 @@ public:
   ComputeMarkPose(const std::string& name, const BT::NodeConfiguration& config)
   : BT::StatefulActionNode(name, config)
   {
+    configureInteractiveInput(config);
   }
 
   static BT::PortsList providedPorts()
@@ -418,7 +662,8 @@ public:
     {
       std::cout << "[ComputeMarkPose] mark pose? (enter=default " << pose << ") > "
                 << std::flush;
-      const std::string line = readLine();
+      const std::string line = InteractiveInput::instance().readCommand(
+        "[ComputeMarkPose] mark pose? (enter=default " + pose + ")", false);
       if (!line.empty())
       {
         pose = line;
@@ -443,6 +688,7 @@ public:
   MarkLocation(const std::string& name, const BT::NodeConfiguration& config)
   : BT::StatefulActionNode(name, config)
   {
+    configureInteractiveInput(config);
   }
 
   static BT::PortsList providedPorts()
@@ -465,13 +711,14 @@ public:
     {
       std::cout << "[MarkLocation] marked? (true/false, enter=default true) > "
                 << std::flush;
-      const std::string marked_line = readLine();
+      const std::string marked_line = InteractiveInput::instance().readCommand(
+        "[MarkLocation] marked? (true/false, enter=default true)", false);
       if (!marked_line.empty())
       {
         marked = (marked_line == "true" || marked_line == "1" || marked_line == "yes");
       }
-      std::cout << "[MarkLocation] error? (enter=default empty) > " << std::flush;
-      error = readLine();
+      error = InteractiveInput::instance().readCommand(
+        "[MarkLocation] error? (enter=default empty)", false);
     }
     setOutput("marked", marked);
     setOutput("error", error);
@@ -492,6 +739,7 @@ public:
   LogTreeResult(const std::string& name, const BT::NodeConfiguration& config)
   : BT::StatefulActionNode(name, config)
   {
+    configureInteractiveInput(config);
   }
 
   static BT::PortsList providedPorts()

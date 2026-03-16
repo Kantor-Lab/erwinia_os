@@ -31,9 +31,16 @@ Open **4 terminals** in total.
 ### Terminal 1: Behavior Tree executor
 
 ```bash
-BT_INTERACTIVE=1 ros2 run erwinia_bt bt_executor
+BT_INTERACTIVE=1 ros2 run erwinia_bt bt_executor 
 ```
-
+By default the input device is keyboard. If you want to use the Xbox controller to trigger BT pass 'xbox' as an argument:
+```bash
+BT_INTERACTIVE=1 ros2 run erwinia_bt bt_executor  --ros-args -p interactive_input_device:=xbox
+```
+Make sure the joy node is running, you can run it
+```bash
+ros2 run joy joy_node
+```
 ### Terminal 2: Navigation dummy node
 
 ```bash
