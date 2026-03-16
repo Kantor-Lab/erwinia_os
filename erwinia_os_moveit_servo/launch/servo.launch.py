@@ -140,7 +140,10 @@ def launch_setup(context, *args, **kwargs):
                 package="joy",
                 plugin="joy::Joy",
                 name="joy_node",
-                parameters=[{'use_sim_time': use_sim_time}],
+                parameters=[{
+                    'use_sim_time': use_sim_time,
+                    'dev': LaunchConfiguration('joy_device').perform(context),
+                }],
             ),
         ],
         output="screen",
@@ -176,5 +179,7 @@ def generate_launch_description():
         DeclareLaunchArgument('manipulator_ns', default_value='xarm'),
         DeclareLaunchArgument('platform_prefix', default_value=''),
         DeclareLaunchArgument('platform_ns', default_value='amiga'),
+        DeclareLaunchArgument('joy_device', default_value='/dev/input/js0',
+                              description='Joystick device path, e.g. /dev/input/js0 or /dev/input/js1'),
         OpaqueFunction(function=launch_setup),
     ])
