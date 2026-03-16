@@ -3,11 +3,21 @@
 <package format="3">
   <name>erwinia_spray</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>ROS 2 spray control node with MarkLocation action server integration.</description>
   <maintainer email="sandeepzachariah123@gmail.com">uav</maintainer>
   <license>TODO: License declaration</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+
+  <depend>erwinia_msgs</depend>
+  <depend>launch</depend>
+  <depend>launch_ros</depend>
+  <depend>rcl_interfaces</depend>
+  <depend>rclpy</depend>
+  <depend>std_srvs</depend>
+
+  <exec_depend>python3-serial</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
