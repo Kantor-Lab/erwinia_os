@@ -49,7 +49,7 @@ class SerialSprayer:
         return self._send_and_expect_ok("R")
 
     def pulse(self, ms: int) -> bool:
-        return self._send_and_expect_ok(f"P{int(ms)}")
+        return self._send_and_expect_ok("P")
 
     def close(self) -> None:
         try:

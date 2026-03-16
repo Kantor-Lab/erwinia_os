@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import rclpy
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.node import Node
@@ -5,7 +7,7 @@ from rcl_interfaces.msg import ParameterDescriptor
 from std_srvs.srv import Trigger
 
 from erwinia_msgs.action import MarkLocation
-from .hardware_interface import SerialSprayer
+from hardware_interface import SerialSprayer
 
 
 class SprayNode(Node):
