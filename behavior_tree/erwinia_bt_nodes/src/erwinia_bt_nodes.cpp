@@ -5,7 +5,7 @@
 #include <rclcpp_action/rclcpp_action.hpp>
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
-#include <nav2_msgs/action/navigate_to_pose.hpp>
+#include <mpc_amiga/action/nav_to_tree.hpp>
 #include <sensor_msgs/msg/joy.hpp>
 #include <erwinia_os_nbv_planner/action/run_nbv.hpp>
 #include <erwinia_msgs/action/mark_location.hpp>
@@ -15,7 +15,6 @@
 #include <cstdlib>
 #include <memory>
 #include <mutex>
-#include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
@@ -69,66 +68,39 @@ static ParameterT declareOrGetParameter(
   return node->declare_parameter<ParameterT>(name, default_value);
 }
 
-static bool parsePoseString(const std::string& text, geometry_msgs::msg::PoseStamped& out)
+static bool parseTreeNumber(const std::string & goal_text, int32_t & tree_number)
 {
-  // Accept "x,y" or "x,y,frame"
-  std::stringstream ss(text);
-  std::string item;
-  if (!std::getline(ss, item, ','))
+  std::string digits;
+  for (char ch : goal_text)
+  {
+    if (std::isdigit(static_cast<unsigned char>(ch)) != 0)
+    {
+      digits.push_back(ch);
+    }
+  }
+
+  if (digits.empty())
   {
     return false;
   }
+
   try
   {
-    out.pose.position.x = std::stod(item);
+    tree_number = static_cast<int32_t>(std::stol(digits));
   }
   catch (...)
   {
     return false;
   }
-  if (!std::getline(ss, item, ','))
-  {
-    return false;
-  }
-  try
-  {
-    out.pose.position.y = std::stod(item);
-  }
-  catch (...)
-  {
-    return false;
-  }
-  out.pose.position.z = 0.0;
-  out.pose.orientation.w = 1.0;
 
-  if (std::getline(ss, item, ','))
-  {
-    out.header.frame_id = item;
-  }
-  else
-  {
-    out.header.frame_id = "map";
-  }
-  return true;
-}
-
-static geometry_msgs::msg::PoseStamped defaultPose(const rclcpp::Node::SharedPtr& node)
-{
-  geometry_msgs::msg::PoseStamped pose;
-  pose.header.stamp = node->now();
-  pose.header.frame_id = "map";
-  pose.pose.position.x = 0.0;
-  pose.pose.position.y = 0.0;
-  pose.pose.position.z = 0.0;
-  pose.pose.orientation.w = 1.0;
-  return pose;
+  return tree_number > 0;
 }
 
 class NavigateToPoseNode : public BT::StatefulActionNode
 {
 public:
-  using NavigateToPose = nav2_msgs::action::NavigateToPose;
-  using GoalHandle = rclcpp_action::ClientGoalHandle<NavigateToPose>;
+  using NavigateToTree = mpc_amiga::action::NavToTree;
+  using GoalHandle = rclcpp_action::ClientGoalHandle<NavigateToTree>;
 
   NavigateToPoseNode(const std::string& name, const BT::NodeConfiguration& config)
   : BT::StatefulActionNode(name, config)
@@ -165,7 +137,7 @@ public:
     return {
       BT::InputPort<geometry_msgs::msg::PoseStamped>("pose"),
       BT::InputPort<std::string>("goal"),
-      BT::InputPort<std::string>("server_name", "navigation_server"),
+      BT::InputPort<std::string>("server_name", "go_to_tree"),
       BT::InputPort<int>("server_timeout_ms", 2000, "")
     };
   }
@@ -200,58 +172,46 @@ public:
       return BT::NodeStatus::RUNNING;
     }
 
-    std::string server_name = "navigation_server";
+    std::string server_name = "go_to_tree";
     getInput("server_name", server_name);
 
     if (!client_ || server_name != server_name_)
     {
       server_name_ = server_name;
-      client_ = rclcpp_action::create_client<NavigateToPose>(node_, server_name_);
+      client_ = rclcpp_action::create_client<NavigateToTree>(node_, server_name_);
     }
 
     int timeout_ms = 2000;
     getInput("server_timeout_ms", timeout_ms);
     if (!client_->wait_for_action_server(std::chrono::milliseconds(timeout_ms)))
     {
-      RCLCPP_ERROR(node_->get_logger(), "NavigateToPose action server not available: %s",
+      RCLCPP_ERROR(node_->get_logger(), "NavToTree action server not available: %s",
                    server_name_.c_str());
       return BT::NodeStatus::FAILURE;
     }
 
-    geometry_msgs::msg::PoseStamped pose;
-    bool have_pose = false;
-    if (auto pose_in = getInput<geometry_msgs::msg::PoseStamped>("pose"))
+    int32_t tree_number = 0;
+    if (auto goal_text = getInput<std::string>("goal"))
     {
-      pose = pose_in.value();
-      have_pose = true;
-    }
-    else if (auto goal_text = getInput<std::string>("goal"))
-    {
-      if (parsePoseString(goal_text.value(), pose))
+      if (!parseTreeNumber(goal_text.value(), tree_number))
       {
-        have_pose = true;
-      }
-      else
-      {
-        RCLCPP_WARN(node_->get_logger(),
-                    "NavigateToPose goal string not parseable, using default pose");
-        pose = defaultPose(node_);
-        have_pose = true;
+        RCLCPP_ERROR(
+          node_->get_logger(),
+          "NavigateToPose goal '%s' does not contain a valid positive tree number",
+          goal_text.value().c_str());
+        return BT::NodeStatus::FAILURE;
       }
     }
-
-    if (!have_pose)
+    else
     {
       RCLCPP_ERROR(node_->get_logger(), "NavigateToPose missing goal input");
       return BT::NodeStatus::FAILURE;
     }
 
-    pose.header.stamp = node_->now();
+    NavigateToTree::Goal goal;
+    goal.tree_number = tree_number;
 
-    NavigateToPose::Goal goal;
-    goal.pose = pose;
-
-    auto options = rclcpp_action::Client<NavigateToPose>::SendGoalOptions();
+    auto options = rclcpp_action::Client<NavigateToTree>::SendGoalOptions();
     options.goal_response_callback =
       [this](GoalHandle::SharedPtr goal_handle) {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -262,6 +222,7 @@ public:
       [this](const GoalHandle::WrappedResult& result) {
         std::lock_guard<std::mutex> lock(mutex_);
         result_code_ = result.code;
+        action_success_ = result.result && result.result->success;
         result_ready_ = true;
       };
 
@@ -315,7 +276,7 @@ public:
 
     if (result_ready_)
     {
-      return (result_code_ == rclcpp_action::ResultCode::SUCCEEDED)
+      return (result_code_ == rclcpp_action::ResultCode::SUCCEEDED && action_success_)
                ? BT::NodeStatus::SUCCESS
                : BT::NodeStatus::FAILURE;
     }
@@ -339,6 +300,7 @@ private:
     goal_handle_.reset();
     goal_response_received_ = false;
     result_ready_ = false;
+    action_success_ = false;
     result_code_ = rclcpp_action::ResultCode::UNKNOWN;
     interactive_outcome_ = InteractiveNavOutcome::None;
   }
@@ -372,7 +334,7 @@ private:
   }
 
   rclcpp::Node::SharedPtr node_;
-  rclcpp_action::Client<NavigateToPose>::SharedPtr client_;
+  rclcpp_action::Client<NavigateToTree>::SharedPtr client_;
   rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
   std::string server_name_;
   std::string joy_topic_{"joy"};
@@ -385,6 +347,7 @@ private:
   GoalHandle::SharedPtr goal_handle_;
   bool goal_response_received_{false};
   bool result_ready_{false};
+  bool action_success_{false};
   rclcpp_action::ResultCode result_code_{rclcpp_action::ResultCode::UNKNOWN};
   std::vector<int32_t> previous_buttons_;
   InteractiveNavOutcome interactive_outcome_{InteractiveNavOutcome::None};

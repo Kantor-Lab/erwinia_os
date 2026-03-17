@@ -4,7 +4,7 @@ import os
 import sys
 import threading
 import time
-
+sys.path.insert(0, "/home/appleseed_labs/erwinia_test_2_ws/install/mpc_amiga/lib/python3.10/dist-packages/")
 import acado
 import numpy as np
 import rclpy
