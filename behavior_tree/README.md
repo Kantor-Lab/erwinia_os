@@ -22,11 +22,17 @@ In interactive mode, the joystick is used for both:
 - teleoperation of the robot
 - success/failure input for BT nodes
 
-`NavigateToPose` does not use the MPC navigation action server in this mode. Instead, `bt_executor.launch.py` starts the Amiga teleop stack and sets `BT_INTERACTIVE=1`.
+`NavigateToPose` does not use the MPC navigation action server in this mode. `bt_executor.launch.py` only starts the BT executor and sets `BT_INTERACTIVE=1`, so `amiga_control` must be launched separately.
 
-Open 3 terminals.
+Open 4 terminals.
 
-Terminal 1: BT executor + teleop
+Terminal 1: Amiga control (interactive mode)
+
+```bash
+ros2 launch amiga_control control.launch.py
+```
+
+Terminal 2: BT executor
 
 ```bash
 ros2 launch erwinia_bt bt_executor.launch.py interactive:=true interactive_input_device:=xbox
@@ -40,14 +46,13 @@ Default Xbox behavior:
 - hold `RB` as the teleop enable button
 - use the left joystick to drive the robot
 
-
-Terminal 2: detector server
+Terminal 3: detector server
 
 ```bash
 ros2 launch erwinia_os_nbv_planner nbv_action_server.launch.py
 ```
 
-Terminal 3: mark server
+Terminal 4: mark server
 
 ```bash
 ros2 launch erwinia_spray spray_marker.launch.py
@@ -55,7 +60,7 @@ ros2 launch erwinia_spray spray_marker.launch.py
 
 ## Full autonomous mode
 
-In full autonomous mode, the BT expects the MPC action server providing `go_to_tree` to already be running. Launch the MPC action server before starting the BT executor.
+In full autonomous mode, the BT expects the MPC action server providing `go_to_tree` to already be running. `amiga_control` must also already be running. With `amiga_control` already launched, start the following 4 terminals before running the BT executor.
 
 Open 4 terminals.
 
