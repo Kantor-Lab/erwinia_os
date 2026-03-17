@@ -41,10 +41,10 @@ Make sure the joy node is running, you can run it
 ```bash
 ros2 run joy joy_node
 ```
-### Terminal 2: Navigation dummy node
+### Terminal 2: Navigation teleop node
 
 ```bash
-ros2 run erwinia_nav_server navigation_server
+ros2 launch amiga_control control.launch.py
 ```
 
 ### Terminal 3: Detector dummy node
