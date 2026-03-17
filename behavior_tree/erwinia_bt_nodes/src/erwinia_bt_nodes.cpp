@@ -6,18 +6,68 @@
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <nav2_msgs/action/navigate_to_pose.hpp>
+#include <sensor_msgs/msg/joy.hpp>
 #include <erwinia_os_nbv_planner/action/run_nbv.hpp>
 #include <erwinia_msgs/action/mark_location.hpp>
 
 #include <chrono>
 #include <cctype>
+#include <cstdlib>
 #include <memory>
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <thread>
+#include <vector>
 
 namespace erwinia_bt_nodes
 {
+
+static bool interactiveEnabled()
+{
+  const char * value = std::getenv("BT_INTERACTIVE");
+  return (value == nullptr) || (std::string(value) != "0");
+}
+
+static BT::NodeStatus parseInteractiveStatus(const std::string & input, BT::NodeStatus default_status)
+{
+  if (input.empty())
+  {
+    return default_status;
+  }
+
+  const char choice = static_cast<char>(std::tolower(input.front()));
+  if (choice == 's')
+  {
+    return BT::NodeStatus::SUCCESS;
+  }
+  if (choice == 'f')
+  {
+    return BT::NodeStatus::FAILURE;
+  }
+  return default_status;
+}
+
+enum class InteractiveNavOutcome
+{
+  None,
+  Success,
+  Failure
+};
+
+template<typename ParameterT>
+static ParameterT declareOrGetParameter(
+  const rclcpp::Node::SharedPtr & node,
+  const std::string & name,
+  const ParameterT & default_value)
+{
+  if (node->has_parameter(name))
+  {
+    return node->get_parameter(name).get_value<ParameterT>();
+  }
+
+  return node->declare_parameter<ParameterT>(name, default_value);
+}
 
 static bool parsePoseString(const std::string& text, geometry_msgs::msg::PoseStamped& out)
 {
@@ -92,6 +142,22 @@ public:
     {
       throw BT::RuntimeError("NavigateToPoseNode: blackboard has no rclcpp::Node");
     }
+
+    joy_topic_ = declareOrGetParameter<std::string>(node_, "interactive_joy_topic", "joy");
+    button_success_ = declareOrGetParameter<int>(node_, "interactive_button_success", 0);
+    button_failure_ = declareOrGetParameter<int>(node_, "interactive_button_failure", 3);
+    joy_poll_ms_ = declareOrGetParameter<int>(node_, "interactive_joy_poll_ms", 50);
+    const std::string device =
+      declareOrGetParameter<std::string>(node_, "interactive_input_device", "keyboard");
+    interactive_xbox_ =
+      (device == "xbox" || device == "controller" || device == "xbox_controller");
+
+    if (interactiveEnabled() && interactive_xbox_)
+    {
+      joy_sub_ = node_->create_subscription<sensor_msgs::msg::Joy>(
+        joy_topic_, rclcpp::QoS(10),
+        [this](const sensor_msgs::msg::Joy::SharedPtr msg) { onJoy(msg); });
+    }
   }
 
   static BT::PortsList providedPorts()
@@ -107,6 +173,32 @@ public:
   BT::NodeStatus onStart() override
   {
     resetState();
+
+    auto goal_text = getInput<std::string>("goal");
+    if (goal_text)
+    {
+      RCLCPP_INFO(node_->get_logger(), "NavigateToPose target: %s", goal_text.value().c_str());
+    }
+
+    if (interactiveEnabled())
+    {
+      if (interactive_xbox_)
+      {
+        RCLCPP_INFO(
+          node_->get_logger(),
+          "Interactive navigation enabled. Teleoperate the robot to the target, then press "
+          "success button %d or failure button %d on topic '%s'.",
+          button_success_, button_failure_, joy_topic_.c_str());
+      }
+      else
+      {
+        RCLCPP_INFO(
+          node_->get_logger(),
+          "Interactive navigation enabled without xbox input. Navigate manually and use the "
+          "keyboard prompt to mark success or failure.");
+      }
+      return BT::NodeStatus::RUNNING;
+    }
 
     std::string server_name = "navigation_server";
     getInput("server_name", server_name);
@@ -179,6 +271,41 @@ public:
 
   BT::NodeStatus onRunning() override
   {
+    if (interactiveEnabled())
+    {
+      if (!interactive_xbox_)
+      {
+        std::string line;
+        std::cout << "[NavigateToPose] status? (s=success, f=failure, enter=running) > "
+                  << std::flush;
+        std::getline(std::cin, line);
+        return parseInteractiveStatus(line, BT::NodeStatus::RUNNING);
+      }
+
+      rclcpp::spin_some(node_);
+
+      InteractiveNavOutcome outcome = InteractiveNavOutcome::None;
+      {
+        std::lock_guard<std::mutex> lock(mutex_);
+        outcome = interactive_outcome_;
+        interactive_outcome_ = InteractiveNavOutcome::None;
+      }
+
+      if (outcome == InteractiveNavOutcome::Success)
+      {
+        RCLCPP_INFO(node_->get_logger(), "Interactive navigation marked success");
+        return BT::NodeStatus::SUCCESS;
+      }
+      if (outcome == InteractiveNavOutcome::Failure)
+      {
+        RCLCPP_WARN(node_->get_logger(), "Interactive navigation marked failure");
+        return BT::NodeStatus::FAILURE;
+      }
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(joy_poll_ms_));
+      return BT::NodeStatus::RUNNING;
+    }
+
     std::lock_guard<std::mutex> lock(mutex_);
 
     if (goal_response_received_ && !goal_handle_)
@@ -213,17 +340,54 @@ private:
     goal_response_received_ = false;
     result_ready_ = false;
     result_code_ = rclcpp_action::ResultCode::UNKNOWN;
+    interactive_outcome_ = InteractiveNavOutcome::None;
+  }
+
+  void onJoy(const sensor_msgs::msg::Joy::SharedPtr& msg)
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    if (previous_buttons_.size() != msg->buttons.size())
+    {
+      previous_buttons_.assign(msg->buttons.size(), 0);
+    }
+
+    const auto detect_edge = [&](int index) -> bool {
+      return index >= 0 &&
+             static_cast<size_t>(index) < msg->buttons.size() &&
+             msg->buttons[index] != 0 &&
+             previous_buttons_[index] == 0;
+    };
+
+    if (detect_edge(button_success_))
+    {
+      interactive_outcome_ = InteractiveNavOutcome::Success;
+    }
+    else if (detect_edge(button_failure_))
+    {
+      interactive_outcome_ = InteractiveNavOutcome::Failure;
+    }
+
+    previous_buttons_ = msg->buttons;
   }
 
   rclcpp::Node::SharedPtr node_;
   rclcpp_action::Client<NavigateToPose>::SharedPtr client_;
+  rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
   std::string server_name_;
+  std::string joy_topic_{"joy"};
+  int button_success_{0};
+  int button_failure_{3};
+  int joy_poll_ms_{50};
+  bool interactive_xbox_{false};
 
   std::mutex mutex_;
   GoalHandle::SharedPtr goal_handle_;
   bool goal_response_received_{false};
   bool result_ready_{false};
   rclcpp_action::ResultCode result_code_{rclcpp_action::ResultCode::UNKNOWN};
+  std::vector<int32_t> previous_buttons_;
+  InteractiveNavOutcome interactive_outcome_{InteractiveNavOutcome::None};
 };
 
 class ErwiniaDetectorNode : public BT::StatefulActionNode

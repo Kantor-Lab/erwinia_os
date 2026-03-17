@@ -417,7 +417,7 @@ class ForEachTarget : public BT::ControlNode
 {
 public:
   ForEachTarget(const std::string& name, const BT::NodeConfiguration& config)
-  : BT::ControlNode(name, config), index_(0)
+  : BT::ControlNode(name, config), index_(0), prompted_current_target_(false)
   {
     configureInteractiveInput(config);
   }
@@ -430,16 +430,6 @@ public:
 
   BT::NodeStatus tick() override
   {
-    if (interactiveEnabled())
-    {
-      const std::string line = InteractiveInput::instance().readCommand(
-        "[ForEachTarget] mode? (a=auto, s=success, f=failure, r=running)", true);
-      const char c = line.empty() ? 'a' : static_cast<char>(std::tolower(line[0]));
-      if (c == 's') return BT::NodeStatus::SUCCESS;
-      if (c == 'f') return BT::NodeStatus::FAILURE;
-      if (c == 'r') return BT::NodeStatus::RUNNING;
-    }
-
     if (children_nodes_.size() != 1)
     {
       throw BT::LogicError("ForEachTarget must have exactly 1 child");
@@ -453,23 +443,38 @@ public:
         return BT::NodeStatus::FAILURE;
       }
       index_ = 0;
+      prompted_current_target_ = false;
     }
 
     while (index_ < targets_.size())
     {
       setOutput("current", targets_[index_]);
+
+      if (interactiveEnabled() && !prompted_current_target_)
+      {
+        prompted_current_target_ = true;
+        const std::string line = InteractiveInput::instance().readCommand(
+          "[ForEachTarget] mode? (a=auto, s=success, f=failure, r=running)", true);
+        const char c = line.empty() ? 'a' : static_cast<char>(std::tolower(line[0]));
+        if (c == 's') return BT::NodeStatus::SUCCESS;
+        if (c == 'f') return BT::NodeStatus::FAILURE;
+        if (c == 'r') return BT::NodeStatus::RUNNING;
+      }
+
       auto child_status = children_nodes_[0]->executeTick();
 
       if (child_status == BT::NodeStatus::SUCCESS)
       {
         children_nodes_[0]->halt();
         ++index_;
+        prompted_current_target_ = false;
         continue;
       }
       if (child_status == BT::NodeStatus::FAILURE)
       {
         children_nodes_[0]->halt();
         ++index_;          // skip this one
+        prompted_current_target_ = false;
         continue;          // move to next target
         //return BT::NodeStatus::FAILURE;
       }
@@ -482,12 +487,14 @@ public:
   void halt() override
   {
     index_ = 0;
+    prompted_current_target_ = false;
     BT::ControlNode::halt();
   }
 
 private:
   size_t index_;
   std::vector<std::string> targets_;
+  bool prompted_current_target_;
 };
 
 class ReachedPose : public BT::ConditionNode

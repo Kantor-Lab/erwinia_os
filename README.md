@@ -26,25 +26,49 @@ source install/setup.bash
 
 ## Run the system
 
-Open **4 terminals** in total.
+### Interactive BT with Xbox teleop navigation
 
-### Terminal 1: Behavior Tree executor
+In interactive mode, `NavigateToPose` does not call the navigation action server. Instead, you drive the robot with the Xbox controller through `teleop_twist_joy`, then press the same BT success/failure buttons you already use to complete the navigation step.
+
+Open **3 terminals** in total.
+
+### Terminal 1: BT executor + Amiga teleop stack
 
 ```bash
-BT_INTERACTIVE=1 ros2 run erwinia_bt bt_executor 
+ros2 launch erwinia_bt bt_executor.launch.py interactive:=true interactive_input_device:=xbox
 ```
-By default the input device is keyboard. If you want to use the Xbox controller to trigger BT pass 'xbox' as an argument:
+
+This launch file:
+- starts `bt_executor`
+- includes `amiga_control/launch/control.launch.py`
+- sets `BT_INTERACTIVE=1`
+
+Default Xbox mapping in interactive mode:
+- `A` button (`interactive_button_success:=0`) marks the current BT action as success
+- `Y` button (`interactive_button_failure:=3`) marks the current BT action as failure
+- hold the teleop enable button (`7` in `teleop_twist_joy`) to drive the robot
+
+If needed, you can override the teleop output topic:
+
 ```bash
-BT_INTERACTIVE=1 ros2 run erwinia_bt bt_executor  --ros-args -p interactive_input_device:=xbox
+ros2 launch erwinia_bt bt_executor.launch.py interactive:=true cmd_vel_topic:=/platform_velocity_controller/cmd_vel_unstamped
 ```
-Make sure the joy node is running, you can run it
+
+### Terminal 2: Detector dummy node
+
 ```bash
-ros2 run joy joy_node
+ros2 run erwinia_detector_server erwinia_detector_server
+```
+
+### Terminal 3: Mark dummy node
+
+```bash
+ros2 run erwinia_mark_server erwinia_mark_server
 ```
 ### Terminal 2: Navigation dummy node
 
 ```bash
-ros2 run erwinia_nav_server navigation_server
+ros2 launch amiga_control control.launch.py
 ```
 
 ### Terminal 3: Detector dummy node
@@ -53,7 +77,7 @@ ros2 run erwinia_nav_server navigation_server
 ros2 run erwinia_detector_server erwinia_detector_server
 ```
 
-### Terminal 4: Mark dummy node
+### Terminal 3: Mark dummy node
 
 ```bash
 ros2 run erwinia_mark_server erwinia_mark_server
@@ -244,4 +268,3 @@ check_urdf <path_to_urdf>
     colcon build --symlink-install
     source install/setup.bash
     ```
-
