@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro" name="erwinia_os">
+
+    <!-- Arguments -->
+    <xacro:arg name="use_gazebo" default="false"/>
+    <xacro:arg name="use_fake_hardware" default="false"/>
+    <xacro:arg name="config_file" default="$(find erwinia_os_control)/config/controllers.yaml"/>
+    <xacro:arg name="manipulator_ns" default="xarm"/>
+    <xacro:arg name="manipulator_prefix" default="xarm6_"/>
+    <xacro:arg name="platform_ns" default="amiga"/>
+    <xacro:arg name="platform_prefix" default=""/>
+    <xacro:arg name="manipulator_ip" default="192.168.1.205"/>
+    <xacro:arg name="report_type" default="normal"/>
+
+    <!-- TODO: Fine tune Amiga model -->
+    <!-- AMIGA PLATFORM -->
+    <xacro:include filename="$(find erwinia_os_description)/urdf/amiga/amiga_macro.urdf.xacro"/>
+    <xacro:amiga_base 
+        namespace="$(arg platform_ns)" 
+        prefix="$(arg platform_prefix)" 
+        use_gazebo="$(arg use_gazebo)"/>
+
+    <!-- TODO: Add in sensors with proper params-->
+    <!-- SENSORS -->
+    <xacro:include filename="$(find erwinia_os_description)/urdf/sensors/amiga_lidar_macro.urdf.xacro"/>
+    <xacro:amiga_lidar 
+        prefix="" 
+        parent="$(arg platform_ns)/$(arg platform_prefix)lidar_mount"
+        angle_offset="${24.0 * (pi/180)}"/>
+    <xacro:include filename="$(find erwinia_os_description)/urdf/sensors/amiga_gnss_macro.urdf.xacro"/>
+    <xacro:amiga_gnss
+        prefix="" 
+        parent="$(arg platform_ns)/$(arg platform_prefix)imu_mount"
+        z_offset="0.019"/>
+    <xacro:include filename="$(find erwinia_os_description)/urdf/sensors/amiga_imu_macro.urdf.xacro"/>
+    <xacro:amiga_imu
+        prefix="vectornav/" 
+        parent="$(arg platform_ns)/$(arg platform_prefix)imu_mount"
+        z_offset="0.005"/>
+
+    <!-- <xacro:include filename="$(find erwinia_os_description)/urdf/sensors/amiga_camera_macro.urdf.xacro"/>
+    <xacro:amiga_camera 
+        prefix="$(arg platform_ns)/$(arg platform_prefix)" 
+        parent="$(arg platform_ns)/$(arg platform_prefix)base_link"/> -->
+    
+    <!-- xArm6 Robotic Manipulator -->
+    <xacro:include filename="$(find erwinia_os_description)/urdf/xarm6/xarm6_macro.urdf.xacro"/>
+    <xacro:xarm6 namespace="$(arg manipulator_ns)" prefix="$(arg manipulator_prefix)" model_num="1303" 
+        parent_link="$(arg platform_ns)/$(arg platform_prefix)arm_mount">
+        <origin xyz="0 0 0" rpy="0 0 ${-pi/2}"/>
+    </xacro:xarm6>
+
+    <!-- MULTI CAMERA RIG -->
+    <xacro:include filename="$(find multi_camera_rig_description)/urdf/multi_camera_rig_macro.urdf.xacro"/>
+    <xacro:multi_camera_rig use_gazebo="$(arg use_gazebo)"/>
+    <joint name="tool_mount" type="fixed">
+        <parent link="$(arg manipulator_ns)/$(arg manipulator_prefix)link_eef"/>
+        <child link="multi_camera_rig_mount"/>
+        <origin xyz="0.0 0.0 0.0" rpy="${pi/2} 0 0"/>
+    </joint>
+
+    <!-- ROS2_CONTROL -->
+    <!-- Controller config for the Amiga platform -->
+    <xacro:include filename="$(find erwinia_os_description)/urdf/amiga/amiga_ros2_control.xacro"/>
+    <xacro:amiga_ros2_control 
+        namespace="$(arg platform_ns)" 
+        prefix="$(arg platform_prefix)" 
+        use_gazebo="$(arg use_gazebo)" 
+        use_fake_hardware="$(arg use_fake_hardware)"/>
+    <!-- Controller config for the xArm6 manipulator -->
+    <xacro:include filename="$(find erwinia_os_description)/urdf/xarm6/xarm6_ros2_control.xacro"/>
+    <xacro:xarm6_ros2_control 
+        namespace="$(arg manipulator_ns)" 
+        prefix="$(arg manipulator_prefix)" 
+        use_gazebo="$(arg use_gazebo)" 
+        use_fake_hardware="$(arg use_fake_hardware)"
+        robot_ip="$(arg manipulator_ip)" 
+        report_type="$(arg report_type)"/>
+
+    <!-- Gazebo plugin for controller manager (only needed once for whole robot) -->
+    <xacro:if value="$(arg use_gazebo)">
+        <gazebo>
+            <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+                <parameters>$(arg config_file)</parameters>
+            </plugin>
+        </gazebo>
+    </xacro:if>
+
+</robot>
