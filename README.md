@@ -65,27 +65,13 @@ ros2 run erwinia_detector_server erwinia_detector_server
 ```bash
 ros2 run erwinia_mark_server erwinia_mark_server
 ```
-
-### Non-interactive BT with navigation server
-
-In non-interactive mode, the BT uses the `NavigateToPose` action server path. This is the path to keep for the future MPC-backed navigation server.
-
-Open **3 terminals** in total.
-
-### Terminal 1: BT executor + navigation server
+### Terminal 2: Navigation dummy node
 
 ```bash
-ros2 launch erwinia_bt bt_executor.launch.py interactive:=false
+ros2 launch amiga_control control.launch.py
 ```
 
-This launch file:
-- starts `bt_executor`
-- starts `navigation_server`
-- sets `BT_INTERACTIVE=0`
-
-Later, the dummy `erwinia_nav_server` can be replaced by the real MPC navigation server without changing the BT interaction model.
-
-### Terminal 2: Detector dummy node
+### Terminal 3: Detector dummy node
 
 ```bash
 ros2 run erwinia_detector_server erwinia_detector_server
