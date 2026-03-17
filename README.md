@@ -234,7 +234,12 @@ check_urdf <path_to_urdf>
     ```bash
     git -C src/multi_camera_rig_v3 submodule update --init --recursive
     ```
-5. Build and source ROS2 workspace:
+6. Sync and update the xarm packages:
+    ```bash
+    git -C src/xarm_ros2 submodule sync --recursive && \
+    git -C src/xarm_ros2 submodule update --init --recursive
+    ```
+7. Build and source ROS2 workspace:
     ```bash
     colcon build --symlink-install
     source install/setup.bash
