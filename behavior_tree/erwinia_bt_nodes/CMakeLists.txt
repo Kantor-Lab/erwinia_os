@@ -21,6 +21,7 @@ find_package(rclcpp_action REQUIRED)
 find_package(behaviortree_cpp_v3 REQUIRED)
 find_package(nav2_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(erwinia_os_nbv_planner REQUIRED)
 find_package(erwinia_msgs REQUIRED)
 
@@ -31,6 +32,7 @@ ament_target_dependencies(erwinia_bt_nodes
   behaviortree_cpp_v3
   nav2_msgs
   geometry_msgs
+  sensor_msgs
   erwinia_os_nbv_planner
   erwinia_msgs)
 
