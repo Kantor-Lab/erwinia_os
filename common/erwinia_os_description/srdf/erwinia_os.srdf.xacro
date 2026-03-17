@@ -30,12 +30,20 @@
         <joint name="${arm_prefix}joint5" value="0.0"/>
         <joint name="${arm_prefix}joint6" value="1.5708"/>
     </group_state>
-    <group_state name="hold-up" group="xarm6_manipulator">
+    <group_state name="collapsed" group="xarm6_manipulator">
+        <joint name="${arm_prefix}joint1" value="1.5708"/>
+        <joint name="${arm_prefix}joint2" value="-1.5708"/>
+        <joint name="${arm_prefix}joint3" value="0"/>
+        <joint name="${arm_prefix}joint4" value="0"/>
+        <joint name="${arm_prefix}joint5" value="0"/>
+        <joint name="${arm_prefix}joint6" value="1.5708"/>
+    </group_state>
+    <group_state name="zero" group="xarm6_manipulator">
         <joint name="${arm_prefix}joint1" value="0"/>
         <joint name="${arm_prefix}joint2" value="0"/>
         <joint name="${arm_prefix}joint3" value="0"/>
         <joint name="${arm_prefix}joint4" value="0"/>
-        <joint name="${arm_prefix}joint5" value="-1.5708"/>
+        <joint name="${arm_prefix}joint5" value="0"/>
         <joint name="${arm_prefix}joint6" value="0"/>
     </group_state>
 
