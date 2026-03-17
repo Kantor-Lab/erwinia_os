@@ -43,7 +43,7 @@ def generate_launch_description():
         # Robot controller node
         Node(
             package='mpc_amiga',
-            executable='mpc_warthog_v4.py',  # Ensure this matches your ROS2 executable
+            executable='mpc_warthog_v4_action.py',  # Ensure this matches your ROS2 executable
             name='robot_controller',
             output='screen',
             parameters=[

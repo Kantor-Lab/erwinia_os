@@ -41,14 +41,6 @@ def generate_launch_description():
         condition=IfCondition(interactive),
     )
 
-    navigation_server = Node(
-        package="erwinia_nav_server",
-        executable="navigation_server",
-        name="navigation_server",
-        output="screen",
-        condition=UnlessCondition(interactive),
-    )
-
     return LaunchDescription(
         [
             DeclareLaunchArgument(
@@ -80,6 +72,5 @@ def generate_launch_description():
             SetEnvironmentVariable("BT_INTERACTIVE", "0", condition=UnlessCondition(interactive)),
             bt_executor,
             amiga_control_launch,
-            navigation_server,
         ]
     )

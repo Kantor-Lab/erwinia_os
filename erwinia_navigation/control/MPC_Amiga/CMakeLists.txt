@@ -34,11 +34,9 @@ add_library(acado_diff SHARED
   src/acado_diff/qpoases/SRC/EXTRAS/SolutionAnalysis.cpp
 )
 
-# Add the C++ executable for the MPC node
-#rosidl_generate_interfaces(${PROJECT_NAME}
-#"msg/Baseline.msg"
-#DEPENDENCIES std_msgs
-#)
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "action/NavToTree.action"
+)
 
 # Specify include directories
 target_include_directories(acado_diff
@@ -78,6 +76,7 @@ install(FILES src/acado.cpython-310-x86_64-linux-gnu.so
 # Install Python scripts
 install(PROGRAMS
     scripts/mpc_warthog_v4.py
+    scripts/mpc_warthog_v4_action.py
     scripts/collect_goals.py
     scripts/convert_from_swiftnav.py
     DESTINATION lib/${PROJECT_NAME})
@@ -102,4 +101,3 @@ ament_export_dependencies(rosidl_default_runtime)
 
 # Ensure the package is built and installed
 ament_package()
-

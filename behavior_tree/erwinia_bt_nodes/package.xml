@@ -12,11 +12,11 @@
   <depend>rclcpp</depend>
   <depend>rclcpp_action</depend>
   <depend>behaviortree_cpp_v3</depend>
-  <depend>nav2_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>erwinia_os_nbv_planner</depend>
   <depend>erwinia_msgs</depend>
+  <depend>mpc_amiga</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
