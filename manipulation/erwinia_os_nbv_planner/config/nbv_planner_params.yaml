@@ -12,11 +12,11 @@ nbv_action_server:
     planning_pipeline_id: ompl
     planner_id: RRTConnect
     planning_time: 0.5
-    num_planning_attempts: 1
+    num_planning_attempts: 3
     max_velocity_scaling_factor: 0.8
     max_acceleration_scaling_factor: 0.8
     num_ik_seeds: 10
-    plans_per_seed: 1
+    plans_per_seed: 3
     ik_timeout: 0.01
     ik_attempts: 10
 

@@ -10,6 +10,7 @@ def generate_launch_description():
     interactive_input_device = LaunchConfiguration("interactive_input_device")
     joy_topic = LaunchConfiguration("joy_topic")
     use_sim_time = LaunchConfiguration("use_sim_time")
+    num_trees = LaunchConfiguration("num_trees")
 
     bt_executor = Node(
         package="erwinia_bt",
@@ -17,6 +18,7 @@ def generate_launch_description():
         name="bt_executor",
         output="screen",
         parameters=[
+            {"num_trees": num_trees},
             {"use_sim_time": use_sim_time},
             {"interactive_input_device": interactive_input_device},
             {"interactive_joy_topic": joy_topic},
@@ -39,6 +41,11 @@ def generate_launch_description():
                 "joy_topic",
                 default_value="joy",
                 description="Joystick topic used by the BT interactive input and teleop.",
+            ),
+            DeclareLaunchArgument(
+                "num_trees",
+                default_value="2",
+                description="Number of sequential BT tree targets to generate as tree_1..tree_N.",
             ),
             DeclareLaunchArgument(
                 "use_sim_time",

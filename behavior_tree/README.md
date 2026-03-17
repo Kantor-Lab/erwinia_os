@@ -2,6 +2,8 @@
 
 The main BT executor is launched with `erwinia_bt`. The required supporting nodes depend on whether you are running in interactive or full autonomous mode.
 
+The BT target list is configured through the `num_trees` ROS parameter on the `bt_executor` node. It generates targets as `tree_1` through `tree_N`. By default it is set to `2` in [`bt_executor.launch.py`](/home/appleseed_labs/erwinia_os_ws/src/erwinia_os/behavior_tree/erwinia_bt/launch/bt_executor.launch.py).
+
 ## Prerequisites
 
 - ROS 2 installed and sourced

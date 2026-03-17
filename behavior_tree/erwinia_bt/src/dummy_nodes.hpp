@@ -8,6 +8,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/joy.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <cctype>
@@ -270,6 +271,23 @@ inline void configureInteractiveInput(const BT::NodeConfiguration& config)
   }
 }
 
+inline rclcpp::Node::SharedPtr getNodeFromBlackboard(const BT::NodeConfiguration& config)
+{
+  if (!config.blackboard)
+  {
+    return nullptr;
+  }
+
+  try
+  {
+    return config.blackboard->get<rclcpp::Node::SharedPtr>("node");
+  }
+  catch (...)
+  {
+    return nullptr;
+  }
+}
+
 inline BT::NodeStatus parseStatus(const std::string& input, BT::NodeStatus def, bool allow_running)
 {
   if (input.empty())
@@ -291,6 +309,10 @@ inline BT::NodeStatus promptStatus(const std::string& node_name,
   {
     return def;
   }
+  if (InteractiveInput::instance().isController())
+  {
+    std::cout << "[BT] current node: " << node_name << std::endl;
+  }
   const std::string prompt = allow_running
                                ? "[" + node_name + "] status? (s=success, f=failure, r=running, enter=default) > "
                                : "[" + node_name + "] status? (s=success, f=failure, enter=default) > ";
@@ -301,21 +323,58 @@ inline BT::NodeStatus promptStatus(const std::string& node_name,
 inline std::vector<std::string> parseList(const std::string& input,
                                           const std::vector<std::string>& def)
 {
-  if (input.empty())
+  auto trim = [](std::string value) {
+    const auto begin = value.find_first_not_of(" \t");
+    if (begin == std::string::npos)
+    {
+      return std::string{};
+    }
+    const auto end = value.find_last_not_of(" \t");
+    return value.substr(begin, end - begin + 1);
+  };
+
+  const std::string normalized = trim(input);
+  if (normalized.empty())
   {
     return def;
   }
+
+  std::string lowered = normalized;
+  std::transform(lowered.begin(), lowered.end(), lowered.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  if (lowered == "a" || lowered == "auto")
+  {
+    return def;
+  }
+
   std::vector<std::string> out;
-  std::stringstream ss(input);
+  std::stringstream ss(normalized);
   std::string item;
   while (std::getline(ss, item, ','))
   {
+    item = trim(item);
     if (!item.empty())
     {
       out.push_back(item);
     }
   }
   return out.empty() ? def : out;
+}
+
+inline std::vector<std::string> buildTreeTargets(int num_trees)
+{
+  std::vector<std::string> targets;
+  if (num_trees < 1)
+  {
+    return targets;
+  }
+
+  targets.reserve(static_cast<size_t>(num_trees));
+  for (int i = 1; i <= num_trees; ++i)
+  {
+    targets.push_back("tree_" + std::to_string(i));
+  }
+  return targets;
 }
 
 class InitSystem : public BT::StatefulActionNode
@@ -378,7 +437,7 @@ class LoadTargets : public BT::StatefulActionNode
 {
 public:
   LoadTargets(const std::string& name, const BT::NodeConfiguration& config)
-  : BT::StatefulActionNode(name, config)
+  : BT::StatefulActionNode(name, config), node_(getNodeFromBlackboard(config))
   {
     configureInteractiveInput(config);
   }
@@ -390,18 +449,53 @@ public:
 
   BT::NodeStatus onStart() override
   {
-    std::vector<std::string> targets = {"tree_1", "tree_2", "tree_3"};
+    std::vector<std::string> targets = buildTreeTargets(2);
+    if (node_)
+    {
+      const int num_trees = node_->declare_parameter<int>("num_trees", 2);
+      const auto generated_targets = buildTreeTargets(num_trees);
+      if (!generated_targets.empty())
+      {
+        targets = generated_targets;
+      }
+    }
+
     if (interactiveEnabled())
     {
-      std::cout << "[LoadTargets] targets (comma-separated, enter=default tree_1,tree_2,tree_3) > "
+      std::ostringstream defaults_stream;
+      for (size_t i = 0; i < targets.size(); ++i)
+      {
+        if (i != 0)
+        {
+          defaults_stream << ",";
+        }
+        defaults_stream << targets[i];
+      }
+
+      const std::string prompt =
+        "[LoadTargets] targets (comma-separated, enter=default " + defaults_stream.str() + ") > ";
+      std::cout << prompt
                 << std::flush;
       targets = parseList(InteractiveInput::instance().readCommand(
-                            "[LoadTargets] targets (comma-separated, enter=default tree_1,tree_2,tree_3)",
+                            prompt,
                             false),
                           targets);
     }
     setOutput("targets", targets);
-    std::cout << "[LoadTargets] loaded " << targets.size() << " targets" << std::endl;
+    std::cout << "[LoadTargets] loaded " << targets.size() << " targets";
+    if (!targets.empty())
+    {
+      std::cout << ": ";
+      for (size_t i = 0; i < targets.size(); ++i)
+      {
+        if (i != 0)
+        {
+          std::cout << ", ";
+        }
+        std::cout << targets[i];
+      }
+    }
+    std::cout << std::endl;
     return promptStatus("LoadTargets", BT::NodeStatus::SUCCESS, true);
   }
 
@@ -411,13 +505,19 @@ public:
   }
 
   void onHalted() override {}
+
+private:
+  rclcpp::Node::SharedPtr node_;
 };
 
 class ForEachTarget : public BT::ControlNode
 {
 public:
   ForEachTarget(const std::string& name, const BT::NodeConfiguration& config)
-  : BT::ControlNode(name, config), index_(0), prompted_current_target_(false)
+  : BT::ControlNode(name, config),
+    index_(0),
+    last_logged_index_(static_cast<size_t>(-1)),
+    prompted_current_target_(false)
   {
     configureInteractiveInput(config);
   }
@@ -443,12 +543,19 @@ public:
         return BT::NodeStatus::FAILURE;
       }
       index_ = 0;
+      last_logged_index_ = static_cast<size_t>(-1);
       prompted_current_target_ = false;
     }
 
     while (index_ < targets_.size())
     {
       setOutput("current", targets_[index_]);
+      if (last_logged_index_ != index_)
+      {
+        std::cout << "[ForEachTarget] current target: " << targets_[index_]
+                  << " (" << (index_ + 1) << "/" << targets_.size() << ")" << std::endl;
+        last_logged_index_ = index_;
+      }
 
       if (interactiveEnabled() && !prompted_current_target_)
       {
@@ -481,18 +588,21 @@ public:
       return BT::NodeStatus::RUNNING;
     }
 
+    std::cout << "[ForEachTarget] completed all " << targets_.size() << " targets" << std::endl;
     return BT::NodeStatus::SUCCESS;
   }
 
   void halt() override
   {
     index_ = 0;
+    last_logged_index_ = static_cast<size_t>(-1);
     prompted_current_target_ = false;
     BT::ControlNode::halt();
   }
 
 private:
   size_t index_;
+  size_t last_logged_index_;
   std::vector<std::string> targets_;
   bool prompted_current_target_;
 };
