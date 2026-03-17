@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot name="amiga_gnss" xmlns:xacro="http://www.ros.org/wiki/xacro">
+    
+    <xacro:macro name="amiga_gnss" params="prefix:='' parent:='gnss_mount' z_offset:='0.0'">
+        
+        <!-- Offset between bottom plate and the gnss center -->
+        <link name="${prefix}gnss_bottom_plate" />
+        <joint name="${prefix}gnss_bottom_plate_joint" type="fixed">
+            <origin xyz="0 0 ${z_offset}" rpy="0 0 0" />
+            <parent link="${parent}" />
+            <child link="${prefix}gnss_bottom_plate" />
+        </joint>
+
+        <!-- GNSS -->
+        <link name="${prefix}gnss">
+            <visual>
+                <origin xyz="0 0 0" rpy="${pi/2} 0 ${-pi/2}" />
+                <geometry>
+                    <mesh filename="file://$(find erwinia_os_description)/meshes/gnss/gnss.obj" />
+                </geometry>
+            </visual>
+        </link>
+        <joint name="${prefix}gnss_joint" type="fixed">
+            <origin xyz="0 0 0.04" rpy="0 0 0" />
+            <parent link="${prefix}gnss_bottom_plate" />
+            <child link="${prefix}gnss" />
+        </joint>
+
+        <!-- TODO: Add gazebo impl later -->
+
+    </xacro:macro>
+</robot>

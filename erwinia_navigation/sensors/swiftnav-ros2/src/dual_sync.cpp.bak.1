@@ -1,0 +1,64 @@
+#include "rclcpp/rclcpp.hpp"
+#include "swiftnav_ros2_driver/msg/baseline.hpp"  // Update if needed
+#include "message_filters/subscriber.h"
+#include "message_filters/sync_policies/approximate_time.h"
+#include "message_filters/synchronizer.h"
+
+using BaselineMsg = swiftnav_ros2_driver::msg::Baseline;
+
+class SyncedBaselineNode : public rclcpp::Node
+{
+public:
+  SyncedBaselineNode()
+  : Node("synced_baseline_node")
+  {
+    using namespace std::placeholders;
+
+    sub1_.subscribe(this, "/sw_ns_1/baseline");
+    sub2_.subscribe(this, "/sw_ns_2/baseline");
+
+    sync_ = std::make_shared<Sync>(SyncPolicy(10), sub1_, sub2_);
+    sync_->registerCallback(std::bind(&SyncedBaselineNode::callback, this, _1, _2));
+
+    RCLCPP_INFO(this->get_logger(), "SyncedBaselineNode initialized.");
+  }
+
+private:
+  void callback(const BaselineMsg::ConstSharedPtr msg1, const BaselineMsg::ConstSharedPtr msg2)
+  {
+    double e1 = msg1->baseline_e_m;
+    double n1 = msg1->baseline_n_m;
+    double u1 = -msg1->baseline_dir_deg;  //-msg1->baseline_d_m
+
+    double e2 = msg2->baseline_e_m;
+    double n2 = msg2->baseline_n_m;
+    double u2 = -msg2->baseline_dir_deg;  //-msg2->baseline_d_m
+
+//    RCLCPP_INFO(this->get_logger(), "Synced Baselines (ENU):");
+//    RCLCPP_INFO(this->get_logger(), "  [sw_ns_1] E=%.4f N=%.4f U=%.4f", e1, n1, u1);
+//    RCLCPP_INFO(this->get_logger(), "  [sw_ns_2] E=%.4f N=%.4f U=%.4f", e2, n2, u2);
+    
+    double x=0.0,y =0.0 ,theta=0.0;
+    x = e1;
+    y = n1;
+    theta = u2;
+    RCLCPP_INFO(this->get_logger(), "  [x,y,Theta] x=%.4f y=%.4f theta=%.4f", x, y, theta);
+    
+  }
+
+  message_filters::Subscriber<BaselineMsg> sub1_;
+  message_filters::Subscriber<BaselineMsg> sub2_;
+
+  using SyncPolicy = message_filters::sync_policies::ApproximateTime<BaselineMsg, BaselineMsg>;
+  using Sync = message_filters::Synchronizer<SyncPolicy>;
+  std::shared_ptr<Sync> sync_;
+};
+
+int main(int argc, char * argv[])
+{
+  rclcpp::init(argc, argv);
+  rclcpp::spin(std::make_shared<SyncedBaselineNode>());
+  rclcpp::shutdown();
+  return 0;
+}
+

@@ -24,9 +24,20 @@
     <!-- SENSORS -->
     <xacro:include filename="$(find erwinia_os_description)/urdf/sensors/amiga_lidar_macro.urdf.xacro"/>
     <xacro:amiga_lidar 
-        prefix="$(arg platform_ns)/$(arg platform_prefix)" 
+        prefix="" 
         parent="$(arg platform_ns)/$(arg platform_prefix)lidar_mount"
-        angle_offset="${30.0 * (pi/180)}"/>
+        angle_offset="${24.0 * (pi/180)}"/>
+    <xacro:include filename="$(find erwinia_os_description)/urdf/sensors/amiga_gnss_macro.urdf.xacro"/>
+    <xacro:amiga_gnss
+        prefix="" 
+        parent="$(arg platform_ns)/$(arg platform_prefix)imu_mount"
+        z_offset="0.019"/>
+    <xacro:include filename="$(find erwinia_os_description)/urdf/sensors/amiga_imu_macro.urdf.xacro"/>
+    <xacro:amiga_imu
+        prefix="vectornav/" 
+        parent="$(arg platform_ns)/$(arg platform_prefix)imu_mount"
+        z_offset="0.005"/>
+
     <!-- <xacro:include filename="$(find erwinia_os_description)/urdf/sensors/amiga_camera_macro.urdf.xacro"/>
     <xacro:amiga_camera 
         prefix="$(arg platform_ns)/$(arg platform_prefix)" 
