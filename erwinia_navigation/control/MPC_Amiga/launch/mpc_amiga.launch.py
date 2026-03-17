@@ -29,27 +29,17 @@
 #         )
 #     ])
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 import os
 
 def generate_launch_description():
-    # Declare the 'fresh_start' argument
-    fresh_start_arg = DeclareLaunchArgument(
-        'fresh_start', default_value='false', description='Fresh start argument'
-    )
-
     # Get the path to the RViz config file in the current package
     rviz_config_file = os.path.join(
         get_package_share_directory('mpc_amiga'), 'rviz', 'view_path.rviz'
     )
 
     return LaunchDescription([
-        # Declare launch arguments
-        fresh_start_arg,
-
         # Robot controller node
         Node(
             package='mpc_amiga',
@@ -59,8 +49,7 @@ def generate_launch_description():
             parameters=[
                 {'pruning_status': True},  # Set parameter pruning_status to True
                 {'nav_stat': True}         # Set parameter nav_stat to True
-            ],
-            arguments=[LaunchConfiguration('fresh_start')]  # Pass 'fresh_start' argument
+            ]
         ),
 
         # RViz node
