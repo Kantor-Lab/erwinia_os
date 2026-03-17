@@ -87,7 +87,7 @@ def main(args=None):
     thread = threading.Thread(target=rclpy.spin, args=(goal_reacher,), daemon=True)
     thread.start()
 
-    f2 = '/home/appleseed_labs/erwinia_os/src/erwinia_navigation/control/MPC_Amiga/gps_coordinates/barn_field_waypoints.txt'
+    f2 = '/home/appleseed_labs/erwinia_test_2_ws/src/erwinia_os/erwinia_navigation/control/MPC_Amiga/gps_coordinates/barn_field_waypoints.txt'
     mode = 'subsample'  # or 'capture'
     subsample_rate = 20
 

@@ -5,7 +5,7 @@ from geometry_msgs.msg import Twist, PoseStamped, Pose
 from nav_msgs.msg import Odometry, Path
 from visualization_msgs.msg import Marker, MarkerArray
 import sys
-sys.path.append("/home/appleseed_labs/erwinia_os/install/mpc_amiga/lib/python3.10/dist-packages/")
+sys.path.insert(0, "/home/appleseed_labs/erwinia_test_2_ws/install/mpc_amiga/lib/python3.10/dist-packages/")
 # from tf_transformations import euler_from_quaternion
 import numpy as np
 import acado
@@ -26,7 +26,7 @@ isInitState = True
 robot_state = bot_model.kinematics(0, 0, 0, 0)
 last_time = None
 dt = 0.1
-yaw_prev_ = 0
+yaw_prev_ = None
 vel_up = 0
 vel_down = defs.TARGET_SPEED
 w_up = 0
@@ -176,6 +176,8 @@ class MPCWarthog(Node):
             v_meas = 0
         w_meas = odom_msg.twist.twist.angular.z
 
+        if yaw_prev_ is None:
+            yaw_prev_ = euler_meas
         yaw_in_range = utils.wrapTopm2Pi(euler_meas, yaw_prev_)
         robot_state.set_meas(x_meas, y_meas, yaw_in_range, v_meas, w_meas)
         yaw_prev_ = yaw_in_range
@@ -238,7 +240,7 @@ class MPCWarthog(Node):
         global can_delete_file, nav_glob_finished
         if can_delete_file:
             try:
-                path = "/home/appleseed_labs/erwinia_os/src/erwinia_navigation/control/MPC_Amiga/gps_coordinates/"
+                path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../gps_coordinates") + "/"
                 filename = "pruning_points_real"
                 full_path = path + filename + "_copied.txt"
                 with open(full_path, "r") as a_file:
@@ -271,9 +273,11 @@ class MPCWarthog(Node):
         # Publish the global path to RViz
         my_path = Path()
         my_path.header.frame_id = 'enu'
-        # my_path.header.frame_id = 'map'
+        my_path.header.stamp = self.get_clock().now().to_msg()
         for x, y in zip(global_cx, global_cy):
             pose = PoseStamped()
+            pose.header.frame_id = 'enu'
+            pose.header.stamp = my_path.header.stamp
             pose.pose.position.x = x
             pose.pose.position.y = y
             my_path.poses.append(pose)
@@ -438,7 +442,8 @@ def main(args=None):
         pass
     finally:
         mpc_warthog_node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

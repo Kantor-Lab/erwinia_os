@@ -17,15 +17,15 @@
             <child link="${prefix}lidar_hinge" />
         </joint>
 
-        <link name="${prefix}lidar" />
+        <link name="${prefix}velodyne" />
         <joint name="${prefix}lidar_joint" type="fixed">
             <origin xyz="0.14791768 0 0.02247100" rpy="0 0 0" />
             <parent link="${prefix}lidar_hinge" />
-            <child link="${prefix}lidar" />
+            <child link="${prefix}velodyne" />
         </joint>
 
         <!-- GAZEBO LIDAR SENSOR PLUGIN -->
-        <gazebo reference="${prefix}lidar">
+        <gazebo reference="${prefix}velodyne">
             <sensor name="gpu_lidar" type="gpu_lidar">
                 <!-- block_laser_sensor might work for 3d? -->
                 <!-- <pose relative_to='lidar_frame'>0 0 0 0 0 0</pose> -->
@@ -59,7 +59,7 @@
                 </ray>
                 <always_on>1</always_on>
                 <visualize>true</visualize>
-                <gz_frame_id>${prefix}lidar</gz_frame_id>
+                <gz_frame_id>${prefix}velodyne</gz_frame_id>
             </sensor>
         </gazebo>
 

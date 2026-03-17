@@ -712,6 +712,11 @@ void RawData::unpack_vlp16(
           float distance = tmp.uint * calibration_->distance_resolution_m;
           distance += corrections.dist_correction;
 
+          const bool no_return = (tmp.uint == 0);
+          if (no_return) {
+            distance = config_.max_range;
+          }
+
           float cos_vert_angle = corrections.cos_vert_correction;
           float sin_vert_angle = corrections.sin_vert_correction;
           float cos_rot_correction = corrections.cos_rot_correction;
@@ -807,6 +812,10 @@ void RawData::unpack_vlp16(
             (std::abs(focal_offset - 256.0f * square((1.0f - distance) / 65535.0f)));
           intensity = (intensity < min_intensity) ? min_intensity : intensity;
           intensity = (intensity > max_intensity) ? max_intensity : intensity;
+
+          if (no_return) {
+            intensity = 0.0f;
+          }
 
           float time = 0;
           if (timing_offsets_.size()) {

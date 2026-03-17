@@ -12,7 +12,7 @@ ekf_filter_node_odom:
 
     map_frame: enu
     odom_frame: odom
-    base_link_frame: amiga/base_footprint
+    base_link_frame: base_link
     world_frame: odom
 
     odom0: /odom
@@ -83,7 +83,7 @@ ekf_filter_node_map:
 
     map_frame: enu
     odom_frame: odom
-    base_link_frame: amiga/base_footprint
+    base_link_frame: base_link
     world_frame: enu
 
     odom0: /odometry/local

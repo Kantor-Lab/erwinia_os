@@ -57,19 +57,19 @@ class ObstacleDetector(Node):
         self._detect_window  = deque(maxlen=DETECT_WINDOW)
         self._human_confirmed = False
 
-        self.declare_parameter('show_window', True)
-        self._show_window = self.get_parameter('show_window').value
+        # self.declare_parameter('show_window', True)
+        # self._show_window = self.get_parameter('show_window').value
 
-        self.get_logger().info(f'Loading YOLO model: {YOLO_MODEL}')
-        self._yolo = YOLO(YOLO_MODEL)
-        self.get_logger().info('YOLO model loaded')
+        # self.get_logger().info(f'Loading YOLO model: {YOLO_MODEL}')
+        # self._yolo = YOLO(YOLO_MODEL)
+        # self.get_logger().info('YOLO model loaded')
 
         self.create_subscription(OccupancyGrid, '/local_costmap/costmap',
                                  self._costmap_cb, 1)
-        self.create_subscription(Odometry, '/odometry/filtered',
+        self.create_subscription(Odometry, '/odometry/global',
                                  self._odom_cb, 10)
-        self.create_subscription(Image, CAMERA_TOPIC,
-                                 self._image_cb, 1)
+        # self.create_subscription(Image, CAMERA_TOPIC,
+        #                          self._image_cb, 1)
 
         self._obs_pub   = self.create_publisher(Bool, '/obstacle_nearby', 10)
         self._human_pub = self.create_publisher(Bool, '/human_detected', 10)
@@ -179,7 +179,7 @@ class ObstacleDetector(Node):
     # Main loop
     # ------------------------------------------------------------------
     def _check(self):
-        human    = self._check_human()
+        human    = False  # self._check_human()  # camera disabled
         obstacle = self._check_obstacle()
 
         h_msg = Bool(); h_msg.data = human

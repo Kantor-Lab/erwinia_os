@@ -61,7 +61,7 @@ def get_course_from_file(node, is_global_nav, load_backup, dl=1.0):
         return cx, cy, cyaw, ck
 
     # path = os.path.join(current_dir, 'gps_coordinates/') 
-    path = "/home/appleseed_labs/erwinia_os/src/erwinia_navigation/control/MPC_Amiga/gps_coordinates/"
+    path = "/home/appleseed_labs/erwinia_test_2_ws/src/erwinia_os/erwinia_navigation/control/MPC_Amiga/gps_coordinates/"
     
     if is_global_nav:
         file_name = 'barn_field_waypoints'
@@ -268,7 +268,7 @@ def get_pruning_points(is_fresh_start):
         shutil.copy(orig_src_full_path, copied_src_path)
     path_to_load = copied_src_path
     
-    pruning_points = np.loadtxt(path_to_load, delimiter=',', dtype=float) #pruning_points
+    pruning_points = np.atleast_2d(np.loadtxt(path_to_load, delimiter=',', dtype=float))
     px = pruning_points[:,0].tolist()
     py = pruning_points[:,1].tolist()
 
@@ -397,6 +397,7 @@ def pi_2_pi(angle):
 
 
 def calc_nearest_index(state, cx, cy, cyaw, pind):
+    pind = min(pind, len(cx) - 1)
     dx = [state.x - icx for icx in cx[pind:(pind + defs.N_IND_SEARCH)]]
     dy = [state.y - icy for icy in cy[pind:(pind + defs.N_IND_SEARCH)]]
 

@@ -12,10 +12,14 @@ Publishes:
   /cmd_vel                  (selected output)
   /active_controller        (std_msgs/String) — 'MPC', 'MPPI', or 'STOP'
 
-Priority logic:
+Priority logic (combo mode):
   human_detected=True            → STOP (zero velocity, highest priority)
   obstacle_nearby=True, no human → MPPI
   no obstacle, no human          → MPC (after CLEAR_DELAY hysteresis)
+
+Parameters:
+  mode     (str, default 'combo') — 'mpc' | 'mppi' | 'combo'
+  dry_run  (str, default 'true')  — 'true' publishes zero velocity (visualization only)
 """
 import rclpy
 from rclpy.node import Node
@@ -31,6 +35,10 @@ ACCEL_RATE   = 0.15  # m/s² — ramp-up rate after STOP clears (half of decel)
 class CmdVelSwitcher(Node):
     def __init__(self):
         super().__init__('cmd_vel_switcher')
+        self.declare_parameter('mode',    'combo')
+        self.declare_parameter('dry_run', True)
+        self._mode    = self.get_parameter('mode').value   # 'mpc', 'mppi', 'combo'
+        self._dry_run = self.get_parameter('dry_run').value
         self._use_mppi      = False
         self._human         = False
         self._clear_since   = None
@@ -86,17 +94,13 @@ class CmdVelSwitcher(Node):
             dt = max(0.001, (now - self._last_pub_time).nanoseconds / 1e9)
         self._last_pub_time = now
 
-        # # Priority 1: human detected → ramp down to zero
-        # if self._human:
-        #     self._last_vx = max(0.0, self._last_vx - DECEL_RATE * dt)
-        #     cmd = Twist()
-        #     cmd.linear.x = self._last_vx
-        #     self._pub.publish(cmd)
-        #     mode = 'STOP'
+        # Determine which branch to use based on mode param
+        use_mppi_branch = (
+            self._mode == 'mppi' or
+            (self._mode == 'combo' and (self._human or self._use_mppi))
+        )
 
-        # # Priority 2: obstacle but no human → MPPI (ramp up if coming from STOP)
-        # elif self._use_mppi:
-        if self._human or self._use_mppi:
+        if use_mppi_branch:
             if fresh(self._mppi_time):
                 target = self._mppi_cmd.linear.x
                 if self._last_vx < target:
@@ -104,8 +108,9 @@ class CmdVelSwitcher(Node):
                 else:
                     self._last_vx = target
                 cmd = Twist()
-                cmd.linear.x  = self._last_vx
-                cmd.angular.z = self._mppi_cmd.angular.z
+                if not self._dry_run:
+                    cmd.linear.x  = self._last_vx
+                    cmd.angular.z = self._mppi_cmd.angular.z
                 self._pub.publish(cmd)
             else:
                 self._pub.publish(Twist())
@@ -121,8 +126,9 @@ class CmdVelSwitcher(Node):
                 else:
                     self._last_vx = target
                 cmd = Twist()
-                cmd.linear.x  = self._last_vx
-                cmd.angular.z = self._mpc_cmd.angular.z
+                if not self._dry_run:
+                    cmd.linear.x  = self._last_vx
+                    cmd.angular.z = self._mpc_cmd.angular.z
                 self._pub.publish(cmd)
             else:
                 self._pub.publish(Twist())

@@ -8,9 +8,17 @@
   <maintainer email="fyandun@andrew.cmu.edu">Francisco Yandun</maintainer>
   <license>MIT</license>
 
+  <depend>geometry_msgs</depend>
+  <depend>launch</depend>
+  <depend>launch_ros</depend>
+  <depend>nav_msgs</depend>
+  <depend>rclpy</depend>
+  <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
-  <depend>johnny_msgs</depend>
-  <depend>joy_msgs</depend>
+  <depend>teleop_twist_joy</depend>
+
+  <exec_depend>python3-can</exec_depend>
+  <exec_depend>python3-transforms3d</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>
