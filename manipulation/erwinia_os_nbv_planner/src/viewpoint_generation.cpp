@@ -887,8 +887,8 @@ namespace erwinia_os_nbv_planner
 
                     if (!node)
                     {
-                        // Unknown voxel => volumetric uncertainty weighted by (1 - beta)
-                        ray_gain += (1.0 - static_cast<double>(beta));
+                        // Unknown voxel => volumetric uncertainty weighted by 1
+                        ray_gain += 1.0;
                         continue;
                     }
 

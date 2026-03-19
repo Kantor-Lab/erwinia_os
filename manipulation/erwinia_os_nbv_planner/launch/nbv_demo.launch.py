@@ -525,7 +525,7 @@ def generate_launch_description():
                               description='Minimum information gain threshold for termination'), # Decreased from 5.0
         DeclareLaunchArgument('alpha_cost_weight', default_value='0.1',
                               description='Weight for cost in utility function (IG - alpha*cost)'),
-        DeclareLaunchArgument('beta_semantic_weight', default_value='0.7',
+        DeclareLaunchArgument('beta_semantic_weight', default_value='10.0',
                               description='Weight for semantic information in utility function'),
         DeclareLaunchArgument('num_viewpoints_per_frontier', default_value='7',
                               description='Number of viewpoint candidates per frontier cluster'),

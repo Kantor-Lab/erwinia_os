@@ -64,7 +64,7 @@ nbv_action_server:
     max_iterations: 100
     min_information_gain: 1.0
     alpha_cost_weight: 0.1
-    beta_semantic_weight: 0.7
+    beta_semantic_weight: 10.0
     conf_thresh: 0.3
     semantic_confidence_boost: 0.3
     semantic_mismatch_penalty: 0.2
