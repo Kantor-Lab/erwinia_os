@@ -68,6 +68,30 @@ public:
         config_ = loadConfiguration(node);
         printConfiguration(config_, this->get_logger());
 
+        // Load preset joint configurations (flat list of degrees, chunked by number of joints)
+        if (this->has_parameter("preset_joint_configs_deg"))
+        {
+            std::vector<double> flat = this->get_parameter("preset_joint_configs_deg").as_double_array();
+            const size_t n_joints = config_.init_joint_angles_rad.size();
+            if (!flat.empty() && n_joints > 0 && flat.size() % n_joints == 0)
+            {
+                for (size_t i = 0; i < flat.size(); i += n_joints)
+                {
+                    std::vector<double> cfg(flat.begin() + i, flat.begin() + i + n_joints);
+                    for (auto &v : cfg) v *= M_PI / 180.0;
+                    preset_joint_configs_template_.push_back(cfg);
+                }
+                RCLCPP_INFO(this->get_logger(), "Loaded %zu preset joint configurations",
+                            preset_joint_configs_template_.size());
+            }
+            else if (!flat.empty())
+            {
+                RCLCPP_WARN(this->get_logger(),
+                            "preset_joint_configs_deg size (%zu) not divisible by n_joints (%zu), ignoring",
+                            flat.size(), n_joints);
+            }
+        }
+
         clear_client_ = this->create_client<std_srvs::srv::Trigger>("/occupancy_map/clear");
 
         trigger_clients_ = createTriggerClients(node);
@@ -524,6 +548,36 @@ private:
         RunSummary summary;
         RCLCPP_INFO(this->get_logger(), "Running baseline planner");
 
+        // Execute preset joint configurations before planned viewpoints
+        std::deque<std::vector<double>> preset_configs(
+            preset_joint_configs_template_.begin(), preset_joint_configs_template_.end());
+
+        for (size_t pi = 0; !preset_configs.empty(); ++pi)
+        {
+            if (checkCanceledOrShutdown(goal_handle))
+            {
+                summary.success = false;
+                summary.message = "Baseline run interrupted during presets";
+                return summary;
+            }
+
+            RCLCPP_INFO(this->get_logger(), "Executing preset joint configuration %zu", pi);
+            auto joint_config = preset_configs.front();
+            preset_configs.pop_front();
+
+            if (!moveit_interface_->planToJointStateWithRetries(joint_config))
+            {
+                RCLCPP_WARN(this->get_logger(), "Failed to execute preset config %zu, skipping", pi);
+                continue;
+            }
+
+            waitForOctomap(shared_from_this(), octomap_interface_, trigger_clients_, config_, this->get_logger());
+            publishRunFeedback(goal_handle, static_cast<int>(pi), "baseline_preset");
+
+            if (visualizer_)
+                visualizer_->clearAllMarkers();
+        }
+
         auto reachable_viewpoints = generatePlaneReachableViewpoints(prep);
         if (reachable_viewpoints.empty())
         {
@@ -595,6 +649,36 @@ private:
     {
         RunSummary summary;
         RCLCPP_INFO(this->get_logger(), "Running volumetric planner");
+
+        // Execute preset joint configurations before NBV iterations
+        std::deque<std::vector<double>> preset_configs(
+            preset_joint_configs_template_.begin(), preset_joint_configs_template_.end());
+
+        for (size_t pi = 0; !preset_configs.empty(); ++pi)
+        {
+            if (checkCanceledOrShutdown(goal_handle))
+            {
+                summary.success = false;
+                summary.message = "Volumetric run interrupted during presets";
+                return summary;
+            }
+
+            RCLCPP_INFO(this->get_logger(), "Executing preset joint configuration %zu", pi);
+            auto joint_config = preset_configs.front();
+            preset_configs.pop_front();
+
+            if (!moveit_interface_->planToJointStateWithRetries(joint_config))
+            {
+                RCLCPP_WARN(this->get_logger(), "Failed to execute preset config %zu, skipping", pi);
+                continue;
+            }
+
+            waitForOctomap(shared_from_this(), octomap_interface_, trigger_clients_, config_, this->get_logger());
+            publishRunFeedback(goal_handle, static_cast<int>(pi), "volumetric_preset");
+
+            if (visualizer_)
+                visualizer_->clearAllMarkers();
+        }
 
         for (int i = 0; i < config_.max_iterations; ++i)
         {
@@ -849,6 +933,7 @@ private:
     // -------------------------------------------------------------------------
 
     NBVPlannerConfig config_{};
+    std::vector<std::vector<double>> preset_joint_configs_template_;
     TriggerClients trigger_clients_{};
 
     rclcpp_action::Server<RunNBV>::SharedPtr action_server_;

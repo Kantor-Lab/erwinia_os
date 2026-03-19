@@ -41,6 +41,12 @@ nbv_action_server:
 
     # General Parameters
     init_joint_angles_deg: [0.0, -20.0, -70.0, 0.0, 0.0, 90.0]
+    preset_joint_configs_deg: [
+      6.0, -70.0, -42.0, 36.0, 27.0, 55.0,   # top left
+      -6.0, -70.0, -42.0, -36.0, 27.0, 125.0,   # top right
+      -13.0, -64.0, -57.0, 28.0, 75.0, 55.0,   # bottom left
+      13.0, -64.0, -57.0, -28.0, 75.0, 125.0,   # bottom right
+    ]
     hint_joint_angles_deg: [
       -42.0, -8.0, -119.0,  57.0, 54.0,   48.0,
        42.0, -8.0, -119.0,  57.0, 54.0,  132.0,
