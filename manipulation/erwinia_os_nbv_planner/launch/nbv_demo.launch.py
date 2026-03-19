@@ -147,8 +147,8 @@ def launch_setup(context, *args, **kwargs):
         'camera_scaled_width': int(LaunchConfiguration('camera_scaled_width').perform(context)),
         'camera_scaled_height': int(LaunchConfiguration('camera_scaled_height').perform(context)),
         'camera_max_range': float(LaunchConfiguration('camera_max_range').perform(context)),
-        'ideal_camera_distance': 0.4,
-        'ideal_distance_tolerance': 0.1,
+        'ideal_camera_distance': 0.45,
+        'ideal_distance_tolerance': 0.05,
         'num_camera_rays': int(LaunchConfiguration('num_camera_rays').perform(context)),
 
         # Evaluation Parameters

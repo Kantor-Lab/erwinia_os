@@ -28,8 +28,8 @@ nbv_action_server:
     camera_scaled_width: 448
     camera_scaled_height: 224
     camera_max_range: 0.9
-    ideal_camera_distance: 0.4
-    ideal_distance_tolerance: 0.1
+    ideal_camera_distance: 0.45
+    ideal_distance_tolerance: 0.05
     num_camera_rays: 25
 
     # Evaluation Parameters
