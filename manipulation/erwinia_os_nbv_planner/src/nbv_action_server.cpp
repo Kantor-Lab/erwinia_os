@@ -182,10 +182,10 @@ private:
             return rclcpp_action::GoalResponse::REJECT;
         }
 
-        if (planner != "baseline" && planner != "volumetric")
+        if (planner != "baseline" && planner != "volumetric" && planner != "semantic")
         {
             RCLCPP_WARN(this->get_logger(),
-                        "Rejecting goal: planner_type must be 'baseline' or 'volumetric'");
+                        "Rejecting goal: planner_type must be 'baseline', 'volumetric', or 'semantic'");
             return rclcpp_action::GoalResponse::REJECT;
         }
 
@@ -242,9 +242,17 @@ private:
             {
                 summary = runBaseline(goal_handle, prep);
             }
-            else
+            else if (planner == "volumetric")
             {
                 summary = runVolumetric(goal_handle, prep);
+            }
+            else if (planner == "semantic")
+            {
+                summary = runSemantic(goal_handle, prep);
+            } 
+            else 
+            {
+                throw std::runtime_error("Invalid planner type: " + planner);
             }
 
             if (goal_handle->is_canceling())
@@ -878,6 +886,231 @@ private:
         summary.final_bbox_coverage = getCurrentBBoxCoverage();
         summary.success = true;
         summary.message = "Volumetric planner completed successfully";
+        return summary;
+    }
+
+    // -------------------------------------------------------------------------
+    // Semantic planner
+    // -------------------------------------------------------------------------
+
+    RunSummary runSemantic(
+        const std::shared_ptr<GoalHandleRunNBV> &goal_handle,
+        const RunPreparation &prep)
+    {
+        RunSummary summary;
+        RCLCPP_INFO(this->get_logger(), "Running semantic planner");
+
+        // Execute preset joint configurations before NBV iterations
+        std::deque<std::vector<double>> preset_configs(
+            preset_joint_configs_template_.begin(), preset_joint_configs_template_.end());
+
+        for (size_t pi = 0; !preset_configs.empty(); ++pi)
+        {
+            if (checkCanceledOrShutdown(goal_handle))
+            {
+                summary.success = false;
+                summary.message = "Semantic run interrupted during presets";
+                return summary;
+            }
+
+            RCLCPP_INFO(this->get_logger(), "Executing preset joint configuration %zu", pi);
+            auto joint_config = preset_configs.front();
+            preset_configs.pop_front();
+
+            if (!moveit_interface_->planToJointStateWithRetries(joint_config))
+            {
+                RCLCPP_WARN(this->get_logger(), "Failed to execute preset config %zu, skipping", pi);
+                continue;
+            }
+
+            waitForOctomap(shared_from_this(), octomap_interface_, trigger_clients_, config_, this->get_logger());
+            publishRunFeedback(goal_handle, static_cast<int>(pi), "semantic_preset");
+
+            if (visualizer_)
+                visualizer_->clearAllMarkers();
+        }
+
+        for (int i = 0; i < config_.max_iterations; ++i)
+        {
+            if (checkCanceledOrShutdown(goal_handle))
+            {
+                summary.success = false;
+                summary.message = "Semantic run interrupted";
+                return summary;
+            }
+
+            RCLCPP_INFO(this->get_logger(),
+                        "Semantic viewpoint %d",
+                        summary.total_viewpoints_visited);
+
+            // Find voxels whose confidence is below max_semantic_certainty
+            std::vector<octomap::point3d> frontiers = octomap_interface_->getUncertainVoxels(
+                config_.max_semantic_certainty, true, true);
+            // NOTE: no break on empty — semantic planner relies on max_iterations to terminate
+
+            std::vector<Eigen::Vector3d> frontiers_eigen = octomapVectorToEigen(frontiers);
+
+            std::vector<Eigen::Vector3d> viewable_frontiers;
+            for (const auto &f : frontiers_eigen)
+            {
+                if (manip_workspace_->getDistance(f) < config_.ideal_camera_distance / 2.0)
+                    viewable_frontiers.push_back(f);
+            }
+
+            if (viewable_frontiers.empty())
+                RCLCPP_WARN(this->get_logger(), "No viewable uncertain voxels within workspace");
+
+            int n_clusters = std::max(1, static_cast<int>(viewable_frontiers.size()) / 100);
+            std::vector<Cluster> frontier_clusters = octomap_interface_->kmeansCluster(
+                eigenVectorToOctomap(viewable_frontiers), n_clusters, 50, 1e-4);
+
+            auto plane_viewpoints = generatePlaneReachableViewpoints(prep);
+
+            auto spherical_cap_viewpoints = generateSphericalCaps(
+                plane_viewpoints,
+                prep.init_cam_orientation,
+                config_.cap_max_theta_rad,
+                config_.cap_min_theta_rad);
+
+            std::vector<Eigen::Vector3d> cluster_centers;
+            for (const auto &cluster : frontier_clusters)
+                cluster_centers.push_back(octomapToEigen(cluster.center));
+
+            const double min_distance =
+                std::max(0.0, config_.ideal_camera_distance - config_.ideal_distance_tolerance);
+            const double max_distance =
+                config_.ideal_camera_distance + config_.ideal_distance_tolerance;
+
+            std::vector<Viewpoint> frontier_viewpoints = generateFrontierBasedViewpoints(
+                cluster_centers,
+                prep.init_cam_orientation,
+                min_distance,
+                max_distance,
+                config_.num_viewpoints_per_frontier,
+                false,
+                config_.z_bias_sigma,
+                0.05,
+                1000,
+                this->get_logger());
+
+            std::vector<Viewpoint> total_viewpoints;
+            total_viewpoints.insert(total_viewpoints.end(),
+                                    spherical_cap_viewpoints.begin(),
+                                    spherical_cap_viewpoints.end());
+            total_viewpoints.insert(total_viewpoints.end(),
+                                    frontier_viewpoints.begin(),
+                                    frontier_viewpoints.end());
+
+            if (total_viewpoints.empty())
+            {
+                RCLCPP_WARN(this->get_logger(), "No viewpoints generated");
+                break;
+            }
+
+            auto reachable_viewpoints = filterReachableViewpoints(
+                total_viewpoints,
+                manip_workspace_,
+                moveit_interface_,
+                config_,
+                this->get_logger());
+
+            if (reachable_viewpoints.empty())
+            {
+                RCLCPP_WARN(this->get_logger(), "No reachable viewpoints found");
+                break;
+            }
+
+            visualizeViewpoints(reachable_viewpoints);
+
+            Eigen::Vector3d current_cam_position;
+            std::array<double, 4> current_cam_orientation{};
+            moveit_interface_->getLinkPose(
+                config_.camera_optical_link,
+                current_cam_position,
+                current_cam_orientation);
+
+            for (auto &vp : reachable_viewpoints)
+            {
+                vp.information_gain = computeSemanticInformationGain(
+                    vp,
+                    octomap_interface_,
+                    config_.camera_horizontal_fov_rad,
+                    config_.camera_vertical_fov_rad,
+                    config_.camera_scaled_width,
+                    config_.camera_scaled_height,
+                    config_.camera_max_range,
+                    octomap_interface_->getResolution(),
+                    config_.num_camera_rays,
+                    octomap_interface_->hasBoundingBox(),
+                    config_.beta_semantic_weight,
+                    true,
+                    this->get_logger());
+
+                const double distance_cost = (vp.position - current_cam_position).norm();
+                vp.cost = distance_cost;
+                vp.utility = vp.information_gain - config_.alpha_cost_weight * distance_cost;
+            }
+
+            std::priority_queue<Viewpoint> viewpoint_heap;
+            for (const auto &vp : reachable_viewpoints)
+                viewpoint_heap.push(vp);
+
+            std::optional<moveit::planning_interface::MoveGroupInterface::Plan> best_plan;
+            Viewpoint best_viewpoint;
+
+            while (!viewpoint_heap.empty())
+            {
+                best_viewpoint = viewpoint_heap.top();
+                viewpoint_heap.pop();
+
+                if (best_viewpoint.information_gain < config_.min_information_gain)
+                {
+                    RCLCPP_WARN(this->get_logger(),
+                                "No viewpoints above min information gain threshold %.4f",
+                                config_.min_information_gain);
+                    break;
+                }
+
+                best_plan = planPathsToViewpoint(
+                    best_viewpoint,
+                    moveit_interface_,
+                    config_,
+                    this->get_logger(),
+                    config_.hint_joint_configs);
+
+                if (!best_plan)
+                {
+                    RCLCPP_INFO(this->get_logger(),
+                                "Failed to plan to best viewpoint, trying next one...");
+                    continue;
+                }
+
+                break;
+            }
+
+            if (!best_plan)
+            {
+                RCLCPP_WARN(this->get_logger(), "No valid viewpoint with feasible plan found");
+                break;
+            }
+
+            if (!executeAndWaitForMotion(moveit_interface_, shared_from_this(), *best_plan, this->get_logger()))
+                throw std::runtime_error("Motion execution failed during semantic planner");
+
+            waitForOctomap(shared_from_this(), octomap_interface_, trigger_clients_, config_, this->get_logger());
+
+            summary.total_viewpoints_visited++;
+
+            publishRunFeedback(goal_handle, i, "semantic_running");
+
+            if (visualizer_)
+                visualizer_->clearAllMarkers();
+        }
+
+        summary.final_cluster_count = getCurrentClusterCount();
+        summary.final_bbox_coverage = getCurrentBBoxCoverage();
+        summary.success = true;
+        summary.message = "Semantic planner completed successfully";
         return summary;
     }
 
