@@ -147,8 +147,8 @@ def launch_setup(context, *args, **kwargs):
         'camera_scaled_width': int(LaunchConfiguration('camera_scaled_width').perform(context)),
         'camera_scaled_height': int(LaunchConfiguration('camera_scaled_height').perform(context)),
         'camera_max_range': float(LaunchConfiguration('camera_max_range').perform(context)),
-        'ideal_camera_distance': 0.4,
-        'ideal_distance_tolerance': 0.1,
+        'ideal_camera_distance': 0.45,
+        'ideal_distance_tolerance': 0.05,
         'num_camera_rays': int(LaunchConfiguration('num_camera_rays').perform(context)),
 
         # Evaluation Parameters
@@ -161,6 +161,14 @@ def launch_setup(context, *args, **kwargs):
         # General Parameters
         # 'init_joint_angles_deg': [0.0, -45.0, -45.0, 0.0, 0.0, 90.0],
         'init_joint_angles_deg': [0.0, -20.0, -70.0, 0.0, 0.0, 90.0],
+        # Flat list of preset joint configurations executed before NBV planning (groups of 6, in degrees).
+        'preset_joint_configs_deg': [
+            # 0.0, -70.0, -40.0, 0.0, 20.0, 90.0,   # top
+            6.0, -70.0, -42.0, 36.0, 27.0, 55.0,   # top left
+            -6.0, -70.0, -42.0, -36.0, 27.0, 125.0,   # top right
+            -13.0, -64.0, -57.0, 28.0, 75.0, 55.0,   # bottom left
+            13.0, -64.0, -57.0, -28.0, 75.0, 125.0,   # bottom right
+        ],
         # Flat list of hint IK seed configs (groups of 6, in degrees).
         # Each group of 6 values is one joint configuration tried before jittered seeds.
         'hint_joint_angles_deg': [

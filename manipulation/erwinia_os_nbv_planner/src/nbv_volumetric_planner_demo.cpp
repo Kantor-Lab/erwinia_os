@@ -56,6 +56,28 @@ static int run(std::shared_ptr<rclcpp::Node> node)
     auto config = loadConfiguration(node);
     printConfiguration(config, node->get_logger());
 
+    // Load preset joint configurations (flat list of degrees, chunked by number of joints)
+    std::vector<std::vector<double>> preset_joint_configs_template;
+    if (node->has_parameter("preset_joint_configs_deg"))
+    {
+        std::vector<double> flat = node->get_parameter("preset_joint_configs_deg").as_double_array();
+        const size_t n_joints = config.init_joint_angles_rad.size();
+        if (!flat.empty() && n_joints > 0 && flat.size() % n_joints == 0)
+        {
+            for (size_t i = 0; i < flat.size(); i += n_joints)
+            {
+                std::vector<double> cfg(flat.begin() + i, flat.begin() + i + n_joints);
+                for (auto &v : cfg) v *= M_PI / 180.0;
+                preset_joint_configs_template.push_back(cfg);
+            }
+            RCLCPP_INFO(node->get_logger(), "Loaded %zu preset joint configurations", preset_joint_configs_template.size());
+        }
+        else if (!flat.empty())
+        {
+            RCLCPP_WARN(node->get_logger(), "preset_joint_configs_deg size (%zu) not divisible by n_joints (%zu), ignoring", flat.size(), n_joints);
+        }
+    }
+
     // Save base metrics dirs (when n_runs > 1 these are expected to be the base folder)
     const std::string base_metrics_plots_dir = config.metrics_plots_dir;
     const std::string base_metrics_data_dir  = config.metrics_data_dir;
@@ -147,6 +169,10 @@ static int run(std::shared_ptr<rclcpp::Node> node)
         {
             visualizer->clearAllMarkers();
         }
+
+        // Reset preset joint configurations for this run
+        std::deque<std::vector<double>> preset_configs(
+            preset_joint_configs_template.begin(), preset_joint_configs_template.end());
 
         // Move to initial joint configuration
         RCLCPP_DEBUG(node->get_logger(), "\nMoving to initial joint configuration...");
@@ -262,6 +288,61 @@ static int run(std::shared_ptr<rclcpp::Node> node)
         for (int i = 0; i < config.max_iterations; i++)
         {
             RCLCPP_INFO(node->get_logger(), "\n********** NBV Volumetric Iteration %d **********", i);
+
+            // If preset joint configurations remain, execute the next one before computing viewpoints
+            if (!preset_configs.empty())
+            {
+                auto joint_config = preset_configs.front();
+                preset_configs.pop_front();
+                RCLCPP_INFO(node->get_logger(), "Executing preset joint configuration (%zu remaining after this)", preset_configs.size());
+
+                if (!moveit_interface->planToJointStateWithRetries(joint_config))
+                {
+                    RCLCPP_WARN(node->get_logger(), "Failed to execute preset joint configuration, skipping...");
+                    continue;
+                }
+
+                waitForOctomap(node, octomap_interface, trigger_clients, config, node->get_logger());
+
+                if (config.enable_evaluation && octomap_interface->isSemanticTree()) {
+                    EvaluationMetrics eval_metrics;
+                    eval_metrics.time = node->now().seconds() - initial_time;
+                    auto latest_clusters = octomap_interface->clusterSemanticVoxels(false);
+                    auto match_result = octomap_interface->matchClustersToGroundTruth(latest_clusters, config.eval_threshold_radius, false);
+                    eval_metrics.class_metrics = octomap_interface->evaluateMatchResults(match_result, false);
+                    auto [occupied, free] = octomap_interface->getVoxelCounts();
+                    eval_metrics.occupied_voxels = occupied;
+                    eval_metrics.free_voxels = free;
+                    eval_metrics.bbox_coverage = octomap_interface->calculateCoverage();
+                    all_metrics.push_back(eval_metrics);
+                    RCLCPP_INFO(node->get_logger(), "\n=== Evaluation Results ===");
+                    RCLCPP_INFO(node->get_logger(), "Class ID | TP Clusters | FP Clusters | TP Points | FN Points");
+                    RCLCPP_INFO(node->get_logger(), "------------------------------------------------------------");
+                    for (const auto &cm : eval_metrics.class_metrics)
+                        RCLCPP_INFO(node->get_logger(), "  %6d | %11d | %12d | %9d | %9d", cm.class_id, cm.tp_clusters, cm.fp_clusters, cm.tp_points, cm.fn_points);
+                    RCLCPP_INFO(node->get_logger(), "------------------------------------------------------------");
+                    RCLCPP_INFO(node->get_logger(), "Class ID | Precision | Recall | F1 Score");
+                    RCLCPP_INFO(node->get_logger(), "------------------------------------------------------------");
+                    for (const auto &cm : eval_metrics.class_metrics)
+                        RCLCPP_INFO(node->get_logger(), "  %6d | %9.2f%% | %6.2f%% | %8.2f%%", cm.class_id, cm.precision * 100.0, cm.recall * 100.0, cm.f1_score * 100.0);
+                    if (visualizer) {
+                        visualizer->publishMatchResults(match_result, config.eval_threshold_radius * 2, 0.8f);
+                    }
+                    visualizer->logAllMetricsToCSV(all_metrics, config.metrics_data_dir);
+                }
+
+                if (visualizer) {
+                    visualizer->clearAllMarkers();
+                }
+
+                if (!rclcpp::ok())
+                {
+                    RCLCPP_INFO(node->get_logger(), "\nNBV planning interrupted by shutdown signal, exiting...");
+                    rclcpp::shutdown();
+                    return 1;
+                }
+                continue;
+            }
 
             // Find the frontiers
             std::vector<octomap::point3d> frontiers = octomap_interface->findFrontiers(

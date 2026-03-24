@@ -887,7 +887,7 @@ namespace erwinia_os_nbv_planner
 
                     if (!node)
                     {
-                        // Unknown voxel => volumetric uncertainty weighted by (1 - beta)
+                        // Unknown voxel => volumetric uncertainty weighted by 1
                         ray_gain += (1.0 - static_cast<double>(beta));
                         continue;
                     }
@@ -901,9 +901,9 @@ namespace erwinia_os_nbv_planner
                             float conf = node->getConfidence();
                             if (std::isnan(conf) || std::isinf(conf)) conf = 0.0f;
                             conf = std::min(1.0f, std::max(0.0f, conf));
-                            ray_gain += static_cast<double>(beta) * (1.0 - static_cast<double>(conf));
+                            ray_gain += static_cast<double>(beta) * 10 * (1.0 - static_cast<double>(conf));
                         }
-                        // else { ray_gain += static_cast<double>(beta) * 1.0; } // No semantic info => max uncertainty
+                        // else { ray_gain += static_cast<double>(beta) * 10.0; } // No semantic info => max uncertainty
 
                         // Stop ray at occupied voxel
                         break;
