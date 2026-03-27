@@ -12,7 +12,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
-find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED COMPONENTS Development)
 find_package(rosidl_default_generators REQUIRED)
 
 # Add the C++ and C source files for the acado library
@@ -54,6 +54,7 @@ target_include_directories(acado_diff PRIVATE ${Python3_INCLUDE_DIRS})
 # Link necessary libraries to your executable
 target_link_libraries(
   acado_diff  # Link the acado_diff library
+  Python3::Python
 )
 
 # Add dependencies for the executable
