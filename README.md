@@ -1,17 +1,13 @@
 # erwinia_os
+
 Repository to host all the code for the Farm Robotics Challenge 2026.
-
-
 
 ## Package Overview
 
-- **`erwinia_os_bringup`** - Main orchestration package that launches the complete robot stack including Gazebo (optional), ros2_control, and RViz visualization. Use this for typical system startup.
-
-- **`erwinia_os_control`** - ros2_control configuration package with dynamic YAML generation for the diff_drive_controller. Provides launch files for starting the control system with Gazebo simulation, fake hardware, or real hardware interfaces.
-
-- **`erwinia_os_gz`** - Gazebo simulation assets including world files and launch configurations for testing in simulation environments.
-
-- **`erwinia_os_description`** - Robot description package containing URDF/Xacro files, STL meshes, and RViz configurations for the Amiga platform. Includes modular macros for the base, wheels, camera, and LiDAR sensors with namespace/prefix support.
+- `**erwinia_os_bringup**` - Main orchestration package that launches the complete robot stack including Gazebo (optional), ros2_control, and RViz visualization. Use this for typical system startup.
+- `**erwinia_os_control**` - ros2_control configuration package with dynamic YAML generation for the diff_drive_controller. Provides launch files for starting the control system with Gazebo simulation, fake hardware, or real hardware interfaces.
+- `**erwinia_os_gz**` - Gazebo simulation assets including world files and launch configurations for testing in simulation environments.
+- `**erwinia_os_description**` - Robot description package containing URDF/Xacro files, STL meshes, and RViz configurations for the Amiga platform. Includes modular macros for the base, wheels, camera, and LiDAR sensors with namespace/prefix support.
 
 ## Contributing workflow (git)
 
@@ -55,26 +51,31 @@ git pull origin main     # Update the current branch (be sure to do this regular
 ## Quick Start
 
 ### Launch Full System in Simulation
+
 ```bash
 ros2 launch erwinia_os_bringup bringup.launch.py use_gazebo:=true use_fake_hardware:=false use_sim_time:=true
 ```
 
 ### Launch with Fake Hardware (Mock Components)
+
 ```bash
 ros2 launch erwinia_os_bringup bringup.launch.py use_gazebo:=false use_fake_hardware:=true use_sim_time:=true
 ```
 
 ### Launch with Real Hardware (TODO)
+
 ```bash
 ros2 launch erwinia_os_bringup bringup.launch.py use_gazebo:=false use_fake_hardware:=false use_sim_time:=false
 ```
 
 ### View Robot Description in RViz
+
 ```bash
 ros2 launch erwinia_os_description view_robot.launch.py
 ```
 
 ### Control the Robot
+
 ```bash
 # Publish velocity commands (or control through gazebo sim gui)
 ros2 topic pub /platform_velocity_controller/cmd_vel_unstamped \
@@ -91,6 +92,7 @@ ros2 topic echo /joint_states
 ## Common Commands
 
 ### Build and Source
+
 ```bash
 cd ~/ros2_ws
 colcon build --symlink-install --packages-select erwinia_os_description erwinia_os_control erwinia_os_bringup erwinia_os_gz
@@ -98,17 +100,20 @@ source install/setup.bash
 ```
 
 ### Check Active Controllers
+
 ```bash
 ros2 control list_controllers
 ```
 
 ### View TF Tree
+
 ```bash
 ros2 run tf2_tools view_frames
 # Or in RViz: Add TF display
 ```
 
 ### Inspect URDF
+
 ```bash
 # Process xacro to URDF
 xacro $(ros2 pkg prefix erwinia_os_description)/share/erwinia_os_description/urdf/erwinia_os.urdf.xacro
@@ -119,38 +124,99 @@ check_urdf <path_to_urdf>
 
 ## Getting set up (ROS 2 Humble on Ubuntu 22)
 
-1. Install ROS 2 Humble by following the official guide: https://docs.ros.org/en/humble/Installation.html (use the instructions for your OS).
+1. Install ROS 2 Humble by following the official guide: [https://docs.ros.org/en/humble/Installation.html](https://docs.ros.org/en/humble/Installation.html) (use the instructions for your OS).
 2. Create a workspace and clone this repo under `src`:
-   ```bash
+  ```bash
    mkdir -p ~/ros2_ws/src
    cd ~/ros2_ws/src
    git clone https://github.com/Kantor-Lab/erwinia_os.git
-   ```
+  ```
 3. Import dependency repositories using vcstool:
-    ```bash
+  ```bash
     # Install vcs if needed
     sudo apt install python3-vcstool
 
     cd ~/ros2_ws
     vcs import src/ < src/erwinia_os/dependencies.repos
-    ```
-4. Install ROS2 package dependencies via rosdep:
-    ```bash
-    source /opt/ros/humble/setup.bash
-    rosdep update
-    rosdep install --from-paths src/ --ignore-src -r -y
-    ```
+  ```
+4. Install system and ROS2 package dependencies:
+  | Package | Required by |
+  |---------|-------------|
+  | `ros-humble-vision-msgs` | `multi_camera_rig_msgs` |
+  | `ros-humble-xacro` | `erwinia_os_description`, `multi_camera_rig_description`, `firefly-ros2-wrapper-description` |
+  | `ros-humble-octomap` | `erwinia_os_occupancy_map` |
+  | `ros-humble-octomap-msgs` | `erwinia_os_occupancy_map` |
+  | `ros-humble-moveit-msgs` | `erwinia_os_occupancy_map` |
+  | `ros-humble-moveit` | `erwinia_os_nbv_planner`, `erwinia_os_moveit_servo` |
+  | `ros-humble-diagnostic-updater` | `robot_localization` |
+  | `ros-humble-geographic-msgs` | `robot_localization` |
+  | `ros-humble-nav2-msgs` | `erwinia_nav_server` |
+  | `ros-humble-gazebo-ros` | `realsense_gazebo_plugin` |
+  | `ros-humble-gps-msgs` | `swiftnav_ros2_driver` |
+  | `ros-humble-camera-info-manager` | `spinnaker_camera_driver` |
+  | `ros-humble-ament-cmake-clang-format` | `spinnaker_camera_driver` |
+  | `ros-humble-ros2-control` | `erwinia_os_control` |
+  | `ros-humble-control-toolbox` | `xarm_gazebo` |
+  | `ros-humble-behaviortree-cpp-v3` | `erwinia_bt_nodes` |
+  | `libgeographic-dev` | `robot_localization` |
+  | `libboost-all-dev` | `mpc_amiga` |
+  | `libeigen3-dev` | `robot_localization`, `erwinia_os_occupancy_map` |
+  | `libpcap-dev` | `velodyne_driver` |
+  | `libserialport-dev` | `swiftnav_ros2_driver` |
+  | `python3-can` | `amiga_control` |
+  | `python3-transforms3d` | `amiga_control`, `mpc_amiga` |
+
+  ```bash
+  sudo apt-get install -y \
+    ros-humble-vision-msgs \
+    ros-humble-xacro \
+    ros-humble-octomap \
+    ros-humble-octomap-msgs \
+    ros-humble-moveit-msgs \
+    ros-humble-moveit \
+    ros-humble-diagnostic-updater \
+    ros-humble-geographic-msgs \
+    ros-humble-nav2-msgs \
+    ros-humble-gazebo-ros \
+    ros-humble-gps-msgs \
+    ros-humble-camera-info-manager \
+    ros-humble-ament-cmake-clang-format \
+    ros-humble-ros2-control \
+    ros-humble-control-toolbox \
+    ros-humble-behaviortree-cpp-v3 \
+    libgeographic-dev \
+    libboost-all-dev \
+    libeigen3-dev \
+    libpcap-dev \
+    libserialport-dev \
+    python3-can \
+    python3-transforms3d
+  ```
+  > **Note:** The `swiftnav_ros2_driver` package also requires `libsbp` v4.11.0, which must be built from source:
+  > ```bash
+  > git clone https://github.com/swift-nav/libsbp.git
+  > cd libsbp
+  > git checkout v4.11.0
+  > git submodule update --init --recursive
+  > cd c && mkdir -p build && cd build
+  > cmake .. -DCMAKE_BUILD_TYPE=Release
+  > make -j$(nproc)
+  > sudo make install
+  > cd ~/ros2_ws
+  > ```
+  > If `libsbp` is not installed, the swiftnav GPS driver will not build.
 5. To update the git modules inside of the multi camera rig package:
-    ```bash
+  ```bash
     git -C src/multi_camera_rig_v3 submodule update --init --recursive
-    ```
+  ```
 6. Sync and update the xarm packages:
-    ```bash
+  ```bash
     git -C src/xarm_ros2 submodule sync --recursive && \
     git -C src/xarm_ros2 submodule update --init --recursive
-    ```
+  ```
 7. Build and source ROS2 workspace:
-    ```bash
+  ```bash
     colcon build --symlink-install
     source install/setup.bash
-    ```
+  ```
+
