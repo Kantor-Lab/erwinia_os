@@ -47,53 +47,25 @@ find_package(rosidl_default_generators REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(message_filters REQUIRED)
 
-link_directories("/usr/local/lib/")
-include_directories("/usr/local/include/")
+find_library(SBP_LIBRARY NAMES sbp PATHS /usr/local/lib)
+find_library(SERIALPORT_LIBRARY NAMES serialport PATHS /usr/local/lib)
+
+if(NOT SBP_LIBRARY OR NOT SERIALPORT_LIBRARY)
+  message(WARNING
+    "[swiftnav_ros2_driver] libsbp or libserialport not found -- "
+    "skipping sbp-to-ros build. "
+    "See README step 8 to install libsbp from source.")
+endif()
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/Baseline.msg"
+  DEPENDENCIES std_msgs
+)
 
 add_executable(synced_baseline_node src/dual_sync.cpp)
 
-add_executable(sbp-to-ros
-  src/sbp-to-ros.cpp
-  src/data_sources/sbp_file_datasource.cpp
-  src/data_sources/sbp_serial_datasource.cpp
-  src/data_sources/sbp_tcp_datasource.cpp
-  src/data_sources/sbp_data_sources.cpp
-  src/data_sources/serial.cpp
-  src/data_sources/tcp.cpp
-  src/utils/utils.cpp
-  src/utils/config.cpp
-  src/logging/ros_logger.cpp
-  src/logging/sbp_to_ros2_logger.cpp
-  src/logging/sbp_file_logger.cpp
-  src/publishers/navsatfix_publisher.cpp
-  src/publishers/twistwithcovariancestamped_publisher.cpp
-  src/publishers/timereference_publisher.cpp
-  src/publishers/gpsfix_publisher.cpp
-  src/publishers/baseline_publisher.cpp
-  src/publishers/imu_publisher.cpp
-  src/publishers/publisher_factory.cpp
-  )
-
-  rosidl_generate_interfaces(${PROJECT_NAME}
-    "msg/Baseline.msg"
-    DEPENDENCIES std_msgs
-  )
-
-if((${FOUND_ROS2_DISTRO} STREQUAL "foxy") OR (${FOUND_ROS2_DISTRO} STREQUAL "galactic"))
-  rosidl_target_interfaces(sbp-to-ros ${PROJECT_NAME} "rosidl_typesupport_cpp")
-else()
-  rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
-endif()
-
-target_link_libraries(sbp-to-ros sbp serialport "${cpp_typesupport_target}")
-target_include_directories(sbp-to-ros PUBLIC
-  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>)
-target_compile_features(sbp-to-ros PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
-ament_target_dependencies(sbp-to-ros rclcpp sensor_msgs geometry_msgs nav_msgs gps_msgs tf2)
-ament_export_dependencies(rosidl_default_runtime)
-
 ament_target_dependencies(synced_baseline_node
-  rclcpp 
+  rclcpp
   message_filters
   nav_msgs
   tf2
@@ -102,9 +74,49 @@ ament_target_dependencies(synced_baseline_node
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(synced_baseline_node "${cpp_typesupport_target}")
 
+if(SBP_LIBRARY AND SERIALPORT_LIBRARY)
+  link_directories("/usr/local/lib/")
+  include_directories("/usr/local/include/")
+
+  add_executable(sbp-to-ros
+    src/sbp-to-ros.cpp
+    src/data_sources/sbp_file_datasource.cpp
+    src/data_sources/sbp_serial_datasource.cpp
+    src/data_sources/sbp_tcp_datasource.cpp
+    src/data_sources/sbp_data_sources.cpp
+    src/data_sources/serial.cpp
+    src/data_sources/tcp.cpp
+    src/utils/utils.cpp
+    src/utils/config.cpp
+    src/logging/ros_logger.cpp
+    src/logging/sbp_to_ros2_logger.cpp
+    src/logging/sbp_file_logger.cpp
+    src/publishers/navsatfix_publisher.cpp
+    src/publishers/twistwithcovariancestamped_publisher.cpp
+    src/publishers/timereference_publisher.cpp
+    src/publishers/gpsfix_publisher.cpp
+    src/publishers/baseline_publisher.cpp
+    src/publishers/imu_publisher.cpp
+    src/publishers/publisher_factory.cpp
+  )
+
+  if((${FOUND_ROS2_DISTRO} STREQUAL "foxy") OR (${FOUND_ROS2_DISTRO} STREQUAL "galactic"))
+    rosidl_target_interfaces(sbp-to-ros ${PROJECT_NAME} "rosidl_typesupport_cpp")
+  else()
+    rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
+  endif()
+
+  target_link_libraries(sbp-to-ros sbp serialport "${cpp_typesupport_target}")
+  target_include_directories(sbp-to-ros PUBLIC
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>)
+  target_compile_features(sbp-to-ros PUBLIC c_std_99 cxx_std_17)
+  ament_target_dependencies(sbp-to-ros rclcpp sensor_msgs geometry_msgs nav_msgs gps_msgs tf2)
+  ament_export_dependencies(rosidl_default_runtime)
+
+  install(TARGETS sbp-to-ros DESTINATION lib/${PROJECT_NAME})
+endif()
 
 install(TARGETS
-  sbp-to-ros
   synced_baseline_node
   DESTINATION lib/${PROJECT_NAME}
 )
@@ -119,7 +131,7 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}
 )
 
-if(BUILD_TESTING)
+if(BUILD_TESTING AND SBP_LIBRARY AND SERIALPORT_LIBRARY)
   find_package(rclcpp REQUIRED)
   find_package(std_msgs REQUIRED)
   find_package(sensor_msgs REQUIRED)
@@ -169,7 +181,7 @@ if(BUILD_TESTING)
     rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
   endif()
 
-  target_compile_features(${PROJECT_NAME}_test PRIVATE c_std_99 cxx_std_17)  # Require C99 and C++17
+  target_compile_features(${PROJECT_NAME}_test PRIVATE c_std_99 cxx_std_17)
   target_link_libraries(${PROJECT_NAME}_test sbp serialport "${cpp_typesupport_target}")
   ament_target_dependencies(${PROJECT_NAME}_test rclcpp sensor_msgs geometry_msgs nav_msgs gps_msgs tf2)
   ament_export_dependencies(rosidl_default_runtime)
