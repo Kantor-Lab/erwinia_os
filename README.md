@@ -156,7 +156,9 @@ check_urdf <path_to_urdf>
     ```
 8. **(Optional — real hardware GPS only)** Build and install `libsbp` v4.11.0, required by `swiftnav_ros2_driver`. Skip this step if you only need simulation.
     ```bash
-    cd ~/ros2_ws/src/libsbp/c
+    cd ~/
+    git clone --branch v4.11.0 https://github.com/swift-nav/libsbp.git
+    cd ~/libsbp/c
     mkdir -p build && cd build
     cmake .. -DCMAKE_BUILD_TYPE=Release
     make -j$(nproc)
