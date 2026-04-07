@@ -10,6 +10,9 @@
     <license>BSD</license>
 
     <buildtool_depend>ament_cmake</buildtool_depend>
+    <build_depend>libboost-dev</build_depend>
+    <build_export_depend>libboost-dev</build_export_depend>
+    <exec_depend>python3-transforms3d</exec_depend>
     <depend>builtin_interfaces</depend>
     <depend>rclpy</depend>
     <depend>std_msgs</depend>

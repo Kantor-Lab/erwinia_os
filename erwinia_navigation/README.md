@@ -1,15 +1,15 @@
 # Instructions to run autonomous navigation
 
- ros2 launch erwinia_os_description description.launch.py 
- 
-0. Pre-requisites — run in separate terminals before anything else:
+ ros2 launch erwinia_os_description description.launch.py
+
+1. Pre-requisites — run in separate terminals before anything else:
 ```
 ros2 run rmw_zenoh_cpp rmw_zenohd
 str2str -in ntrip://fyandun@andrew.cmu.edu:@rtk2go.com:2101/cmuairlab01 -out serial://ttyUSB1:115200:8:n:1
 ```
 
 
-1. Run the interface with amiga. This will give you /odom and amiga will be drivable through /cmd_vel commands. For this, first setup the can connection:
+2. Run the interface with amiga. This will give you /odom and amiga will be drivable through /cmd_vel commands. For this, first setup the can connection:
 
 ```
 sudo modprobe can
@@ -24,36 +24,36 @@ Then launch the node:
 ros2 run amiga_control amiga_control
 ```
 
-2. Run nav sensors: IMU, GPS and Velodyne
+3. Run nav sensors: IMU, GPS and Velodyne
 ```
-ros2 launch erwinia_os_bringup nav_sensors.launch.py 
+ros2 launch erwinia_os_bringup nav_sensors.launch.py
 ```
 
-3. Convert IMU to enu coords
+4. Convert IMU to enu coords
 ```
 ros2 run vectornav imu_ned2enu_node
 ```
 
-4. Convert gps rtk baseline msg to enu coordinates
+5. Convert gps rtk baseline msg to enu coordinates
 ```
-ros2 run mpc_amiga convert_from_swiftnav.py 
+ros2 run mpc_amiga convert_from_swiftnav.py
 ```
 
-5. Run robot localization
+6. Run robot localization
 ```
 ros2 launch robot_localization dual_ekf_amiga.launch.py
 ```
 
-6. To collect waypoints run this command
+7. To collect waypoints run this command
 ```
 python3 src/erwinia_os/erwinia_navigation/control/MPC_Amiga/scripts/collect_goals.py
 ```
-Remove the first 4 lines of the barn_to_field_waypoints.txt. 
+Remove the first 4 lines of the barn_to_field_waypoints.txt.
 Copy the last point to stopping points and stopping points copied.
 
-7. To run the controller run
+8. To run the controller run
 
-**If you want obstacle avoidance, skip this step and go directly to step 8.**
+**If you want obstacle avoidance, skip this step and go directly to step 9.**
 
 ```
 ros2 launch mpc_amiga mpc_amiga.launch.py fresh_start:=true
@@ -63,12 +63,10 @@ This command will show in the terminal the current yaw of the robot and the yaw 
 Remember to always check the path and odometry before engaging `auto control` in the amiga pendant.
 
 
-8. Run MPC + MPPI Combo (Obstacle Avoidance)
+9. Run MPC + MPPI Combo (Obstacle Avoidance)
 
 > `mpc_amiga` is launched internally — no need to run it separately.
 > For architecture details and parameter tuning, see [amiga_local_planner/README.md](control/amiga_local_planner/README.md).
-
-
 
 > **Progress:** Only tested `planner:=mppi dry_run:=false` — robot spins at the end of the path. `planner:=combo` has not been tested on the real robot yet.
 
@@ -99,9 +97,5 @@ ros2 launch amiga_local_planner mpc_mppi_combo.launch.py planner:=mppi dry_run:=
 
 **Step 3 — Final run** (full combo mode):
 ```
-ros2 launch amiga_local_planner mpc_mppi_combo.launch.py planner:=combo dry_run:=true
+ros2 launch amiga_local_planner mpc_mppi_combo.launch.py planner:=combo dry_run:=false
 ```
-
-
-
-
