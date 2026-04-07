@@ -1,6 +1,6 @@
 Panels:
   - Class: rviz_common/Displays
-    Help Height: 78
+    Help Height: 0
     Name: Displays
     Property Tree Widget:
       Expanded:
@@ -8,7 +8,7 @@ Panels:
         - /Status1
         - /MarkerArray1/Namespaces1
       Splitter Ratio: 0.5
-    Tree Height: 549
+    Tree Height: 627
   - Class: rviz_common/Selection
     Name: Selection
   - Class: rviz_common/Tool Properties
@@ -292,22 +292,22 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /occupancy_map_markers
       Value: true
-    - Alpha: 1
+    - Alpha: 0.10000000149011612
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
         Max Value: 10
         Min Value: -10
-        Value: true
+        Value: false
       Axis: Z
       Channel Name: intensity
       Class: rviz_default_plugins/PointCloud2
       Color: 255; 255; 255
       Color Transformer: FlatColor
       Decay Time: 0
-      Enabled: false
+      Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 104
+      Max Intensity: 107
       Min Color: 0; 0; 0
       Min Intensity: 0
       Name: PointCloud2
@@ -325,7 +325,7 @@ Visualization Manager:
         Value: /velodyne_points
       Use Fixed Frame: true
       Use rainbow: true
-      Value: false
+      Value: true
     - Alpha: 1
       Buffer Length: 1
       Class: rviz_default_plugins/Path
@@ -353,46 +353,6 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /aPath
-      Value: true
-    - Class: rviz_default_plugins/Marker
-      Enabled: true
-      Name: Marker
-      Namespaces:
-        "": true
-      Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        Filter size: 10
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /local_goal_point
-      Value: true
-    - Class: rviz_default_plugins/MarkerArray
-      Enabled: true
-      Name: MarkerArray
-      Namespaces:
-        {}
-      Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /local_goal_point_array
-      Value: true
-    - Alpha: 1
-      Class: rviz_default_plugins/PointStamped
-      Color: 204; 41; 204
-      Enabled: true
-      History Length: 1
-      Name: PointStamped
-      Radius: 0.20000000298023224
-      Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        Filter size: 10
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /clicked_point
       Value: true
   Enabled: true
   Global Options:
@@ -440,25 +400,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 29.816543579101562
+      Distance: 5.844175338745117
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -19.465377807617188
-        Y: -20.02695655822754
-        Z: -5.732023239135742
+        X: -0.04397759959101677
+        Y: 0.03854012116789818
+        Z: 0.13439372181892395
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.41039854288101196
-      Target Frame: <Fixed Frame>
+      Pitch: 0.31039875745773315
+      Target Frame: amiga/base_link
       Value: Orbit (rviz)
-      Yaw: 5.563586711883545
+      Yaw: 4.066763877868652
     Saved: ~
 Window Geometry:
   Displays:
@@ -476,5 +436,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 1200
-  X: 2400
-  Y: 210
+  X: 1975
+  Y: 110

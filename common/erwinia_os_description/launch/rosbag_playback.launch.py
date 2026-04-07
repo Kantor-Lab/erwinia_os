@@ -1,3 +1,5 @@
+# Run this launch file prior to running ros2 bag play <bag_file> --clock to visualize the robot in Rviz
+
 from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument, OpaqueFunction, TimerAction, RegisterEventHandler, EmitEvent
