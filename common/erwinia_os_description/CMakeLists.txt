@@ -13,6 +13,10 @@ install(DIRECTORY launch meshes rviz urdf srdf
   DESTINATION share/${PROJECT_NAME}
 )
 
+install(PROGRAMS scripts/odom_to_wheel_joints.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   set(ament_cmake_cpplint_FOUND TRUE)
