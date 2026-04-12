@@ -2,7 +2,8 @@ import { Immutable, PanelExtensionContext, RenderState, SettingsTreeAction, Sett
 import L from "leaflet";
 import { CachedTileLayer, downloadTilesForArea } from "./CachedTileLayer";
 
-// Inline Leaflet CSS to avoid external file loading issues in extensions
+// ---------- Inline Leaflet CSS + custom HUD styles ----------
+
 const LEAFLET_CSS = `
 .leaflet-pane,.leaflet-tile,.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-tile-container,.leaflet-pane>svg,.leaflet-pane>canvas,.leaflet-zoom-box,.leaflet-image-layer,.leaflet-layer{position:absolute;left:0;top:0}
 .leaflet-container{overflow:hidden;font:12px/1.5 "Helvetica Neue",Arial,Helvetica,sans-serif}
@@ -35,6 +36,347 @@ const LEAFLET_CSS = `
 .leaflet-zoom-box{border:2px dotted #38f;background:rgba(255,255,255,.5)}
 `;
 
+const HUD_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --hud-bg: rgba(8, 12, 21, 0.82);
+  --hud-bg-solid: rgba(8, 12, 21, 0.95);
+  --hud-border: rgba(56, 189, 248, 0.2);
+  --hud-border-bright: rgba(56, 189, 248, 0.45);
+  --hud-accent: #38bdf8;
+  --hud-accent-dim: rgba(56, 189, 248, 0.6);
+  --hud-green: #34d399;
+  --hud-green-dim: rgba(52, 211, 153, 0.5);
+  --hud-amber: #fbbf24;
+  --hud-red: #f87171;
+  --hud-text: #e2e8f0;
+  --hud-text-dim: rgba(148, 163, 184, 0.8);
+  --hud-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  --hud-sans: 'Outfit', 'SF Pro Display', system-ui, sans-serif;
+  --hud-glow: 0 0 12px rgba(56, 189, 248, 0.15), 0 0 4px rgba(56, 189, 248, 0.1);
+  --hud-glow-green: 0 0 12px rgba(52, 211, 153, 0.2);
+}
+
+/* Override Leaflet zoom controls */
+.erwinia-map .leaflet-bar {
+  background: var(--hud-bg-solid) !important;
+  border: 1px solid var(--hud-border) !important;
+  border-radius: 6px !important;
+  box-shadow: var(--hud-glow) !important;
+  overflow: hidden;
+}
+.erwinia-map .leaflet-bar a {
+  background: transparent !important;
+  color: var(--hud-accent) !important;
+  border-bottom: 1px solid var(--hud-border) !important;
+  font-family: var(--hud-mono) !important;
+  font-size: 16px !important;
+  width: 32px !important;
+  height: 32px !important;
+  line-height: 32px !important;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.erwinia-map .leaflet-bar a:hover {
+  background: rgba(56, 189, 248, 0.1) !important;
+  color: #fff !important;
+}
+.erwinia-map .leaflet-bar a:last-child {
+  border-bottom: none !important;
+}
+.erwinia-map .leaflet-control-attribution {
+  background: var(--hud-bg) !important;
+  color: var(--hud-text-dim) !important;
+  font-family: var(--hud-mono) !important;
+  font-size: 9px !important;
+  padding: 2px 6px !important;
+  border-radius: 3px 0 0 0 !important;
+}
+.erwinia-map .leaflet-control-attribution a {
+  color: var(--hud-accent-dim) !important;
+}
+
+@keyframes erwinia-fadein {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes erwinia-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Status bar */
+.erwinia-status-bar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  z-index: 1001;
+  height: 36px;
+  background: linear-gradient(180deg, var(--hud-bg-solid) 0%, rgba(8, 12, 21, 0.6) 100%);
+  border-bottom: 1px solid var(--hud-border);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 16px;
+  font-family: var(--hud-mono);
+  font-size: 11px;
+  color: var(--hud-text-dim);
+  pointer-events: none;
+  animation: erwinia-fadein 0.3s ease-out both;
+}
+.erwinia-status-bar::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--hud-accent) 20%, var(--hud-accent) 80%, transparent 100%);
+  opacity: 0.3;
+}
+
+.erwinia-brand {
+  font-family: var(--hud-sans);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--hud-accent);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.erwinia-brand-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--hud-green);
+  box-shadow: var(--hud-glow-green);
+}
+.erwinia-brand-dot[data-status="disconnected"] {
+  background: var(--hud-red);
+  box-shadow: 0 0 12px rgba(248, 113, 113, 0.3);
+  animation: erwinia-blink 1.5s ease-in-out infinite;
+}
+
+.erwinia-status-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--hud-border);
+}
+
+.erwinia-coord {
+  font-variant-numeric: tabular-nums;
+  color: var(--hud-text);
+  letter-spacing: 0.3px;
+}
+.erwinia-coord-label {
+  color: var(--hud-text-dim);
+  margin-right: 4px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.erwinia-status-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Legend */
+.erwinia-legend {
+  position: absolute;
+  right: 12px;
+  top: 52px;
+  z-index: 1000;
+  background: var(--hud-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--hud-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: var(--hud-mono);
+  font-size: 10px;
+  color: var(--hud-text-dim);
+  pointer-events: none;
+  box-shadow: var(--hud-glow);
+  animation: erwinia-fadein 0.4s ease-out 0.15s both;
+  min-width: 90px;
+}
+.erwinia-legend-title {
+  font-family: var(--hud-sans);
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--hud-accent);
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--hud-border);
+}
+.erwinia-legend-gradient {
+  width: 100%;
+  height: 10px;
+  border-radius: 3px;
+  margin: 6px 0 4px;
+}
+.erwinia-legend-range {
+  display: flex;
+  justify-content: space-between;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Buttons */
+.erwinia-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: var(--hud-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--hud-border);
+  border-radius: 6px;
+  color: var(--hud-text);
+  font-family: var(--hud-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--hud-glow);
+  pointer-events: auto;
+}
+.erwinia-btn:hover {
+  background: rgba(56, 189, 248, 0.08);
+  border-color: var(--hud-border-bright);
+  color: #fff;
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.2), 0 0 6px rgba(56, 189, 248, 0.15);
+}
+.erwinia-btn:active {
+  transform: scale(0.97);
+}
+.erwinia-btn-icon {
+  font-size: 13px;
+  opacity: 0.7;
+}
+.erwinia-btn-primary {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: var(--hud-border-bright);
+  color: var(--hud-accent);
+}
+.erwinia-btn-primary:hover {
+  background: rgba(56, 189, 248, 0.2);
+  color: #fff;
+}
+.erwinia-btn-danger {
+  border-color: rgba(248, 113, 113, 0.25);
+}
+.erwinia-btn-danger:hover {
+  background: rgba(248, 113, 113, 0.1);
+  border-color: rgba(248, 113, 113, 0.5);
+  color: var(--hud-red);
+  box-shadow: 0 0 16px rgba(248, 113, 113, 0.15);
+}
+
+.erwinia-btn-group {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 1000;
+  display: flex;
+  gap: 6px;
+  animation: erwinia-fadein 0.4s ease-out 0.2s both;
+}
+
+/* Download overlay */
+.erwinia-dl-overlay {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1001;
+  background: var(--hud-bg-solid);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--hud-border);
+  border-radius: 12px;
+  padding: 20px 24px;
+  color: var(--hud-text);
+  font-family: var(--hud-sans);
+  font-size: 13px;
+  display: none;
+  min-width: 300px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.5), var(--hud-glow);
+}
+.erwinia-dl-title {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--hud-accent);
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--hud-border);
+}
+.erwinia-dl-label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--hud-text-dim);
+}
+.erwinia-dl-input {
+  width: 140px;
+  padding: 6px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--hud-border);
+  background: rgba(15, 23, 42, 0.8);
+  color: var(--hud-text);
+  font-family: var(--hud-mono);
+  font-size: 12px;
+  margin-left: 8px;
+  transition: border-color 0.2s;
+  outline: none;
+}
+.erwinia-dl-input:focus {
+  border-color: var(--hud-accent);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.1);
+}
+.erwinia-dl-slider {
+  width: 100%;
+  margin-top: 6px;
+  accent-color: var(--hud-accent);
+}
+.erwinia-dl-progress {
+  width: 100%;
+  height: 4px;
+  background: rgba(30, 41, 59, 0.8);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.erwinia-dl-progress-fill {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--hud-accent), var(--hud-green));
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+.erwinia-dl-progress-text {
+  font-family: var(--hud-mono);
+  font-size: 10px;
+  color: var(--hud-text-dim);
+  margin-top: 4px;
+}
+.erwinia-dl-btnrow {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+`;
+
 // ---------- color scale utilities ----------
 
 type ColorScale = "viridis" | "red-yellow-green" | "thermal";
@@ -55,13 +397,20 @@ function valueToColor(value: number, scale: ColorScale): string {
     }
     case "viridis":
     default: {
-      // Simplified viridis approximation
       const r = Math.round(68 + (253 - 68) * t * t);
       const g = Math.round(1 + (231 - 1) * t);
       const b = Math.round(84 + (37 - 84) * t + (140 - 84) * Math.sin(Math.PI * t));
       return `rgb(${r},${g},${b})`;
     }
   }
+}
+
+function buildGradientCSS(scale: ColorScale, steps = 8): string {
+  const colors: string[] = [];
+  for (let i = 0; i <= steps; i++) {
+    colors.push(valueToColor(i / steps, scale));
+  }
+  return `linear-gradient(90deg, ${colors.join(", ")})`;
 }
 
 // ---------- tile layer URLs ----------
@@ -93,16 +442,16 @@ interface PanelSettings {
 }
 
 const DEFAULT_SETTINGS: PanelSettings = {
-  gpsTopic: "/nav_sat_fix",
+  gpsTopic: "/ns/navsatfix",
   gridTopic: "/field_heatmap",
   detectionTopic: "/firefly_left/detections",
   mapStyle: "satellite",
-  gridOpacity: 0.6,
-  colorScale: "red-yellow-green",
+  gridOpacity: 0.8,
+  colorScale: "thermal",
   autoCenter: true,
   showTrail: true,
-  gaussianRadiusMeters: 3,
-  maxIntensity: 50,
+  gaussianRadiusMeters: 6,
+  maxIntensity: 2,
 };
 
 function buildSettingsTree(settings: PanelSettings): SettingsTreeNodes {
@@ -193,6 +542,26 @@ function buildSettingsTree(settings: PanelSettings): SettingsTreeNodes {
   };
 }
 
+// ---------- coordinate formatting ----------
+
+function formatCoord(val: number, pos: string, neg: string): string {
+  const dir = val >= 0 ? pos : neg;
+  const abs = Math.abs(val);
+  const deg = Math.floor(abs);
+  const min = Math.floor((abs - deg) * 60);
+  const sec = ((abs - deg - min / 60) * 3600).toFixed(2);
+  return `${deg}\u00B0${String(min).padStart(2, "0")}'${String(sec).padStart(5, "0")}"${dir}`;
+}
+
+// ---------- helper: create element with text ----------
+
+function createIcon(text: string): HTMLSpanElement {
+  const span = document.createElement("span");
+  span.className = "erwinia-btn-icon";
+  span.textContent = text;
+  return span;
+}
+
 // ---------- panel init ----------
 
 export function initMapPanel(context: PanelExtensionContext): () => void {
@@ -202,86 +571,170 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
   panelEl.style.position = "relative";
   panelEl.style.overflow = "hidden";
 
-  // Inject Leaflet CSS
+  // Inject styles
   const style = document.createElement("style");
-  style.textContent = LEAFLET_CSS;
+  style.textContent = LEAFLET_CSS + HUD_CSS;
   panelEl.appendChild(style);
 
   // Map container
   const mapDiv = document.createElement("div");
+  mapDiv.className = "erwinia-map";
   mapDiv.style.width = "100%";
   mapDiv.style.height = "100%";
   panelEl.appendChild(mapDiv);
 
-  // Color scale legend
+  // ========== STATUS BAR ==========
+  const statusBar = document.createElement("div");
+  statusBar.className = "erwinia-status-bar";
+
+  const brand = document.createElement("div");
+  brand.className = "erwinia-brand";
+  const brandDot = document.createElement("div");
+  brandDot.className = "erwinia-brand-dot";
+  brandDot.dataset.status = "disconnected";
+  brand.appendChild(brandDot);
+  brand.appendChild(document.createTextNode("ERWINIA"));
+  statusBar.appendChild(brand);
+
+  const sep1 = document.createElement("div");
+  sep1.className = "erwinia-status-sep";
+  statusBar.appendChild(sep1);
+
+  // Lat display
+  const latDisplay = document.createElement("div");
+  latDisplay.className = "erwinia-coord";
+  const latLbl = document.createElement("span");
+  latLbl.className = "erwinia-coord-label";
+  latLbl.textContent = "LAT";
+  const latVal = document.createElement("span");
+  latVal.textContent = "--\u00B0--'--\"";
+  latDisplay.appendChild(latLbl);
+  latDisplay.appendChild(latVal);
+  statusBar.appendChild(latDisplay);
+
+  // Lon display
+  const lonDisplay = document.createElement("div");
+  lonDisplay.className = "erwinia-coord";
+  const lonLbl = document.createElement("span");
+  lonLbl.className = "erwinia-coord-label";
+  lonLbl.textContent = "LON";
+  const lonVal = document.createElement("span");
+  lonVal.textContent = "--\u00B0--'--\"";
+  lonDisplay.appendChild(lonLbl);
+  lonDisplay.appendChild(lonVal);
+  statusBar.appendChild(lonDisplay);
+
+  const sep2 = document.createElement("div");
+  sep2.className = "erwinia-status-sep";
+  statusBar.appendChild(sep2);
+
+  // Alt display
+  const altDisplay = document.createElement("div");
+  altDisplay.className = "erwinia-coord";
+  const altLbl = document.createElement("span");
+  altLbl.className = "erwinia-coord-label";
+  altLbl.textContent = "ALT";
+  const altVal = document.createElement("span");
+  altVal.textContent = "--.-m";
+  altDisplay.appendChild(altLbl);
+  altDisplay.appendChild(altVal);
+  statusBar.appendChild(altDisplay);
+
+  // Right side: trail count, detection count
+  const statusRight = document.createElement("div");
+  statusRight.className = "erwinia-status-right";
+  const trailCountEl = document.createElement("div");
+  trailCountEl.style.cssText = "font-variant-numeric:tabular-nums;color:var(--hud-accent-dim)";
+  trailCountEl.textContent = "TRAIL 0";
+  statusRight.appendChild(trailCountEl);
+
+  const sep3 = document.createElement("div");
+  sep3.className = "erwinia-status-sep";
+  statusRight.appendChild(sep3);
+
+  const detCountEl = document.createElement("div");
+  detCountEl.style.cssText = "font-variant-numeric:tabular-nums;color:var(--hud-green-dim)";
+  detCountEl.textContent = "DET 0";
+  statusRight.appendChild(detCountEl);
+  statusBar.appendChild(statusRight);
+
+  panelEl.appendChild(statusBar);
+
+  // ========== LEGEND ==========
   const legend = document.createElement("div");
-  legend.style.cssText = `
-    position:absolute; right:12px; top:12px; z-index:1000;
-    background:rgba(0,0,0,0.75); border-radius:6px; padding:8px 10px;
-    color:#fff; font-size:11px; font-family:sans-serif; pointer-events:none;
-  `;
+  legend.className = "erwinia-legend";
   panelEl.appendChild(legend);
 
-  // Clear heatmap button
+  // ========== BUTTONS ==========
+  const btnGroup = document.createElement("div");
+  btnGroup.className = "erwinia-btn-group";
+
   const clearBtn = document.createElement("button");
-  clearBtn.textContent = "Clear Heatmap";
-  clearBtn.style.cssText = `
-    position:absolute; left:12px; bottom:12px; z-index:1000;
-    background:rgba(0,0,0,0.75); border:1px solid rgba(255,255,255,0.3);
-    border-radius:4px; padding:6px 12px; color:#fff; font-size:12px;
-    font-family:sans-serif; cursor:pointer;
-  `;
+  clearBtn.className = "erwinia-btn erwinia-btn-danger";
+  clearBtn.appendChild(createIcon("\u2715"));
+  clearBtn.appendChild(document.createTextNode(" Clear Heatmap"));
   clearBtn.addEventListener("click", () => {
     heatGrid.clear();
+    totalDetections = 0;
+    detCountEl.textContent = "DET 0";
     if (heatmapLayer) {
       heatmapLayer.clearLayers();
     }
   });
-  panelEl.appendChild(clearBtn);
+  btnGroup.appendChild(clearBtn);
 
-  // Download tiles overlay
+  const openDlBtn = document.createElement("button");
+  openDlBtn.className = "erwinia-btn erwinia-btn-primary";
+  openDlBtn.appendChild(createIcon("\u2B73"));
+  openDlBtn.appendChild(document.createTextNode(" Cache Tiles"));
+  openDlBtn.addEventListener("click", () => {
+    if (currentGpsLat !== 0 || currentGpsLon !== 0) {
+      latInput.value = currentGpsLat.toFixed(6);
+      lonInput.value = currentGpsLon.toFixed(6);
+    }
+    downloadOverlay.style.display = downloadOverlay.style.display === "none" ? "block" : "none";
+  });
+  btnGroup.appendChild(openDlBtn);
+  panelEl.appendChild(btnGroup);
+
+  // ========== DOWNLOAD OVERLAY ==========
   const downloadOverlay = document.createElement("div");
-  downloadOverlay.style.cssText = `
-    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
-    z-index:1001; background:rgba(0,0,0,0.9); border-radius:8px;
-    padding:16px 20px; color:#fff; font-size:13px; font-family:sans-serif;
-    display:none; min-width:280px;
-  `;
+  downloadOverlay.className = "erwinia-dl-overlay";
 
   const dlTitle = document.createElement("div");
-  dlTitle.style.cssText = "font-weight:bold;font-size:15px;margin-bottom:12px;";
-  dlTitle.textContent = "Download Field Tiles";
+  dlTitle.className = "erwinia-dl-title";
+  dlTitle.textContent = "Cache Field Tiles";
   downloadOverlay.appendChild(dlTitle);
 
   // Lat input
   const latLabel = document.createElement("label");
-  latLabel.textContent = "Latitude: ";
-  latLabel.style.cssText = "display:block;margin-bottom:8px;";
+  latLabel.className = "erwinia-dl-label";
+  latLabel.textContent = "Latitude ";
   const latInput = document.createElement("input");
   latInput.type = "number";
   latInput.step = "0.0001";
-  latInput.style.cssText = "width:120px;padding:4px;border-radius:3px;border:1px solid #555;background:#222;color:#fff;";
+  latInput.className = "erwinia-dl-input";
   latInput.value = "40.4400";
   latLabel.appendChild(latInput);
   downloadOverlay.appendChild(latLabel);
 
   // Lon input
   const lonLabel = document.createElement("label");
-  lonLabel.textContent = "Longitude: ";
-  lonLabel.style.cssText = "display:block;margin-bottom:8px;";
+  lonLabel.className = "erwinia-dl-label";
+  lonLabel.textContent = "Longitude ";
   const lonInput = document.createElement("input");
   lonInput.type = "number";
   lonInput.step = "0.0001";
-  lonInput.style.cssText = "width:120px;padding:4px;border-radius:3px;border:1px solid #555;background:#222;color:#fff;";
+  lonInput.className = "erwinia-dl-input";
   lonInput.value = "-79.9400";
   lonLabel.appendChild(lonInput);
   downloadOverlay.appendChild(lonLabel);
 
   // Size slider
   const sizeLabel = document.createElement("label");
-  sizeLabel.style.cssText = "display:block;margin-bottom:8px;";
+  sizeLabel.className = "erwinia-dl-label";
   const sizeText = document.createElement("span");
-  sizeText.textContent = "Area: 1 km x 1 km";
+  sizeText.textContent = "Coverage  1 km \u00D7 1 km";
   sizeLabel.appendChild(sizeText);
   sizeLabel.appendChild(document.createElement("br"));
   const sizeSlider = document.createElement("input");
@@ -290,37 +743,36 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
   sizeSlider.max = "5";
   sizeSlider.step = "0.5";
   sizeSlider.value = "1";
-  sizeSlider.style.cssText = "width:100%;margin-top:4px;";
+  sizeSlider.className = "erwinia-dl-slider";
   sizeSlider.addEventListener("input", () => {
-    sizeText.textContent = `Area: ${sizeSlider.value} km x ${sizeSlider.value} km`;
+    sizeText.textContent = `Coverage  ${sizeSlider.value} km \u00D7 ${sizeSlider.value} km`;
   });
   sizeLabel.appendChild(sizeSlider);
   downloadOverlay.appendChild(sizeLabel);
 
-  // Progress bar
+  // Progress
   const progressContainer = document.createElement("div");
-  progressContainer.style.cssText = "display:none;margin-bottom:8px;";
+  progressContainer.style.display = "none";
+  progressContainer.style.marginTop = "12px";
   const progressBar = document.createElement("div");
-  progressBar.style.cssText = "width:100%;height:8px;background:#333;border-radius:4px;overflow:hidden;";
+  progressBar.className = "erwinia-dl-progress";
   const progressFill = document.createElement("div");
-  progressFill.style.cssText = "width:0%;height:100%;background:#4caf50;transition:width 0.2s;";
+  progressFill.className = "erwinia-dl-progress-fill";
   progressBar.appendChild(progressFill);
   progressContainer.appendChild(progressBar);
   const progressText = document.createElement("div");
-  progressText.style.cssText = "font-size:11px;color:#aaa;margin-top:4px;";
+  progressText.className = "erwinia-dl-progress-text";
   progressContainer.appendChild(progressText);
   downloadOverlay.appendChild(progressContainer);
 
-  // Buttons row
+  // Buttons
   const btnRow = document.createElement("div");
-  btnRow.style.cssText = "display:flex;gap:8px;margin-top:12px;";
+  btnRow.className = "erwinia-dl-btnrow";
 
   const dlBtn = document.createElement("button");
+  dlBtn.className = "erwinia-btn erwinia-btn-primary";
+  dlBtn.style.flex = "1";
   dlBtn.textContent = "Download";
-  dlBtn.style.cssText = `
-    flex:1; padding:8px; border:none; border-radius:4px;
-    background:#4caf50; color:#fff; font-size:13px; cursor:pointer;
-  `;
   dlBtn.addEventListener("click", async () => {
     const lat = parseFloat(latInput.value);
     const lon = parseFloat(lonInput.value);
@@ -328,7 +780,8 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     if (isNaN(lat) || isNaN(lon)) return;
 
     dlBtn.disabled = true;
-    dlBtn.textContent = "Downloading...";
+    dlBtn.textContent = "Downloading\u2026";
+    dlBtn.style.opacity = "0.6";
     progressContainer.style.display = "block";
 
     await downloadTilesForArea(lat, lon, sizeKm, (done, total) => {
@@ -339,16 +792,15 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
 
     dlBtn.disabled = false;
     dlBtn.textContent = "Download";
-    progressText.textContent = "Done!";
+    dlBtn.style.opacity = "1";
+    progressText.textContent = "Complete \u2713";
   });
   btnRow.appendChild(dlBtn);
 
   const closeBtn = document.createElement("button");
+  closeBtn.className = "erwinia-btn";
+  closeBtn.style.flex = "1";
   closeBtn.textContent = "Close";
-  closeBtn.style.cssText = `
-    flex:1; padding:8px; border:1px solid rgba(255,255,255,0.3); border-radius:4px;
-    background:transparent; color:#fff; font-size:13px; cursor:pointer;
-  `;
   closeBtn.addEventListener("click", () => {
     downloadOverlay.style.display = "none";
   });
@@ -356,30 +808,12 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
   downloadOverlay.appendChild(btnRow);
   panelEl.appendChild(downloadOverlay);
 
-  // Download tiles button (next to clear heatmap)
-  const openDlBtn = document.createElement("button");
-  openDlBtn.textContent = "Download Tiles";
-  openDlBtn.style.cssText = `
-    position:absolute; left:130px; bottom:12px; z-index:1000;
-    background:rgba(0,0,0,0.75); border:1px solid rgba(255,255,255,0.3);
-    border-radius:4px; padding:6px 12px; color:#fff; font-size:12px;
-    font-family:sans-serif; cursor:pointer;
-  `;
-  openDlBtn.addEventListener("click", () => {
-    // Pre-fill with current GPS if available
-    if (currentGpsLat !== 0 || currentGpsLon !== 0) {
-      latInput.value = currentGpsLat.toFixed(6);
-      lonInput.value = currentGpsLon.toFixed(6);
-    }
-    downloadOverlay.style.display = downloadOverlay.style.display === "none" ? "block" : "none";
-  });
-  panelEl.appendChild(openDlBtn);
-
-  // State
+  // ========== STATE ==========
   let settings: PanelSettings = { ...DEFAULT_SETTINGS };
   let map: L.Map | undefined;
   let tileLayer: L.TileLayer | undefined;
   let robotMarker: L.CircleMarker | undefined;
+  let robotPulse: L.CircleMarker | undefined;
   let trailLine: L.Polyline | undefined;
   const trailCoords: L.LatLng[] = [];
   let gridLayer: L.LayerGroup | undefined;
@@ -387,16 +821,24 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
   let lastGpsTopic = settings.gpsTopic;
   let lastGridTopic = settings.gridTopic;
 
-  // Heatmap accumulation grid: key = "lat,lon" quantized to ~1m cells
   const heatGrid = new Map<string, { lat: number; lon: number; count: number }>();
   let heatmapLayer: L.LayerGroup | undefined;
   let currentGpsLat = 0;
   let currentGpsLon = 0;
+  let currentAlt = 0;
+  let totalDetections = 0;
 
-  // Initialize map
+  // Pulse animation via timer
+  let pulseTimer: ReturnType<typeof setInterval> | undefined;
+  let pulsePhase = 0;
+
+  // ========== MAP INIT ==========
   function initMap() {
     if (map) {
       map.remove();
+    }
+    if (pulseTimer != null) {
+      clearInterval(pulseTimer);
     }
     hasCentered = false;
     trailCoords.length = 0;
@@ -415,15 +857,43 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     gridLayer = L.layerGroup().addTo(map);
     heatmapLayer = L.layerGroup().addTo(map);
 
+    // Robot marker: bright core with outer glow ring
     robotMarker = L.circleMarker([0, 0], {
-      radius: 8,
-      color: "#fff",
-      weight: 2,
-      fillColor: "#2196F3",
+      radius: 7,
+      color: "#38bdf8",
+      weight: 2.5,
+      fillColor: "#0ea5e9",
       fillOpacity: 1,
     });
 
-    trailLine = L.polyline([], { color: "#2196F3", weight: 2, opacity: 0.7 });
+    // Pulsing outer ring
+    robotPulse = L.circleMarker([0, 0], {
+      radius: 7,
+      color: "#38bdf8",
+      weight: 1.5,
+      fillColor: "transparent",
+      fillOpacity: 0,
+      opacity: 0.6,
+    });
+
+    // Animate pulse
+    pulsePhase = 0;
+    pulseTimer = setInterval(() => {
+      if (!robotPulse) return;
+      pulsePhase = (pulsePhase + 1) % 60;
+      const t = pulsePhase / 60;
+      const r = 7 + t * 18;
+      const o = 0.6 * (1 - t);
+      robotPulse.setRadius(r);
+      robotPulse.setStyle({ opacity: o });
+    }, 33);
+
+    trailLine = L.polyline([], {
+      color: "#38bdf8",
+      weight: 2,
+      opacity: 0.5,
+      dashArray: "6, 4",
+    });
     if (settings.showTrail) {
       trailLine.addTo(map);
     }
@@ -432,27 +902,29 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
   }
 
   function updateLegend() {
-    const steps = 6;
-    // Build legend using DOM methods
     legend.textContent = "";
+
     const title = document.createElement("div");
-    title.style.cssText = "margin-bottom:4px;font-weight:bold;text-align:center;";
+    title.className = "erwinia-legend-title";
     title.textContent = "Detections";
     legend.appendChild(title);
 
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      const detCount = Math.round(t * settings.maxIntensity);
-      const row = document.createElement("div");
-      row.style.cssText = "display:flex;align-items:center;gap:6px;";
-      const swatch = document.createElement("div");
-      swatch.style.cssText = `width:16px;height:12px;border-radius:2px;background:${valueToColor(t, settings.colorScale)};`;
-      const label = document.createElement("span");
-      label.textContent = String(detCount);
-      row.appendChild(swatch);
-      row.appendChild(label);
-      legend.appendChild(row);
-    }
+    // Gradient bar
+    const gradBar = document.createElement("div");
+    gradBar.className = "erwinia-legend-gradient";
+    gradBar.style.background = buildGradientCSS(settings.colorScale);
+    legend.appendChild(gradBar);
+
+    // Range labels
+    const range = document.createElement("div");
+    range.className = "erwinia-legend-range";
+    const minLabel = document.createElement("span");
+    minLabel.textContent = "0";
+    const maxLabel = document.createElement("span");
+    maxLabel.textContent = String(settings.maxIntensity);
+    range.appendChild(minLabel);
+    range.appendChild(maxLabel);
+    legend.appendChild(range);
   }
 
   function switchTileLayer() {
@@ -462,7 +934,7 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     tileLayer = new CachedTileLayer(layer.url, { attribution: layer.attribution, maxZoom: 22 }).addTo(map);
   }
 
-  // Settings
+  // ========== SETTINGS ==========
   function handleSettingsAction(action: SettingsTreeAction) {
     if (action.action !== "update" || !action.payload) return;
     const { path, value } = action.payload;
@@ -474,7 +946,7 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     if (field === "mapStyle") {
       switchTileLayer();
     }
-    if (field === "colorScale") {
+    if (field === "colorScale" || field === "maxIntensity") {
       updateLegend();
     }
     if (field === "showTrail" && map && trailLine) {
@@ -485,7 +957,6 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
       }
     }
 
-    // Re-subscribe if topics changed
     if (field === "gpsTopic" || field === "gridTopic" || field === "detectionTopic") {
       resubscribe();
     }
@@ -497,7 +968,6 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     context.saveState(settings);
   }
 
-  // Load saved state
   const savedState = context.initialState as Partial<PanelSettings> | undefined;
   if (savedState) {
     settings = { ...DEFAULT_SETTINGS, ...savedState };
@@ -510,37 +980,29 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
 
   initMap();
 
-  // Subscribe to topics
+  // ========== SUBSCRIPTIONS ==========
   function resubscribe() {
-    const topics: Record<string, { preload: boolean }> = {};
-    if (settings.gpsTopic) {
-      topics[settings.gpsTopic] = { preload: false };
-    }
-    if (settings.gridTopic) {
-      topics[settings.gridTopic] = { preload: false };
-    }
-    if (settings.detectionTopic) {
-      topics[settings.detectionTopic] = { preload: false };
-    }
-    context.subscribe(Object.keys(topics));
+    const topics: string[] = [];
+    if (settings.gpsTopic) topics.push(settings.gpsTopic);
+    if (settings.gridTopic) topics.push(settings.gridTopic);
+    if (settings.detectionTopic) topics.push(settings.detectionTopic);
+    context.subscribe(topics);
     lastGpsTopic = settings.gpsTopic;
     lastGridTopic = settings.gridTopic;
   }
 
   resubscribe();
 
-  // Handle messages
+  // ========== MESSAGE HANDLERS ==========
   context.onRender = (renderState: Immutable<RenderState>, done: () => void) => {
     if (!map) {
       done();
       return;
     }
 
-    // Process incoming messages
     if (renderState.currentFrame) {
       for (const msg of renderState.currentFrame) {
         const topic = msg.topic;
-
         if (topic === settings.gpsTopic) {
           handleGpsMessage(msg.message as Record<string, unknown>);
         } else if (topic === settings.gridTopic) {
@@ -551,9 +1013,7 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
       }
     }
 
-    // Invalidate map size on render (panel may have resized)
     map.invalidateSize();
-
     done();
   };
 
@@ -561,20 +1021,30 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
   context.watch("topics");
 
   function handleGpsMessage(msg: Record<string, unknown>) {
-    if (!map || !robotMarker || !trailLine) return;
+    if (!map || !robotMarker || !robotPulse || !trailLine) return;
 
-    // Support both sensor_msgs/NavSatFix and generic {latitude, longitude}
     const lat = (msg.latitude as number) ?? 0;
     const lon = (msg.longitude as number) ?? 0;
+    const alt = (msg.altitude as number) ?? 0;
     currentGpsLat = lat;
     currentGpsLon = lon;
+    currentAlt = alt;
 
     if (lat === 0 && lon === 0) return;
+
+    // Update status bar
+    brandDot.dataset.status = "connected";
+    latVal.textContent = formatCoord(lat, "N", "S");
+    lonVal.textContent = formatCoord(lon, "E", "W");
+    altVal.textContent = `${alt.toFixed(1)}m`;
+    trailCountEl.textContent = `TRAIL ${trailCoords.length}`;
 
     const pos = L.latLng(lat, lon);
 
     robotMarker.setLatLng(pos);
+    robotPulse.setLatLng(pos);
     if (!map.hasLayer(robotMarker)) {
+      robotPulse.addTo(map);
       robotMarker.addTo(map);
     }
 
@@ -598,8 +1068,6 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     if (!map || !gridLayer) return;
     gridLayer.clearLayers();
 
-    // Expected format: { cells: [{lat, lon, value, size?},...] }
-    // or { data: [{lat, lon, value, size?},...] }
     const cells = (msg.cells ?? msg.data) as
       | Array<{ lat: number; lon: number; value: number; size?: number }>
       | undefined;
@@ -607,7 +1075,7 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     if (!Array.isArray(cells)) return;
 
     for (const cell of cells) {
-      const halfSize = (cell.size ?? 0.00005) / 2; // ~5m default
+      const halfSize = (cell.size ?? 0.00005) / 2;
       const bounds: L.LatLngBoundsExpression = [
         [cell.lat - halfSize, cell.lon - halfSize],
         [cell.lat + halfSize, cell.lon + halfSize],
@@ -624,13 +1092,11 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
 
   function handleDetectionMessage(msg: Record<string, unknown>) {
     if (!map || !heatmapLayer) return;
-    if (currentGpsLat === 0 && currentGpsLon === 0) return; // No GPS fix yet
+    if (currentGpsLat === 0 && currentGpsLon === 0) return;
 
-    // vision_msgs/Detection2DArray has a `detections` array
     const detections = msg.detections as Array<Record<string, unknown>> | undefined;
     if (!Array.isArray(detections) || detections.length === 0) return;
 
-    // Quantize GPS to ~1m grid cells (~0.00001 deg = 1.1m)
     const resolution = 0.00001;
     const qLat = Math.round(currentGpsLat / resolution) * resolution;
     const qLon = Math.round(currentGpsLon / resolution) * resolution;
@@ -643,6 +1109,9 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
       heatGrid.set(key, { lat: qLat, lon: qLon, count: detections.length });
     }
 
+    totalDetections += detections.length;
+    detCountEl.textContent = `DET ${totalDetections}`;
+
     renderHeatmap();
   }
 
@@ -654,37 +1123,56 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
       const intensity = Math.min(cell.count / settings.maxIntensity, 1);
       if (intensity <= 0) continue;
 
-      // Outer ring (low opacity, wide)
-      L.circle([cell.lat, cell.lon], {
-        radius: settings.gaussianRadiusMeters * 1.5,
-        color: "transparent",
-        fillColor: valueToColor(intensity, settings.colorScale),
-        fillOpacity: intensity * settings.gridOpacity * 0.3,
-        weight: 0,
+      const color = valueToColor(intensity, settings.colorScale);
+      const pos: L.LatLngExpression = [cell.lat, cell.lon];
+
+      // Wide outer glow - always clearly visible
+      L.circle(pos, {
+        radius: settings.gaussianRadiusMeters * 2.5,
+        color,
+        fillColor: color,
+        fillOpacity: Math.max(0.25, intensity * 0.6),
+        weight: 1.5,
+        opacity: Math.max(0.2, intensity * 0.5),
       }).addTo(heatmapLayer);
 
-      // Middle ring
-      L.circle([cell.lat, cell.lon], {
-        radius: settings.gaussianRadiusMeters,
-        color: "transparent",
-        fillColor: valueToColor(intensity, settings.colorScale),
-        fillOpacity: intensity * settings.gridOpacity * 0.6,
-        weight: 0,
+      // Bold middle ring
+      L.circle(pos, {
+        radius: settings.gaussianRadiusMeters * 1.2,
+        color,
+        fillColor: color,
+        fillOpacity: Math.max(0.45, intensity * 0.85),
+        weight: 2.5,
+        opacity: Math.max(0.5, intensity * 0.9),
       }).addTo(heatmapLayer);
 
-      // Inner core (high opacity, tight)
-      L.circle([cell.lat, cell.lon], {
+      // Bright solid inner core
+      L.circle(pos, {
         radius: settings.gaussianRadiusMeters * 0.5,
-        color: "transparent",
-        fillColor: valueToColor(intensity, settings.colorScale),
-        fillOpacity: intensity * settings.gridOpacity,
-        weight: 0,
+        color: "#fff",
+        fillColor: color,
+        fillOpacity: Math.max(0.7, intensity),
+        weight: 2,
+        opacity: Math.max(0.5, intensity * 0.8),
+      }).addTo(heatmapLayer);
+
+      // Center dot marker - always shown
+      L.circleMarker(pos, {
+        radius: 5,
+        color: "#fff",
+        weight: 2.5,
+        fillColor: color,
+        fillOpacity: 1,
+        opacity: 1,
       }).addTo(heatmapLayer);
     }
   }
 
-  // Cleanup
+  // ========== CLEANUP ==========
   return () => {
+    if (pulseTimer != null) {
+      clearInterval(pulseTimer);
+    }
     if (map) {
       map.remove();
       map = undefined;
