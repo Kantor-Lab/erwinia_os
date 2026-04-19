@@ -4,14 +4,48 @@
       "gpsTopic": "/ns/navsatfix",
       "gridTopic": "/field_heatmap",
       "detectionTopic": "/firefly_left/detections",
+      "plannedPathTopic": "/aPath",
       "mapStyle": "satellite",
-      "gridOpacity": 0.8,
-      "colorScale": "thermal",
+      "gridOpacity": 0.55,
+      "colorScale": "health",
       "autoCenter": true,
       "showTrail": true,
       "gaussianRadiusMeters": 6,
-      "maxIntensity": 2,
+      "maxIntensity": 1,
       "foxglovePanelTitle": ""
+    },
+    "Image!front_cam": {
+      "imageMode": {
+        "imageTopic": "/firefly_left/image_rect"
+      },
+      "foxglovePanelTitle": "Front Camera",
+      "cameraState": {
+        "distance": 20,
+        "perspective": true,
+        "phi": 60,
+        "target": [0, 0, 0],
+        "targetOffset": [0, 0, 0],
+        "targetOrientation": [0, 0, 0, 1],
+        "thetaOffset": 60,
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "scene": {},
+      "transforms": {},
+      "topics": {},
+      "layers": {},
+      "publish": {
+        "type": "point",
+        "poseTopic": "/move_base_simple/goal",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "synchronize": false
     },
     "Image!yolo_view": {
       "imageMode": {
@@ -62,9 +96,9 @@
     "3D!hero_3d": {
       "cameraState": {
         "perspective": true,
-        "distance": 13.26840862578121,
-        "phi": 50.00000000000142,
-        "thetaOffset": -40.00000000000117,
+        "distance": 7.5,
+        "phi": 55,
+        "thetaOffset": -35,
         "targetOffset": [
           0,
           0,
@@ -106,15 +140,14 @@
         },
         "/firefly_left/points2": {
           "visible": true,
-          "pointSize": 3,
-          "colorMode": "rgb",
-          "flatColor": "#22d3ee",
+          "pointSize": 2,
+          "colorMode": "flat",
+          "flatColor": "rgba(180,190,200,0.55)",
           "colorField": "rgb",
           "colorMap": "turbo"
         },
         "/robot_description": {
-          "visible": true,
-          "showOutlines": true
+          "visible": false
         },
         "/tf": {
           "visible": false
@@ -124,16 +157,16 @@
         },
         "/velodyne_points": {
           "visible": true,
-          "pointSize": 2,
-          "colorMode": "colormap",
-          "flatColor": "#f59e0b",
+          "pointSize": 1.5,
+          "colorMode": "flat",
+          "flatColor": "rgba(170,180,195,0.6)",
           "colorField": "intensity",
           "colorMap": "turbo"
         },
         "/scan": {
           "visible": true,
-          "colorMode": "colormap",
-          "flatColor": "#a78bfa",
+          "colorMode": "flat",
+          "flatColor": "rgba(160,170,185,0.6)",
           "colorField": "intensity",
           "colorMap": "turbo"
         },
@@ -161,16 +194,19 @@
           "divisions": 20,
           "lineWidth": 1,
           "color": "#1e2340",
-          "position": [
-            0,
-            0,
-            0
-          ],
-          "rotation": [
-            0,
-            0,
-            0
-          ]
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0]
+        },
+        "urdf_hero": {
+          "visible": true,
+          "frameLocked": true,
+          "label": "Robot",
+          "instanceId": "urdf-hero-0001",
+          "layerId": "foxglove.Urdf",
+          "sourceType": "url",
+          "url": "file:///Users/jackn/DevProjects/erwinia_os/gui/erwinia_os_foxglove/third_party_meshes/robot_description.urdf",
+          "framePrefix": "",
+          "displayMode": "visual"
         }
       },
       "publish": {
@@ -454,7 +490,7 @@
           "visible": true
         },
         "/robot_description": {
-          "visible": true
+          "visible": false
         },
         "/occupancy_map_markers": {
           "visible": true
@@ -464,16 +500,16 @@
         },
         "/scan": {
           "visible": true,
-          "colorMode": "colormap",
-          "flatColor": "#a78bfa",
+          "colorMode": "flat",
+          "flatColor": "rgba(160,170,185,0.7)",
           "colorField": "intensity",
           "colorMap": "turbo"
         },
         "/velodyne_points": {
           "visible": true,
-          "pointSize": 2,
-          "colorMode": "colormap",
-          "flatColor": "#f59e0b",
+          "pointSize": 1.5,
+          "colorMode": "flat",
+          "flatColor": "rgba(170,180,195,0.65)",
           "colorField": "intensity",
           "colorMap": "turbo"
         },
@@ -497,17 +533,20 @@
           "size": 30,
           "divisions": 30,
           "lineWidth": 1,
-          "color": "#111428",
-          "position": [
-            0,
-            0,
-            0
-          ],
-          "rotation": [
-            0,
-            0,
-            0
-          ]
+          "color": "#1e2340",
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0]
+        },
+        "urdf_nav": {
+          "visible": false,
+          "frameLocked": true,
+          "label": "Robot",
+          "instanceId": "urdf-nav-0002",
+          "layerId": "foxglove.Urdf",
+          "sourceType": "url",
+          "url": "file:///Users/jackn/DevProjects/erwinia_os/gui/erwinia_os_foxglove/third_party_meshes/robot_description.urdf",
+          "framePrefix": "",
+          "displayMode": "visual"
         }
       },
       "publish": {
@@ -527,13 +566,14 @@
       "gpsTopic": "/ns/navsatfix",
       "gridTopic": "/field_heatmap",
       "detectionTopic": "/firefly_left/detections",
+      "plannedPathTopic": "/aPath",
       "mapStyle": "satellite",
-      "gridOpacity": 0.8,
-      "colorScale": "thermal",
+      "gridOpacity": 0.55,
+      "colorScale": "health",
       "autoCenter": true,
       "showTrail": true,
       "gaussianRadiusMeters": 6,
-      "maxIntensity": 5,
+      "maxIntensity": 1,
       "foxglovePanelTitle": ""
     },
     "Plot!velocity_plot": {
@@ -634,7 +674,7 @@
       },
       "topics": {
         "/robot_description": {
-          "visible": true
+          "visible": false
         },
         "/firefly_left/points2": {
           "visible": true,
@@ -662,16 +702,19 @@
           "divisions": 12,
           "lineWidth": 1,
           "color": "#1e2340",
-          "position": [
-            0,
-            0,
-            0
-          ],
-          "rotation": [
-            0,
-            0,
-            0
-          ]
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0]
+        },
+        "urdf_arm": {
+          "visible": true,
+          "frameLocked": true,
+          "label": "Robot",
+          "instanceId": "urdf-arm-0003",
+          "layerId": "foxglove.Urdf",
+          "sourceType": "url",
+          "url": "file:///Users/jackn/DevProjects/erwinia_os/gui/erwinia_os_foxglove/third_party_meshes/robot_description.urdf",
+          "framePrefix": "",
+          "displayMode": "visual"
         }
       },
       "publish": {
@@ -925,14 +968,25 @@
         {
           "title": "Overview",
           "layout": {
-            "first": "Erwinia Map Panel.ErwiniaMap!mini_map",
+            "first": {
+              "first": "Erwinia Map Panel.ErwiniaMap!mini_map",
+              "second": "Plot!velocity_plot",
+              "direction": "column",
+              "splitPercentage": 72
+            },
             "second": {
-              "first": "Image!yolo_view",
-              "second": "3D!hero_3d",
-              "direction": "column"
+              "first": "3D!hero_3d",
+              "second": {
+                "first": "Image!front_cam",
+                "second": "Image!yolo_view",
+                "direction": "row",
+                "splitPercentage": 50
+              },
+              "direction": "column",
+              "splitPercentage": 62
             },
             "direction": "row",
-            "splitPercentage": 68
+            "splitPercentage": 60
           }
         },
         {

@@ -96,6 +96,12 @@ const HUD_CSS = `
   color: var(--hud-accent-dim) !important;
 }
 
+/* Blurred heatmap pane — CSS filter blurs the entire detection overlay into a soft cloud */
+.erwinia-map .leaflet-heatmap-pane {
+  filter: blur(6px);
+  pointer-events: none;
+}
+
 @keyframes erwinia-fadein {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
@@ -379,11 +385,15 @@ const HUD_CSS = `
 
 // ---------- color scale utilities ----------
 
-type ColorScale = "viridis" | "red-yellow-green" | "thermal";
+type ColorScale = "viridis" | "red-yellow-green" | "thermal" | "health";
 
 function valueToColor(value: number, scale: ColorScale): string {
   const t = Math.max(0, Math.min(1, value));
   switch (scale) {
+    case "health": {
+      // Binary-ish: t=0 healthy green, t=1 infected red-orange. Narrow palette.
+      return t < 0.5 ? "rgb(52,211,153)" : "rgb(248,80,60)";
+    }
     case "red-yellow-green": {
       const r = t < 0.5 ? 255 : Math.round(255 * (1 - t) * 2);
       const g = t > 0.5 ? 255 : Math.round(255 * t * 2);
@@ -432,6 +442,7 @@ interface PanelSettings {
   gpsTopic: string;
   gridTopic: string;
   detectionTopic: string;
+  plannedPathTopic: string;
   mapStyle: "street" | "satellite";
   gridOpacity: number;
   colorScale: ColorScale;
@@ -445,13 +456,14 @@ const DEFAULT_SETTINGS: PanelSettings = {
   gpsTopic: "/ns/navsatfix",
   gridTopic: "/field_heatmap",
   detectionTopic: "/firefly_left/detections",
+  plannedPathTopic: "/aPath",
   mapStyle: "satellite",
-  gridOpacity: 0.8,
-  colorScale: "thermal",
+  gridOpacity: 0.55,
+  colorScale: "health",
   autoCenter: true,
   showTrail: true,
   gaussianRadiusMeters: 6,
-  maxIntensity: 2,
+  maxIntensity: 1,
 };
 
 function buildSettingsTree(settings: PanelSettings): SettingsTreeNodes {
@@ -506,6 +518,7 @@ function buildSettingsTree(settings: PanelSettings): SettingsTreeNodes {
           input: "select",
           value: settings.colorScale,
           options: [
+            { label: "Health (Green/Red)", value: "health" },
             { label: "Red-Yellow-Green", value: "red-yellow-green" },
             { label: "Viridis", value: "viridis" },
             { label: "Thermal", value: "thermal" },
@@ -520,6 +533,11 @@ function buildSettingsTree(settings: PanelSettings): SettingsTreeNodes {
           label: "Detection Topic",
           input: "string",
           value: settings.detectionTopic,
+        },
+        plannedPathTopic: {
+          label: "Planned Path Topic",
+          input: "string",
+          value: settings.plannedPathTopic,
         },
         gaussianRadiusMeters: {
           label: "Gaussian Radius (m)",
@@ -566,6 +584,11 @@ function createIcon(text: string): HTMLSpanElement {
 
 export function initMapPanel(context: PanelExtensionContext): () => void {
   const panelEl = context.panelElement;
+  // Clear any prior content — Foxglove may re-invoke init on remount, and
+  // without this we'd stack duplicate status bars, legends, and buttons.
+  while (panelEl.firstChild) {
+    panelEl.removeChild(panelEl.firstChild);
+  }
   panelEl.style.width = "100%";
   panelEl.style.height = "100%";
   panelEl.style.position = "relative";
@@ -639,6 +662,18 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
   altDisplay.appendChild(altLbl);
   altDisplay.appendChild(altVal);
   statusBar.appendChild(altDisplay);
+
+  // Speed display (left-aligned group, after alt)
+  const speedDisplay = document.createElement("div");
+  speedDisplay.className = "erwinia-coord";
+  const speedLbl = document.createElement("span");
+  speedLbl.className = "erwinia-coord-label";
+  speedLbl.textContent = "SPD";
+  const speedVal = document.createElement("span");
+  speedVal.textContent = "0.00 m/s";
+  speedDisplay.appendChild(speedLbl);
+  speedDisplay.appendChild(speedVal);
+  statusBar.appendChild(speedDisplay);
 
   // Right side: trail count, detection count
   const statusRight = document.createElement("div");
@@ -823,10 +858,15 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
 
   const heatGrid = new Map<string, { lat: number; lon: number; count: number }>();
   let heatmapLayer: L.LayerGroup | undefined;
+  let plannedPathLine: L.Polyline | undefined;
   let currentGpsLat = 0;
   let currentGpsLon = 0;
   let currentAlt = 0;
   let totalDetections = 0;
+  let lastGpsTime = 0;
+  let lastGpsLat = 0;
+  let lastGpsLon = 0;
+  let currentSpeed = 0;
 
   // Pulse animation via timer
   let pulseTimer: ReturnType<typeof setInterval> | undefined;
@@ -855,7 +895,24 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     tileLayer = new CachedTileLayer(layer.url, { attribution: layer.attribution, maxZoom: 22 }).addTo(map);
 
     gridLayer = L.layerGroup().addTo(map);
+
+    // Dedicated pane for the detection heatmap so we can CSS-blur it
+    map.createPane("heatmap");
+    const heatPane = map.getPane("heatmap");
+    if (heatPane) {
+      heatPane.classList.add("leaflet-heatmap-pane");
+      heatPane.style.zIndex = "450";
+    }
     heatmapLayer = L.layerGroup().addTo(map);
+
+    // Planned path — dotted blue
+    plannedPathLine = L.polyline([], {
+      color: "#60a5fa",
+      weight: 3,
+      opacity: 0.9,
+      dashArray: "2, 8",
+      lineCap: "round",
+    }).addTo(map);
 
     // Robot marker: bright core with outer glow ring
     robotMarker = L.circleMarker([0, 0], {
@@ -986,6 +1043,7 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     if (settings.gpsTopic) topics.push(settings.gpsTopic);
     if (settings.gridTopic) topics.push(settings.gridTopic);
     if (settings.detectionTopic) topics.push(settings.detectionTopic);
+    if (settings.plannedPathTopic) topics.push(settings.plannedPathTopic);
     context.subscribe(topics);
     lastGpsTopic = settings.gpsTopic;
     lastGridTopic = settings.gridTopic;
@@ -1009,6 +1067,8 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
           handleGridMessage(msg.message as Record<string, unknown>);
         } else if (topic === settings.detectionTopic) {
           handleDetectionMessage(msg.message as Record<string, unknown>);
+        } else if (topic === settings.plannedPathTopic) {
+          handlePlannedPathMessage(msg.message as Record<string, unknown>);
         }
       }
     }
@@ -1032,11 +1092,33 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
 
     if (lat === 0 && lon === 0) return;
 
+    // Speed (haversine / dt) using wall-clock; smoothed
+    const nowMs = Date.now();
+    if (lastGpsTime > 0) {
+      const dt = (nowMs - lastGpsTime) / 1000;
+      if (dt > 0.05) {
+        const R = 6371000;
+        const toRad = Math.PI / 180;
+        const dLat = (lat - lastGpsLat) * toRad;
+        const dLon = (lon - lastGpsLon) * toRad;
+        const a =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos(lastGpsLat * toRad) * Math.cos(lat * toRad) * Math.sin(dLon / 2) ** 2;
+        const d = 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+        const instant = d / dt;
+        currentSpeed = currentSpeed * 0.7 + instant * 0.3;
+      }
+    }
+    lastGpsTime = nowMs;
+    lastGpsLat = lat;
+    lastGpsLon = lon;
+
     // Update status bar
     brandDot.dataset.status = "connected";
     latVal.textContent = formatCoord(lat, "N", "S");
     lonVal.textContent = formatCoord(lon, "E", "W");
     altVal.textContent = `${alt.toFixed(1)}m`;
+    speedVal.textContent = `${currentSpeed.toFixed(2)} m/s`;
     trailCountEl.textContent = `TRAIL ${trailCoords.length}`;
 
     const pos = L.latLng(lat, lon);
@@ -1115,55 +1197,56 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     renderHeatmap();
   }
 
+  function handlePlannedPathMessage(msg: Record<string, unknown>) {
+    if (!plannedPathLine) return;
+    // Accept nav_msgs/Path (poses[].pose.position.x/y in local map frame).
+    // We fall back to interpreting x/y as lon/lat offsets in metres around the current GPS.
+    const poses = msg.poses as Array<Record<string, unknown>> | undefined;
+    if (!Array.isArray(poses) || poses.length === 0) {
+      plannedPathLine.setLatLngs([]);
+      return;
+    }
+    const metersPerDegLat = 111320;
+    const cosLat = Math.cos((currentGpsLat * Math.PI) / 180) || 1;
+    const coords: L.LatLng[] = [];
+    for (const p of poses) {
+      const pose = (p.pose as Record<string, unknown>) ?? p;
+      const position = (pose.position as Record<string, unknown>) ?? pose;
+      const x = Number(position.x ?? 0);
+      const y = Number(position.y ?? 0);
+      const lat = currentGpsLat + y / metersPerDegLat;
+      const lon = currentGpsLon + x / (metersPerDegLat * cosLat);
+      coords.push(L.latLng(lat, lon));
+    }
+    plannedPathLine.setLatLngs(coords);
+  }
+
   function renderHeatmap() {
     if (!map || !heatmapLayer) return;
     heatmapLayer.clearLayers();
 
+    // Rectangle half-extent in degrees (roughly gaussianRadiusMeters metres)
+    const metersPerDegLat = 111320;
+    const halfLat = settings.gaussianRadiusMeters / metersPerDegLat;
+    const cosLat = Math.cos((currentGpsLat * Math.PI) / 180) || 1;
+    const halfLon = settings.gaussianRadiusMeters / (metersPerDegLat * cosLat);
+
     for (const cell of heatGrid.values()) {
-      const intensity = Math.min(cell.count / settings.maxIntensity, 1);
-      if (intensity <= 0) continue;
+      // Binary: any detection counts as infected. Fade slightly by count for small reassurance.
+      const infected = cell.count >= 1;
+      const color = infected ? "rgb(248,80,60)" : "rgb(52,211,153)";
+      const bounds: L.LatLngBoundsExpression = [
+        [cell.lat - halfLat, cell.lon - halfLon],
+        [cell.lat + halfLat, cell.lon + halfLon],
+      ];
 
-      const color = valueToColor(intensity, settings.colorScale);
-      const pos: L.LatLngExpression = [cell.lat, cell.lon];
-
-      // Wide outer glow - always clearly visible
-      L.circle(pos, {
-        radius: settings.gaussianRadiusMeters * 2.5,
+      // Translucent rectangle — CSS blur on the pane turns it into a soft cloud.
+      L.rectangle(bounds, {
+        pane: "heatmap",
         color,
         fillColor: color,
-        fillOpacity: Math.max(0.25, intensity * 0.6),
-        weight: 1.5,
-        opacity: Math.max(0.2, intensity * 0.5),
-      }).addTo(heatmapLayer);
-
-      // Bold middle ring
-      L.circle(pos, {
-        radius: settings.gaussianRadiusMeters * 1.2,
-        color,
-        fillColor: color,
-        fillOpacity: Math.max(0.45, intensity * 0.85),
-        weight: 2.5,
-        opacity: Math.max(0.5, intensity * 0.9),
-      }).addTo(heatmapLayer);
-
-      // Bright solid inner core
-      L.circle(pos, {
-        radius: settings.gaussianRadiusMeters * 0.5,
-        color: "#fff",
-        fillColor: color,
-        fillOpacity: Math.max(0.7, intensity),
-        weight: 2,
-        opacity: Math.max(0.5, intensity * 0.8),
-      }).addTo(heatmapLayer);
-
-      // Center dot marker - always shown
-      L.circleMarker(pos, {
-        radius: 5,
-        color: "#fff",
-        weight: 2.5,
-        fillColor: color,
-        fillOpacity: 1,
-        opacity: 1,
+        fillOpacity: 0.7,
+        weight: 0,
       }).addTo(heatmapLayer);
     }
   }
