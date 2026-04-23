@@ -96,6 +96,15 @@ const HUD_CSS = `
   color: var(--hud-accent-dim) !important;
 }
 
+/* Keep Leaflet controls clear of the custom status bar */
+.erwinia-map .leaflet-control-container {
+  position: relative;
+  z-index: 1002;
+}
+.erwinia-map .leaflet-top {
+  top: 44px !important;
+}
+
 /* Blurred heatmap pane — CSS filter blurs the entire detection overlay into a soft cloud */
 .erwinia-map .leaflet-heatmap-pane {
   filter: blur(6px);
@@ -440,6 +449,7 @@ const TILE_LAYERS: Record<string, { url: string; attribution: string }> = {
 
 interface PanelSettings {
   gpsTopic: string;
+  odomTopic: string;
   gridTopic: string;
   detectionTopic: string;
   plannedPathTopic: string;
@@ -454,6 +464,7 @@ interface PanelSettings {
 
 const DEFAULT_SETTINGS: PanelSettings = {
   gpsTopic: "/ns/navsatfix",
+  odomTopic: "/odometry/global",
   gridTopic: "/field_heatmap",
   detectionTopic: "/firefly_left/detections",
   plannedPathTopic: "/aPath",
@@ -475,6 +486,11 @@ function buildSettingsTree(settings: PanelSettings): SettingsTreeNodes {
           label: "GPS Topic",
           input: "string",
           value: settings.gpsTopic,
+        },
+        odomTopic: {
+          label: "Global Odom Topic",
+          input: "string",
+          value: settings.odomTopic,
         },
         gridTopic: {
           label: "Grid Topic",
@@ -712,9 +728,7 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     heatGrid.clear();
     totalDetections = 0;
     detCountEl.textContent = "DET 0";
-    if (heatmapLayer) {
-      heatmapLayer.clearLayers();
-    }
+    renderHeatmap();
   });
   btnGroup.appendChild(clearBtn);
 
@@ -856,12 +870,25 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
   let lastGpsTopic = settings.gpsTopic;
   let lastGridTopic = settings.gridTopic;
 
-  const heatGrid = new Map<string, { lat: number; lon: number; count: number }>();
+  const heatGrid = new Map<
+    string,
+    {
+      lat: number;
+      lon: number;
+      positiveCount: number;
+      negativeCount: number;
+      lastObservationPositive: boolean;
+    }
+  >();
+  const fieldGrid = new Map<string, { lat: number; lon: number; size: number; value: number }>();
   let heatmapLayer: L.LayerGroup | undefined;
   let plannedPathLine: L.Polyline | undefined;
   let currentGpsLat = 0;
   let currentGpsLon = 0;
   let currentAlt = 0;
+  let currentOdomX: number | undefined;
+  let currentOdomY: number | undefined;
+  let currentOdomFrame: string | undefined;
   let totalDetections = 0;
   let lastGpsTime = 0;
   let lastGpsLat = 0;
@@ -871,6 +898,32 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
   // Pulse animation via timer
   let pulseTimer: ReturnType<typeof setInterval> | undefined;
   let pulsePhase = 0;
+
+  function makeCellKey(lat: number, lon: number): string {
+    return `${lat.toFixed(6)},${lon.toFixed(6)}`;
+  }
+
+  function findNearestFieldCell(lat: number, lon: number): { key: string; lat: number; lon: number } | undefined {
+    let best:
+      | {
+          key: string;
+          lat: number;
+          lon: number;
+          distanceSq: number;
+        }
+      | undefined;
+
+    for (const [key, cell] of fieldGrid.entries()) {
+      const dLat = cell.lat - lat;
+      const dLon = cell.lon - lon;
+      const distanceSq = dLat * dLat + dLon * dLon;
+      if (!best || distanceSq < best.distanceSq) {
+        best = { key, lat: cell.lat, lon: cell.lon, distanceSq };
+      }
+    }
+
+    return best ? { key: best.key, lat: best.lat, lon: best.lon } : undefined;
+  }
 
   // ========== MAP INIT ==========
   function initMap() {
@@ -883,6 +936,7 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     hasCentered = false;
     trailCoords.length = 0;
     heatGrid.clear();
+    fieldGrid.clear();
 
     map = L.map(mapDiv, {
       center: [0, 0],
@@ -963,7 +1017,7 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
 
     const title = document.createElement("div");
     title.className = "erwinia-legend-title";
-    title.textContent = "Detections";
+    title.textContent = settings.colorScale === "health" ? "Detection Overlay" : "Detections";
     legend.appendChild(title);
 
     // Gradient bar
@@ -976,9 +1030,9 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     const range = document.createElement("div");
     range.className = "erwinia-legend-range";
     const minLabel = document.createElement("span");
-    minLabel.textContent = "0";
+    minLabel.textContent = settings.colorScale === "health" ? "clear" : "0";
     const maxLabel = document.createElement("span");
-    maxLabel.textContent = String(settings.maxIntensity);
+    maxLabel.textContent = settings.colorScale === "health" ? "positive" : String(settings.maxIntensity);
     range.appendChild(minLabel);
     range.appendChild(maxLabel);
     legend.appendChild(range);
@@ -1005,6 +1059,7 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     }
     if (field === "colorScale" || field === "maxIntensity") {
       updateLegend();
+      renderHeatmap();
     }
     if (field === "showTrail" && map && trailLine) {
       if (settings.showTrail) {
@@ -1014,7 +1069,13 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
       }
     }
 
-    if (field === "gpsTopic" || field === "gridTopic" || field === "detectionTopic") {
+    if (
+      field === "gpsTopic" ||
+      field === "odomTopic" ||
+      field === "gridTopic" ||
+      field === "detectionTopic" ||
+      field === "plannedPathTopic"
+    ) {
       resubscribe();
     }
 
@@ -1041,6 +1102,7 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
   function resubscribe() {
     const topics: string[] = [];
     if (settings.gpsTopic) topics.push(settings.gpsTopic);
+    if (settings.odomTopic) topics.push(settings.odomTopic);
     if (settings.gridTopic) topics.push(settings.gridTopic);
     if (settings.detectionTopic) topics.push(settings.detectionTopic);
     if (settings.plannedPathTopic) topics.push(settings.plannedPathTopic);
@@ -1063,6 +1125,8 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
         const topic = msg.topic;
         if (topic === settings.gpsTopic) {
           handleGpsMessage(msg.message as Record<string, unknown>);
+        } else if (topic === settings.odomTopic) {
+          handleOdomMessage(msg.message as Record<string, unknown>);
         } else if (topic === settings.gridTopic) {
           handleGridMessage(msg.message as Record<string, unknown>);
         } else if (topic === settings.detectionTopic) {
@@ -1149,6 +1213,7 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
   function handleGridMessage(msg: Record<string, unknown>) {
     if (!map || !gridLayer) return;
     gridLayer.clearLayers();
+    fieldGrid.clear();
 
     const cells = (msg.cells ?? msg.data) as
       | Array<{ lat: number; lon: number; value: number; size?: number }>
@@ -1157,7 +1222,14 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     if (!Array.isArray(cells)) return;
 
     for (const cell of cells) {
-      const halfSize = (cell.size ?? 0.00005) / 2;
+      const size = cell.size ?? 0.00005;
+      const halfSize = size / 2;
+      fieldGrid.set(makeCellKey(cell.lat, cell.lon), {
+        lat: cell.lat,
+        lon: cell.lon,
+        size,
+        value: cell.value,
+      });
       const bounds: L.LatLngBoundsExpression = [
         [cell.lat - halfSize, cell.lon - halfSize],
         [cell.lat + halfSize, cell.lon + halfSize],
@@ -1170,53 +1242,125 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
         weight: 0,
       }).addTo(gridLayer);
     }
+
+    renderHeatmap();
+  }
+
+  function handleOdomMessage(msg: Record<string, unknown>) {
+    const pose = msg.pose as Record<string, unknown> | undefined;
+    const posePose = pose?.pose as Record<string, unknown> | undefined;
+    const position = posePose?.position as Record<string, unknown> | undefined;
+    const header = msg.header as Record<string, unknown> | undefined;
+
+    const x = Number(position?.x);
+    const y = Number(position?.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return;
+    }
+
+    currentOdomX = x;
+    currentOdomY = y;
+    currentOdomFrame = typeof header?.frame_id === "string" ? header.frame_id : currentOdomFrame;
+  }
+
+  function projectPlanPointToLatLng(x: number, y: number): L.LatLng | undefined {
+    if (
+      currentGpsLat === 0 ||
+      currentGpsLon === 0 ||
+      currentOdomX == null ||
+      currentOdomY == null
+    ) {
+      return undefined;
+    }
+
+    const metersPerDegLat = 111320;
+    const cosLat = Math.cos((currentGpsLat * Math.PI) / 180) || 1;
+    const deltaX = x - currentOdomX;
+    const deltaY = y - currentOdomY;
+    const lat = currentGpsLat + deltaY / metersPerDegLat;
+    const lon = currentGpsLon + deltaX / (metersPerDegLat * cosLat);
+    return L.latLng(lat, lon);
   }
 
   function handleDetectionMessage(msg: Record<string, unknown>) {
     if (!map || !heatmapLayer) return;
     if (currentGpsLat === 0 && currentGpsLon === 0) return;
 
-    const detections = msg.detections as Array<Record<string, unknown>> | undefined;
-    if (!Array.isArray(detections) || detections.length === 0) return;
+    const detections = Array.isArray(msg.detections)
+      ? (msg.detections as Array<Record<string, unknown>>)
+      : [];
 
-    const resolution = 0.00001;
-    const qLat = Math.round(currentGpsLat / resolution) * resolution;
-    const qLon = Math.round(currentGpsLon / resolution) * resolution;
-    const key = `${qLat.toFixed(6)},${qLon.toFixed(6)}`;
+    const nearestFieldCell = findNearestFieldCell(currentGpsLat, currentGpsLon);
+    if (!nearestFieldCell) return;
+
+    const key = nearestFieldCell.key;
 
     const existing = heatGrid.get(key);
     if (existing) {
-      existing.count += detections.length;
+      if (detections.length > 0) {
+        existing.positiveCount += detections.length;
+        existing.lastObservationPositive = true;
+      } else {
+        existing.negativeCount += 1;
+        existing.lastObservationPositive = false;
+      }
     } else {
-      heatGrid.set(key, { lat: qLat, lon: qLon, count: detections.length });
+      heatGrid.set(key, {
+        lat: nearestFieldCell.lat,
+        lon: nearestFieldCell.lon,
+        positiveCount: detections.length,
+        negativeCount: detections.length > 0 ? 0 : 1,
+        lastObservationPositive: detections.length > 0,
+      });
     }
 
-    totalDetections += detections.length;
-    detCountEl.textContent = `DET ${totalDetections}`;
+    if (detections.length > 0) {
+      totalDetections += detections.length;
+      detCountEl.textContent = `DET ${totalDetections}`;
+    }
 
     renderHeatmap();
   }
 
   function handlePlannedPathMessage(msg: Record<string, unknown>) {
     if (!plannedPathLine) return;
-    // Accept nav_msgs/Path (poses[].pose.position.x/y in local map frame).
-    // We fall back to interpreting x/y as lon/lat offsets in metres around the current GPS.
+    // /aPath is published in a global Cartesian frame (for example "enu").
+    // Re-anchor it against the robot's live global odom pose plus current GPS fix.
     const poses = msg.poses as Array<Record<string, unknown>> | undefined;
     if (!Array.isArray(poses) || poses.length === 0) {
       plannedPathLine.setLatLngs([]);
       return;
     }
-    const metersPerDegLat = 111320;
-    const cosLat = Math.cos((currentGpsLat * Math.PI) / 180) || 1;
+
+    const header = msg.header as Record<string, unknown> | undefined;
+    const pathFrame =
+      typeof header?.frame_id === "string" && header.frame_id.length > 0
+        ? header.frame_id
+        : typeof ((poses[0]?.header as Record<string, unknown> | undefined)?.frame_id) === "string"
+          ? (((poses[0]?.header as Record<string, unknown> | undefined)?.frame_id) as string)
+          : undefined;
+
+    if (
+      pathFrame != null &&
+      currentOdomFrame != null &&
+      pathFrame.length > 0 &&
+      currentOdomFrame.length > 0 &&
+      pathFrame !== currentOdomFrame
+    ) {
+      plannedPathLine.setLatLngs([]);
+      return;
+    }
+
     const coords: L.LatLng[] = [];
     for (const p of poses) {
       const pose = (p.pose as Record<string, unknown>) ?? p;
       const position = (pose.position as Record<string, unknown>) ?? pose;
       const x = Number(position.x ?? 0);
       const y = Number(position.y ?? 0);
-      const lat = currentGpsLat + y / metersPerDegLat;
-      const lon = currentGpsLon + x / (metersPerDegLat * cosLat);
-      coords.push(L.latLng(lat, lon));
+      const latLng = projectPlanPointToLatLng(x, y);
+      if (latLng) {
+        coords.push(latLng);
+      }
     }
     plannedPathLine.setLatLngs(coords);
   }
@@ -1225,19 +1369,27 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     if (!map || !heatmapLayer) return;
     heatmapLayer.clearLayers();
 
-    // Rectangle half-extent in degrees (roughly gaussianRadiusMeters metres)
-    const metersPerDegLat = 111320;
-    const halfLat = settings.gaussianRadiusMeters / metersPerDegLat;
-    const cosLat = Math.cos((currentGpsLat * Math.PI) / 180) || 1;
-    const halfLon = settings.gaussianRadiusMeters / (metersPerDegLat * cosLat);
-
-    for (const cell of heatGrid.values()) {
-      // Binary: any detection counts as infected. Fade slightly by count for small reassurance.
-      const infected = cell.count >= 1;
-      const color = infected ? "rgb(248,80,60)" : "rgb(52,211,153)";
+    for (const [key, fieldCell] of fieldGrid.entries()) {
+      const detectionState = heatGrid.get(key);
+      const hasPositiveDetection = detectionState?.lastObservationPositive === true;
+      const normalizedValue = hasPositiveDetection
+        ? settings.colorScale === "health"
+          ? 1
+          : Math.min(1, (detectionState?.positiveCount ?? 0) / Math.max(settings.maxIntensity, 1))
+        : 0;
+      const color =
+        !hasPositiveDetection && settings.colorScale === "health"
+          ? "rgb(236, 253, 245)"
+          : valueToColor(normalizedValue, settings.colorScale);
+      const fillOpacity = hasPositiveDetection
+        ? Math.min(0.82, 0.58 + Math.log1p(detectionState?.positiveCount ?? 1) * 0.08)
+        : detectionState != null
+          ? Math.min(0.58, 0.32 + detectionState.negativeCount * 0.08)
+          : 0.2;
+      const halfSize = fieldCell.size / 2;
       const bounds: L.LatLngBoundsExpression = [
-        [cell.lat - halfLat, cell.lon - halfLon],
-        [cell.lat + halfLat, cell.lon + halfLon],
+        [fieldCell.lat - halfSize, fieldCell.lon - halfSize],
+        [fieldCell.lat + halfSize, fieldCell.lon + halfSize],
       ];
 
       // Translucent rectangle — CSS blur on the pane turns it into a soft cloud.
@@ -1245,7 +1397,7 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
         pane: "heatmap",
         color,
         fillColor: color,
-        fillOpacity: 0.7,
+        fillOpacity,
         weight: 0,
       }).addTo(heatmapLayer);
     }

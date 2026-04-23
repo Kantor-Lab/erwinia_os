@@ -14,18 +14,351 @@
       "maxIntensity": 1,
       "foxglovePanelTitle": ""
     },
+    "Erwinia Map Panel.ErwiniaSpeed!speed_card": {
+      "odomTopic": "/odom",
+      "cmdVelTopic": "/cmd_vel",
+      "maxSpeedMps": 1,
+      "warningSpeedMps": 0.75,
+      "unit": "mps",
+      "foxglovePanelTitle": "Speed"
+    },
+    "Gauge!fio3b7": {
+      "path": "/odom.twist.twist.linear.x",
+      "style": "dial",
+      "minValue": 0,
+      "maxValue": 1,
+      "colorMap": "red-yellow-green",
+      "colorMode": "colormap",
+      "gradient": [
+        "#0000ff",
+        "#ff00ff"
+      ],
+      "reverse": true,
+      "reverseDirection": false,
+      "foxglovePanelTitle": "Speed Dial (m/s)"
+    },
+    "3D!hero_3d": {
+      "cameraState": {
+        "perspective": true,
+        "distance": 15.756235243115116,
+        "phi": 39.50000000000022,
+        "thetaOffset": -100.00000000000024,
+        "targetOffset": [
+          -0.6468732242643824,
+          0.37640196225830386,
+          1.5769068447669514e-17
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "fovy": 45,
+        "near": 0.1,
+        "far": 5000
+      },
+      "followMode": "follow-position",
+      "followTf": "amiga/base_footprint",
+      "scene": {
+        "backgroundColor": "#0a0e1a",
+        "enableStats": false,
+        "labelScaleFactor": 0,
+        "transforms": {
+          "visible": false
+        }
+      },
+      "transforms": {
+        "frame:map": {
+          "visible": true
+        },
+        "frame:odom": {
+          "visible": false
+        }
+      },
+      "topics": {
+        "/occupancy_map_markers": {
+          "visible": true,
+          "namespaces": {
+            "free_cells": {
+              "visible": false
+            },
+            "bounding_box": {
+              "visible": false
+            }
+          }
+        },
+        "/firefly_left/points2": {
+          "visible": true,
+          "pointSize": 1.5,
+          "colorMode": "flat",
+          "flatColor": "rgba(180,190,200,0.32)",
+          "colorField": "rgb",
+          "colorMap": "turbo"
+        },
+        "/robot_description": {
+          "visible": false
+        },
+        "/tf": {
+          "visible": false
+        },
+        "/goal_pose": {
+          "visible": true
+        },
+        "/velodyne_points": {
+          "visible": true,
+          "pointSize": 1.2,
+          "colorMode": "flat",
+          "flatColor": "rgba(170,180,195,0.35)",
+          "colorField": "intensity",
+          "colorMap": "turbo"
+        },
+        "/scan": {
+          "visible": true,
+          "colorMode": "flat",
+          "flatColor": "rgba(160,170,185,0.4)",
+          "colorField": "intensity",
+          "colorMap": "turbo"
+        },
+        "/aPath": {
+          "visible": true
+        },
+        "/pruning_points": {
+          "visible": true
+        },
+        "/nbv_planner_visualization": {
+          "visible": false
+        },
+        "/local_goal_point": {
+          "visible": true
+        }
+      },
+      "layers": {
+        "grid": {
+          "visible": true,
+          "frameLocked": true,
+          "label": "Grid",
+          "instanceId": "a1b2c3d4-grid-layer-001",
+          "layerId": "foxglove.Grid",
+          "size": 20,
+          "divisions": 20,
+          "lineWidth": 1,
+          "color": "#1e2340",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ]
+        },
+        "urdf_hero": {
+          "visible": true,
+          "frameLocked": true,
+          "label": "Robot",
+          "instanceId": "urdf-hero-0001",
+          "layerId": "foxglove.Urdf",
+          "sourceType": "url",
+          "url": "file:///Users/jackn/DevProjects/erwinia_os/gui/erwinia_os_foxglove/third_party_meshes/robot_description.urdf",
+          "framePrefix": "",
+          "displayMode": "visual"
+        }
+      },
+      "publish": {
+        "type": "point",
+        "poseTopic": "/goal_pose",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "imageMode": {},
+      "foxglovePanelTitle": "Field Scene",
+      "synchronize": false
+    },
+    "3D!hero_voxels": {
+      "cameraState": {
+        "perspective": true,
+        "distance": 6.147137354500393,
+        "phi": 75.21164772727366,
+        "thetaOffset": -102.25319602272818,
+        "targetOffset": [
+          -0.6017464106075412,
+          0.025830122928851253,
+          -3.271153498091021e-18
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "fovy": 45,
+        "near": 0.05,
+        "far": 5000
+      },
+      "followMode": "follow-position",
+      "followTf": "amiga/base_footprint",
+      "scene": {
+        "backgroundColor": "#070b15",
+        "enableStats": false,
+        "labelScaleFactor": 0,
+        "transforms": {
+          "visible": false
+        }
+      },
+      "transforms": {
+        "frame:map": {
+          "visible": true
+        },
+        "frame:odom": {
+          "visible": false
+        }
+      },
+      "topics": {
+        "/occupancy_map_markers": {
+          "visible": true,
+          "namespaces": {
+            "free_cells": {
+              "visible": false
+            },
+            "bounding_box": {
+              "visible": false
+            }
+          }
+        },
+        "/firefly_left/points2": {
+          "visible": false,
+          "pointSize": 2,
+          "colorMode": "flat",
+          "flatColor": "rgba(180,190,200,0.25)",
+          "colorField": "rgb",
+          "colorMap": "turbo"
+        },
+        "/robot_description": {
+          "visible": true
+        },
+        "/tf": {
+          "visible": false
+        },
+        "/goal_pose": {
+          "visible": false
+        },
+        "/velodyne_points": {
+          "visible": false,
+          "pointSize": 1.2,
+          "colorMode": "flat",
+          "flatColor": "rgba(170,180,195,0.25)",
+          "colorField": "intensity",
+          "colorMap": "turbo"
+        },
+        "/scan": {
+          "visible": false,
+          "colorMode": "flat",
+          "flatColor": "rgba(160,170,185,0.25)",
+          "colorField": "intensity",
+          "colorMap": "turbo"
+        },
+        "/aPath": {
+          "visible": false
+        },
+        "/pruning_points": {
+          "visible": false
+        },
+        "/nbv_planner_visualization": {
+          "visible": false
+        },
+        "/local_goal_point": {
+          "visible": false
+        }
+      },
+      "layers": {
+        "grid": {
+          "visible": false,
+          "frameLocked": true,
+          "label": "Grid",
+          "instanceId": "a1b2c3d4-grid-layer-004",
+          "layerId": "foxglove.Grid",
+          "size": 12,
+          "divisions": 12,
+          "lineWidth": 1,
+          "color": "#1e2340",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ]
+        },
+        "urdf_voxels": {
+          "visible": false,
+          "frameLocked": true,
+          "label": "Robot",
+          "instanceId": "urdf-hero-0004",
+          "layerId": "foxglove.Urdf",
+          "sourceType": "url",
+          "url": "file:///Users/jackn/DevProjects/erwinia_os/gui/erwinia_os_foxglove/third_party_meshes/robot_description.urdf",
+          "framePrefix": "",
+          "displayMode": "visual"
+        }
+      },
+      "publish": {
+        "type": "point",
+        "poseTopic": "/goal_pose",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "imageMode": {},
+      "foxglovePanelTitle": "Voxel Focus",
+      "synchronize": false
+    },
     "Image!front_cam": {
       "imageMode": {
-        "imageTopic": "/firefly_left/image_rect"
+        "imageTopic": "/camera/camera/color/image_raw",
+        "calibrationTopic": "/camera/camera/color/camera_info"
       },
       "foxglovePanelTitle": "Front Camera",
       "cameraState": {
         "distance": 20,
         "perspective": true,
         "phi": 60,
-        "target": [0, 0, 0],
-        "targetOffset": [0, 0, 0],
-        "targetOrientation": [0, 0, 0, 1],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
         "thetaOffset": 60,
         "fovy": 45,
         "near": 0.5,
@@ -91,135 +424,6 @@
         "poseEstimateYDeviation": 0.5,
         "poseEstimateThetaDeviation": 0.26179939
       },
-      "synchronize": false
-    },
-    "3D!hero_3d": {
-      "cameraState": {
-        "perspective": true,
-        "distance": 7.5,
-        "phi": 55,
-        "thetaOffset": -35,
-        "targetOffset": [
-          0,
-          0,
-          0
-        ],
-        "target": [
-          0,
-          0,
-          0
-        ],
-        "targetOrientation": [
-          0,
-          0,
-          0,
-          1
-        ],
-        "fovy": 45,
-        "near": 0.1,
-        "far": 5000
-      },
-      "followMode": "follow-position",
-      "followTf": "amiga/base_footprint",
-      "scene": {
-        "backgroundColor": "#0a0e1a",
-        "enableStats": false,
-        "labelScaleFactor": 0
-      },
-      "transforms": {
-        "frame:map": {
-          "visible": true
-        },
-        "frame:odom": {
-          "visible": false
-        }
-      },
-      "topics": {
-        "/occupancy_map_markers": {
-          "visible": true
-        },
-        "/firefly_left/points2": {
-          "visible": true,
-          "pointSize": 2,
-          "colorMode": "flat",
-          "flatColor": "rgba(180,190,200,0.55)",
-          "colorField": "rgb",
-          "colorMap": "turbo"
-        },
-        "/robot_description": {
-          "visible": false
-        },
-        "/tf": {
-          "visible": false
-        },
-        "/goal_pose": {
-          "visible": true
-        },
-        "/velodyne_points": {
-          "visible": true,
-          "pointSize": 1.5,
-          "colorMode": "flat",
-          "flatColor": "rgba(170,180,195,0.6)",
-          "colorField": "intensity",
-          "colorMap": "turbo"
-        },
-        "/scan": {
-          "visible": true,
-          "colorMode": "flat",
-          "flatColor": "rgba(160,170,185,0.6)",
-          "colorField": "intensity",
-          "colorMap": "turbo"
-        },
-        "/aPath": {
-          "visible": true
-        },
-        "/pruning_points": {
-          "visible": true
-        },
-        "/nbv_planner_visualization": {
-          "visible": true
-        },
-        "/local_goal_point": {
-          "visible": true
-        }
-      },
-      "layers": {
-        "grid": {
-          "visible": true,
-          "frameLocked": true,
-          "label": "Grid",
-          "instanceId": "a1b2c3d4-grid-layer-001",
-          "layerId": "foxglove.Grid",
-          "size": 20,
-          "divisions": 20,
-          "lineWidth": 1,
-          "color": "#1e2340",
-          "position": [0, 0, 0],
-          "rotation": [0, 0, 0]
-        },
-        "urdf_hero": {
-          "visible": true,
-          "frameLocked": true,
-          "label": "Robot",
-          "instanceId": "urdf-hero-0001",
-          "layerId": "foxglove.Urdf",
-          "sourceType": "url",
-          "url": "file:///Users/jackn/DevProjects/erwinia_os/gui/erwinia_os_foxglove/third_party_meshes/robot_description.urdf",
-          "framePrefix": "",
-          "displayMode": "visual"
-        }
-      },
-      "publish": {
-        "type": "point",
-        "poseTopic": "/goal_pose",
-        "pointTopic": "/clicked_point",
-        "poseEstimateTopic": "/initialpose",
-        "poseEstimateXDeviation": 0.5,
-        "poseEstimateYDeviation": 0.5,
-        "poseEstimateThetaDeviation": 0.26179939
-      },
-      "imageMode": {},
-      "foxglovePanelTitle": "",
       "synchronize": false
     },
     "Image!left_cam": {
@@ -534,8 +738,16 @@
           "divisions": 30,
           "lineWidth": 1,
           "color": "#1e2340",
-          "position": [0, 0, 0],
-          "rotation": [0, 0, 0]
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ]
         },
         "urdf_nav": {
           "visible": false,
@@ -612,6 +824,25 @@
       "xAxisVal": "timestamp",
       "sidebarDimension": 240,
       "foxglovePanelTitle": "Velocity"
+    },
+    "Plot!speed_plot": {
+      "paths": [
+        {
+          "value": "/odom.twist.twist.linear.x",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "Odom Speed"
+        }
+      ],
+      "showXAxisLabels": false,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 180,
+      "foxglovePanelTitle": "Speed (m/s)"
     },
     "RawMessages!obstacle_nearby": {
       "diffEnabled": false,
@@ -702,8 +933,16 @@
           "divisions": 12,
           "lineWidth": 1,
           "color": "#1e2340",
-          "position": [0, 0, 0],
-          "rotation": [0, 0, 0]
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ]
         },
         "urdf_arm": {
           "visible": true,
@@ -963,19 +1202,24 @@
       "fontSize": 12
     },
     "Tab!main_tabs": {
-      "activeTabIdx": 5,
+      "activeTabIdx": 0,
       "tabs": [
         {
           "title": "Overview",
           "layout": {
             "first": {
               "first": "Erwinia Map Panel.ErwiniaMap!mini_map",
-              "second": "Plot!velocity_plot",
+              "second": "Erwinia Map Panel.ErwiniaSpeed!speed_card",
               "direction": "column",
               "splitPercentage": 72
             },
             "second": {
-              "first": "3D!hero_3d",
+              "first": {
+                "first": "3D!hero_3d",
+                "second": "3D!hero_voxels",
+                "direction": "row",
+                "splitPercentage": 56
+              },
               "second": {
                 "first": "Image!front_cam",
                 "second": "Image!yolo_view",
