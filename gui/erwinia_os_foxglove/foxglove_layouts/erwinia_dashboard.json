@@ -11,6 +11,10 @@
       "autoCenter": true,
       "showTrail": true,
       "gaussianRadiusMeters": 6,
+      "rowLateralOffsetMeters": 4,
+      "rowLagMeters": 2.5,
+      "rowMarkLengthMeters": 5,
+      "rowMarkWidthMeters": 3,
       "maxIntensity": 1,
       "foxglovePanelTitle": ""
     },
@@ -785,6 +789,10 @@
       "autoCenter": true,
       "showTrail": true,
       "gaussianRadiusMeters": 6,
+      "rowLateralOffsetMeters": 4,
+      "rowLagMeters": 2.5,
+      "rowMarkLengthMeters": 5,
+      "rowMarkWidthMeters": 3,
       "maxIntensity": 1,
       "foxglovePanelTitle": ""
     },

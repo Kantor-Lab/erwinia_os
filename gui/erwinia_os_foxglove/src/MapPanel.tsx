@@ -105,9 +105,8 @@ const HUD_CSS = `
   top: 44px !important;
 }
 
-/* Blurred heatmap pane — CSS filter blurs the entire detection overlay into a soft cloud */
 .erwinia-map .leaflet-heatmap-pane {
-  filter: blur(6px);
+  filter: blur(1px);
   pointer-events: none;
 }
 
@@ -459,6 +458,10 @@ interface PanelSettings {
   autoCenter: boolean;
   showTrail: boolean;
   gaussianRadiusMeters: number;
+  rowLateralOffsetMeters: number;
+  rowLagMeters: number;
+  rowMarkLengthMeters: number;
+  rowMarkWidthMeters: number;
   maxIntensity: number;
 }
 
@@ -474,6 +477,10 @@ const DEFAULT_SETTINGS: PanelSettings = {
   autoCenter: true,
   showTrail: true,
   gaussianRadiusMeters: 6,
+  rowLateralOffsetMeters: 4,
+  rowLagMeters: 2.5,
+  rowMarkLengthMeters: 5,
+  rowMarkWidthMeters: 3,
   maxIntensity: 1,
 };
 
@@ -562,6 +569,38 @@ function buildSettingsTree(settings: PanelSettings): SettingsTreeNodes {
           min: 1,
           max: 20,
           step: 0.5,
+        },
+        rowLateralOffsetMeters: {
+          label: "Row Offset (m)",
+          input: "number",
+          value: settings.rowLateralOffsetMeters,
+          min: -10,
+          max: 10,
+          step: 0.25,
+        },
+        rowLagMeters: {
+          label: "Row Lag (m)",
+          input: "number",
+          value: settings.rowLagMeters,
+          min: 0,
+          max: 10,
+          step: 0.25,
+        },
+        rowMarkLengthMeters: {
+          label: "Row Mark Length (m)",
+          input: "number",
+          value: settings.rowMarkLengthMeters,
+          min: 2,
+          max: 20,
+          step: 0.5,
+        },
+        rowMarkWidthMeters: {
+          label: "Row Mark Width (m)",
+          input: "number",
+          value: settings.rowMarkWidthMeters,
+          min: 1,
+          max: 10,
+          step: 0.25,
         },
         maxIntensity: {
           label: "Max Intensity (detections)",
@@ -869,6 +908,7 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
   let hasCentered = false;
   let lastGpsTopic = settings.gpsTopic;
   let lastGridTopic = settings.gridTopic;
+  const plannedPathCoords: L.LatLng[] = [];
 
   const heatGrid = new Map<
     string,
@@ -885,10 +925,16 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
   let plannedPathLine: L.Polyline | undefined;
   let currentGpsLat = 0;
   let currentGpsLon = 0;
+  let currentMapLat = 0;
+  let currentMapLon = 0;
   let currentAlt = 0;
   let currentOdomX: number | undefined;
   let currentOdomY: number | undefined;
   let currentOdomFrame: string | undefined;
+  let odomAnchorX: number | undefined;
+  let odomAnchorY: number | undefined;
+  let gpsAnchorLat = 0;
+  let gpsAnchorLon = 0;
   let totalDetections = 0;
   let lastGpsTime = 0;
   let lastGpsLat = 0;
@@ -903,26 +949,192 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     return `${lat.toFixed(6)},${lon.toFixed(6)}`;
   }
 
-  function findNearestFieldCell(lat: number, lon: number): { key: string; lat: number; lon: number } | undefined {
+  function makeDetectionCell(lat: number, lon: number): { key: string; lat: number; lon: number } {
+    const metersPerDegLat = 111320;
+    const cosLat = Math.cos((lat * Math.PI) / 180) || 1;
+    const sizeMeters = Math.max(settings.gaussianRadiusMeters * 1.8, 4);
+    const latStep = sizeMeters / metersPerDegLat;
+    const lonStep = sizeMeters / (metersPerDegLat * cosLat);
+    const qLat = Math.round(lat / latStep) * latStep;
+    const qLon = Math.round(lon / lonStep) * lonStep;
+    return { key: makeCellKey(qLat, qLon), lat: qLat, lon: qLon };
+  }
+
+  function getMotionUnit(currentPos?: L.LatLng): { east: number; north: number } | undefined {
+    const end = currentPos ?? trailCoords[trailCoords.length - 1];
+    const start =
+      trailCoords.length >= 2
+        ? trailCoords[trailCoords.length - 2]
+        : trailCoords.length === 1
+          ? trailCoords[0]
+          : undefined;
+    if (!start || !end) return undefined;
+
+    const metersPerDegLat = 111320;
+    const avgLat = (start.lat + end.lat) / 2;
+    const metersPerDegLon = metersPerDegLat * (Math.cos((avgLat * Math.PI) / 180) || 1);
+    const east = (end.lng - start.lng) * metersPerDegLon;
+    const north = (end.lat - start.lat) * metersPerDegLat;
+    const length = Math.hypot(east, north);
+    if (length < 0.1) return undefined;
+    return { east: east / length, north: north / length };
+  }
+
+  function projectToRowSample(lat: number, lon: number, currentPos?: L.LatLng): { lat: number; lon: number } {
+    const motion = getMotionUnit(currentPos);
+    if (!motion) return { lat, lon };
+
+    const metersPerDegLat = 111320;
+    const metersPerDegLon = metersPerDegLat * (Math.cos((lat * Math.PI) / 180) || 1);
+    const forwardMeters = -settings.rowLagMeters;
+    const rightMeters = settings.rowLateralOffsetMeters;
+    const eastMeters = motion.east * forwardMeters + motion.north * rightMeters;
+    const northMeters = motion.north * forwardMeters - motion.east * rightMeters;
+    return {
+      lat: lat + northMeters / metersPerDegLat,
+      lon: lon + eastMeters / metersPerDegLon,
+    };
+  }
+
+  function findNearestPlannedPathSample(
+    lat: number,
+    lon: number,
+  ): { lat: number; lon: number; motion: { east: number; north: number } } | undefined {
+    if (plannedPathCoords.length < 2) return undefined;
+
+    const metersPerDegLat = 111320;
+    const metersPerDegLon = metersPerDegLat * (Math.cos((lat * Math.PI) / 180) || 1);
     let best:
       | {
-          key: string;
-          lat: number;
-          lon: number;
+          eastMeters: number;
+          northMeters: number;
           distanceSq: number;
+          motion: { east: number; north: number };
         }
       | undefined;
 
-    for (const [key, cell] of fieldGrid.entries()) {
-      const dLat = cell.lat - lat;
-      const dLon = cell.lon - lon;
-      const distanceSq = dLat * dLat + dLon * dLon;
+    for (let i = 0; i < plannedPathCoords.length - 1; i += 1) {
+      const a = plannedPathCoords[i]!;
+      const b = plannedPathCoords[i + 1]!;
+      const ax = (a.lng - lon) * metersPerDegLon;
+      const ay = (a.lat - lat) * metersPerDegLat;
+      const bx = (b.lng - lon) * metersPerDegLon;
+      const by = (b.lat - lat) * metersPerDegLat;
+      const dx = bx - ax;
+      const dy = by - ay;
+      const lengthSq = dx * dx + dy * dy;
+      if (lengthSq < 0.01) continue;
+
+      const t = Math.max(0, Math.min(1, -(ax * dx + ay * dy) / lengthSq));
+      const length = Math.sqrt(lengthSq);
+      const motion = { east: dx / length, north: dy / length };
+      const eastMeters = ax + dx * t;
+      const northMeters = ay + dy * t;
+      const distanceSq = eastMeters * eastMeters + northMeters * northMeters;
+
       if (!best || distanceSq < best.distanceSq) {
-        best = { key, lat: cell.lat, lon: cell.lon, distanceSq };
+        best = { eastMeters, northMeters, distanceSq, motion };
       }
     }
 
-    return best ? { key: best.key, lat: best.lat, lon: best.lon } : undefined;
+    if (!best) return undefined;
+    const snapped = offsetLatLng(lat, lon, best.eastMeters, best.northMeters);
+    return { lat: snapped.lat, lon: snapped.lng, motion: best.motion };
+  }
+
+  function projectToOverlaySample(
+    lat: number,
+    lon: number,
+    currentPos?: L.LatLng,
+  ): { lat: number; lon: number } {
+    const pathSample = findNearestPlannedPathSample(lat, lon);
+    if (pathSample) return pathSample;
+    return projectToRowSample(lat, lon, currentPos);
+  }
+
+  function offsetLatLng(
+    lat: number,
+    lon: number,
+    eastMeters: number,
+    northMeters: number,
+  ): L.LatLng {
+    const metersPerDegLat = 111320;
+    const metersPerDegLon = metersPerDegLat * (Math.cos((lat * Math.PI) / 180) || 1);
+    return L.latLng(lat + northMeters / metersPerDegLat, lon + eastMeters / metersPerDegLon);
+  }
+
+  function projectOdomToLatLng(x: number, y: number): L.LatLng | undefined {
+    if (
+      gpsAnchorLat === 0 ||
+      gpsAnchorLon === 0 ||
+      odomAnchorX == null ||
+      odomAnchorY == null
+    ) {
+      return undefined;
+    }
+
+    const metersPerDegLat = 111320;
+    const metersPerDegLon = metersPerDegLat * (Math.cos((gpsAnchorLat * Math.PI) / 180) || 1);
+    return L.latLng(
+      gpsAnchorLat + (y - odomAnchorY) / metersPerDegLat,
+      gpsAnchorLon + (x - odomAnchorX) / metersPerDegLon,
+    );
+  }
+
+  function updateMapPosition(lat: number, lon: number) {
+    if (!map || !robotMarker || !robotPulse || !trailLine) return;
+    if (lat === 0 && lon === 0) return;
+
+    currentMapLat = lat;
+    currentMapLon = lon;
+
+    const pos = L.latLng(lat, lon);
+    if (trailCoords.length > 0) {
+      const overlaySample = projectToOverlaySample(lat, lon, pos);
+      addSyntheticFieldCells(overlaySample.lat, overlaySample.lon);
+      renderHeatmap();
+    }
+
+    robotMarker.setLatLng(pos);
+    robotPulse.setLatLng(pos);
+    if (!map.hasLayer(robotMarker)) {
+      robotPulse.addTo(map);
+      robotMarker.addTo(map);
+    }
+
+    trailCoords.push(pos);
+    if (trailCoords.length > 5000) {
+      trailCoords.shift();
+    }
+    trailLine.setLatLngs(trailCoords);
+    trailCountEl.textContent = `TRAIL ${trailCoords.length}`;
+
+    if (settings.autoCenter && !hasCentered) {
+      map.setView(pos, 18);
+      hasCentered = true;
+    } else if (settings.autoCenter) {
+      map.panTo(pos);
+    }
+  }
+
+  function addSyntheticFieldCells(lat: number, lon: number) {
+    const metersPerDegLat = 111320;
+    const cosLat = Math.cos((lat * Math.PI) / 180) || 1;
+    const cellSizeMeters = Math.max(settings.gaussianRadiusMeters * 1.8, 4);
+    const latStep = cellSizeMeters / metersPerDegLat;
+    const lonStep = cellSizeMeters / (metersPerDegLat * cosLat);
+    const centerLat = Math.round(lat / latStep) * latStep;
+    const centerLon = Math.round(lon / lonStep) * lonStep;
+
+    const key = makeCellKey(centerLat, centerLon);
+    if (!fieldGrid.has(key)) {
+      fieldGrid.set(key, {
+        lat: centerLat,
+        lon: centerLon,
+        size: Math.max(latStep, lonStep),
+        value: 0,
+      });
+    }
   }
 
   // ========== MAP INIT ==========
@@ -1145,8 +1357,6 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
   context.watch("topics");
 
   function handleGpsMessage(msg: Record<string, unknown>) {
-    if (!map || !robotMarker || !robotPulse || !trailLine) return;
-
     const lat = (msg.latitude as number) ?? 0;
     const lon = (msg.longitude as number) ?? 0;
     const alt = (msg.altitude as number) ?? 0;
@@ -1155,6 +1365,12 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     currentAlt = alt;
 
     if (lat === 0 && lon === 0) return;
+    if (currentOdomX != null && currentOdomY != null && odomAnchorX == null && odomAnchorY == null) {
+      gpsAnchorLat = lat;
+      gpsAnchorLon = lon;
+      odomAnchorX = currentOdomX;
+      odomAnchorY = currentOdomY;
+    }
 
     // Speed (haversine / dt) using wall-clock; smoothed
     const nowMs = Date.now();
@@ -1183,30 +1399,9 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     lonVal.textContent = formatCoord(lon, "E", "W");
     altVal.textContent = `${alt.toFixed(1)}m`;
     speedVal.textContent = `${currentSpeed.toFixed(2)} m/s`;
-    trailCountEl.textContent = `TRAIL ${trailCoords.length}`;
 
-    const pos = L.latLng(lat, lon);
-
-    robotMarker.setLatLng(pos);
-    robotPulse.setLatLng(pos);
-    if (!map.hasLayer(robotMarker)) {
-      robotPulse.addTo(map);
-      robotMarker.addTo(map);
-    }
-
-    // Trail
-    trailCoords.push(pos);
-    if (trailCoords.length > 5000) {
-      trailCoords.shift();
-    }
-    trailLine.setLatLngs(trailCoords);
-
-    // Auto-center
-    if (settings.autoCenter && !hasCentered) {
-      map.setView(pos, 18);
-      hasCentered = true;
-    } else if (settings.autoCenter) {
-      map.panTo(pos);
+    if (odomAnchorX == null || odomAnchorY == null) {
+      updateMapPosition(lat, lon);
     }
   }
 
@@ -1261,6 +1456,20 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     currentOdomX = x;
     currentOdomY = y;
     currentOdomFrame = typeof header?.frame_id === "string" ? header.frame_id : currentOdomFrame;
+
+    if (currentGpsLat !== 0 || currentGpsLon !== 0) {
+      if (odomAnchorX == null || odomAnchorY == null) {
+        gpsAnchorLat = currentGpsLat;
+        gpsAnchorLon = currentGpsLon;
+        odomAnchorX = x;
+        odomAnchorY = y;
+      }
+
+      const odomLatLng = projectOdomToLatLng(x, y);
+      if (odomLatLng) {
+        updateMapPosition(odomLatLng.lat, odomLatLng.lng);
+      }
+    }
   }
 
   function projectPlanPointToLatLng(x: number, y: number): L.LatLng | undefined {
@@ -1284,14 +1493,16 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
 
   function handleDetectionMessage(msg: Record<string, unknown>) {
     if (!map || !heatmapLayer) return;
-    if (currentGpsLat === 0 && currentGpsLon === 0) return;
+    const sourceLat = currentMapLat || currentGpsLat;
+    const sourceLon = currentMapLon || currentGpsLon;
+    if (sourceLat === 0 && sourceLon === 0) return;
 
     const detections = Array.isArray(msg.detections)
       ? (msg.detections as Array<Record<string, unknown>>)
       : [];
 
-    const nearestFieldCell = findNearestFieldCell(currentGpsLat, currentGpsLon);
-    if (!nearestFieldCell) return;
+    const overlaySample = projectToOverlaySample(sourceLat, sourceLon);
+    const nearestFieldCell = makeDetectionCell(overlaySample.lat, overlaySample.lon);
 
     const key = nearestFieldCell.key;
 
@@ -1300,9 +1511,8 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
       if (detections.length > 0) {
         existing.positiveCount += detections.length;
         existing.lastObservationPositive = true;
-      } else {
+      } else if (!existing.lastObservationPositive) {
         existing.negativeCount += 1;
-        existing.lastObservationPositive = false;
       }
     } else {
       heatGrid.set(key, {
@@ -1328,6 +1538,7 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     // Re-anchor it against the robot's live global odom pose plus current GPS fix.
     const poses = msg.poses as Array<Record<string, unknown>> | undefined;
     if (!Array.isArray(poses) || poses.length === 0) {
+      plannedPathCoords.length = 0;
       plannedPathLine.setLatLngs([]);
       return;
     }
@@ -1347,6 +1558,7 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
       currentOdomFrame.length > 0 &&
       pathFrame !== currentOdomFrame
     ) {
+      plannedPathCoords.length = 0;
       plannedPathLine.setLatLngs([]);
       return;
     }
@@ -1362,14 +1574,34 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
         coords.push(latLng);
       }
     }
+    plannedPathCoords.length = 0;
+    plannedPathCoords.push(...coords);
     plannedPathLine.setLatLngs(coords);
   }
 
   function renderHeatmap() {
     if (!map || !heatmapLayer) return;
+    const targetHeatmapLayer = heatmapLayer;
     heatmapLayer.clearLayers();
 
+    const cellsToRender = new Map<string, { lat: number; lon: number; size: number }>();
     for (const [key, fieldCell] of fieldGrid.entries()) {
+      cellsToRender.set(key, fieldCell);
+    }
+    for (const [key, detectionState] of heatGrid.entries()) {
+      if (!cellsToRender.has(key)) {
+        const metersPerDegLat = 111320;
+        const cosLat = Math.cos((detectionState.lat * Math.PI) / 180) || 1;
+        const sizeMeters = Math.max(settings.gaussianRadiusMeters * 1.8, 4);
+        cellsToRender.set(key, {
+          lat: detectionState.lat,
+          lon: detectionState.lon,
+          size: Math.max(sizeMeters / metersPerDegLat, sizeMeters / (metersPerDegLat * cosLat)),
+        });
+      }
+    }
+
+    function drawCell(key: string, cell: { lat: number; lon: number; size: number }) {
       const detectionState = heatGrid.get(key);
       const hasPositiveDetection = detectionState?.lastObservationPositive === true;
       const normalizedValue = hasPositiveDetection
@@ -1379,27 +1611,54 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
         : 0;
       const color =
         !hasPositiveDetection && settings.colorScale === "health"
-          ? "rgb(236, 253, 245)"
+          ? "rgb(52, 211, 153)"
           : valueToColor(normalizedValue, settings.colorScale);
       const fillOpacity = hasPositiveDetection
-        ? Math.min(0.82, 0.58 + Math.log1p(detectionState?.positiveCount ?? 1) * 0.08)
+        ? 0.95
         : detectionState != null
-          ? Math.min(0.58, 0.32 + detectionState.negativeCount * 0.08)
-          : 0.2;
-      const halfSize = fieldCell.size / 2;
-      const bounds: L.LatLngBoundsExpression = [
-        [fieldCell.lat - halfSize, fieldCell.lon - halfSize],
-        [fieldCell.lat + halfSize, fieldCell.lon + halfSize],
+          ? Math.min(0.24, 0.12 + detectionState.negativeCount * 0.03)
+          : 0.05;
+      const pathSample = findNearestPlannedPathSample(cell.lat, cell.lon);
+      const rowMotion = pathSample?.motion ?? getMotionUnit();
+      const rowEast = rowMotion?.east ?? 0;
+      const rowNorth = rowMotion?.north ?? 1;
+      const centerLat = pathSample?.lat ?? cell.lat;
+      const centerLon = pathSample?.lon ?? cell.lon;
+      const halfLength = Math.max(1.5, Math.min(settings.rowMarkLengthMeters, 5) / 2);
+      const segment: L.LatLngExpression[] = [
+        offsetLatLng(
+          centerLat,
+          centerLon,
+          -rowEast * halfLength,
+          -rowNorth * halfLength,
+        ),
+        offsetLatLng(
+          centerLat,
+          centerLon,
+          rowEast * halfLength,
+          rowNorth * halfLength,
+        ),
       ];
 
-      // Translucent rectangle — CSS blur on the pane turns it into a soft cloud.
-      L.rectangle(bounds, {
+      L.polyline(segment, {
         pane: "heatmap",
         color,
-        fillColor: color,
-        fillOpacity,
-        weight: 0,
-      }).addTo(heatmapLayer);
+        opacity: fillOpacity,
+        weight: Math.max(6, settings.rowMarkWidthMeters * 3),
+        lineCap: "round",
+      }).addTo(targetHeatmapLayer);
+    }
+
+    for (const [key, cell] of cellsToRender.entries()) {
+      if (heatGrid.get(key)?.lastObservationPositive !== true) {
+        drawCell(key, cell);
+      }
+    }
+
+    for (const [key, cell] of cellsToRender.entries()) {
+      if (heatGrid.get(key)?.lastObservationPositive === true) {
+        drawCell(key, cell);
+      }
     }
   }
 
