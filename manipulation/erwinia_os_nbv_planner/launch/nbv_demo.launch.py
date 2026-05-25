@@ -221,6 +221,7 @@ def launch_setup(context, *args, **kwargs):
         'stereo_matcher_model_trt': LaunchConfiguration('stereo_matcher_model_trt').perform(context),
         'use_semantics': LaunchConfiguration('use_semantics').perform(context).lower() == 'true',
         'use_seg_detection': LaunchConfiguration('use_seg_detection').perform(context).lower() == 'true',
+        'color_by_class': LaunchConfiguration('color_by_class').perform(context).lower() == 'true',
         'enable_detection': LaunchConfiguration('enable_detection').perform(context).lower() == 'true',
         'detection_model_trt': LaunchConfiguration('detection_model_trt').perform(context),
     }
@@ -366,6 +367,7 @@ def launch_setup(context, *args, **kwargs):
             'stereo_matcher_model_trt': LaunchConfiguration('stereo_matcher_model_trt'),
             'use_semantics': LaunchConfiguration('use_semantics'),
             'use_seg_detection': LaunchConfiguration('use_seg_detection'),
+            'color_by_class': LaunchConfiguration('color_by_class'),
             'enable_detection': LaunchConfiguration('enable_detection'),
             'detection_model_dir': LaunchConfiguration('detection_model_dir'),
             'detection_model_trt': LaunchConfiguration('detection_model_trt'),
@@ -447,23 +449,23 @@ def launch_setup(context, *args, **kwargs):
                 node_parameters,
             ],
         )
-    # elif LaunchConfiguration('planner_type').perform(context).lower() == 'paper': # This is just a demo for the paper figures
-    #     nbv_node = Node(
-    #         package='erwinia_os_nbv_planner',
-    #         executable='paper_demo',
-    #         output='screen',
-    #         parameters=[
-    #             {'use_sim_time': use_sim_time},
-    #             robot_description,
-    #             robot_description_semantic,
-    #             kinematics_config,
-    #             joint_limits_config,
-    #             planner_config,
-    #             controller_config,
-    #             planning_scene_monitor_config,
-    #             node_parameters,
-    #         ],
-    #     )
+    elif LaunchConfiguration('planner_type').perform(context).lower() == 'replay': # This is just a demo for the paper figures
+        nbv_node = Node(
+            package='erwinia_os_nbv_planner',
+            executable='nbv_replay',
+            output='screen',
+            parameters=[
+                {'use_sim_time': use_sim_time},
+                robot_description,
+                robot_description_semantic,
+                kinematics_config,
+                joint_limits_config,
+                planner_config,
+                controller_config,
+                planning_scene_monitor_config,
+                node_parameters,
+            ],
+        )
     else:
         nbv_node = Node(
             package='erwinia_os_nbv_planner',
@@ -587,6 +589,8 @@ def generate_launch_description():
                               description='Enable semantic mode with detections for point cloud'),
         DeclareLaunchArgument('use_seg_detection', default_value='true',
                               description='Use segmentation detections for semantic point cloud coloring'),
+        DeclareLaunchArgument('color_by_class', default_value='true',
+                              description='Color point cloud by class instead of instance ID (only applies if use_seg_detection is true)'),
         DeclareLaunchArgument('enable_detection', default_value='true',
                               description='Enable YOLO detection node'),
         DeclareLaunchArgument('detection_model_dir', default_value=PathJoinSubstitution([FindPackageShare('multi_camera_rig_detection'), 'models']),

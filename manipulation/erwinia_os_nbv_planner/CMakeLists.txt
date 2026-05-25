@@ -185,6 +185,22 @@ ament_target_dependencies(nbv_baseline_demo
   geometry_msgs
 )
 
+add_executable(nbv_replay src/nbv_replay.cpp)
+target_link_libraries(nbv_replay 
+  moveit_interface 
+  manipulation_workspace
+  octomap_interface
+  nbv_visualizer
+  viewpoint_generation
+)
+ament_target_dependencies(nbv_replay
+  rclcpp
+  moveit_ros_planning_interface
+  moveit_ros_planning
+  geometry_msgs
+  sensor_msgs
+)
+
 # Define the NBV Baseline action server executable
 add_executable(nbv_action_server src/nbv_action_server.cpp)
 target_link_libraries(nbv_action_server
@@ -215,6 +231,7 @@ install(TARGETS
   nbv_semantic_planner_demo
   nbv_volumetric_planner_demo
   nbv_baseline_demo
+  nbv_replay
   nbv_action_server
   DESTINATION lib/${PROJECT_NAME})
 
