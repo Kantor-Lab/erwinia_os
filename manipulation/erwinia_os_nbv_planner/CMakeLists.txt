@@ -54,12 +54,28 @@ target_include_directories(octomap_interface PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
-target_link_libraries(octomap_interface ${OCTOMAP_LIBRARIES} yaml-cpp)
+target_link_libraries(octomap_interface ${OCTOMAP_LIBRARIES})
 ament_target_dependencies(octomap_interface
   rclcpp
   octomap_msgs
   visualization_msgs
   erwinia_os_occupancy_map
+)
+
+add_library(ground_truth_evaluator SHARED
+  src/ground_truth_evaluator.cpp
+)
+target_include_directories(ground_truth_evaluator PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(ground_truth_evaluator
+  octomap_interface
+  yaml-cpp
+)
+ament_target_dependencies(ground_truth_evaluator
+  rclcpp
+  geometry_msgs
   tf2_ros
   tf2_geometry_msgs
 )
@@ -143,6 +159,7 @@ target_link_libraries(nbv_semantic_planner_demo
   moveit_interface 
   manipulation_workspace
   octomap_interface
+  ground_truth_evaluator
   nbv_visualizer
   viewpoint_generation
 )
@@ -159,6 +176,7 @@ target_link_libraries(nbv_volumetric_planner_demo
   moveit_interface 
   manipulation_workspace
   octomap_interface
+  ground_truth_evaluator
   nbv_visualizer
   viewpoint_generation
 )
@@ -175,6 +193,7 @@ target_link_libraries(nbv_baseline_demo
   moveit_interface 
   manipulation_workspace
   octomap_interface
+  ground_truth_evaluator
   nbv_visualizer
   viewpoint_generation
 )
@@ -190,6 +209,7 @@ target_link_libraries(nbv_replay
   moveit_interface 
   manipulation_workspace
   octomap_interface
+  ground_truth_evaluator
   nbv_visualizer
   viewpoint_generation
 )
@@ -207,6 +227,7 @@ target_link_libraries(nbv_action_server
   moveit_interface
   manipulation_workspace
   octomap_interface
+  ground_truth_evaluator
   nbv_visualizer
   viewpoint_generation
   "${cpp_typesupport_target}"
@@ -223,6 +244,7 @@ ament_target_dependencies(nbv_action_server
 install(TARGETS 
   moveit_interface 
   octomap_interface
+  ground_truth_evaluator
   nbv_visualizer
   manipulation_workspace
   viewpoint_generation
