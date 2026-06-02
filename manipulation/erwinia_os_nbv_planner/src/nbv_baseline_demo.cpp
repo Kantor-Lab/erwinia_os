@@ -28,6 +28,7 @@
 #include "erwinia_os_nbv_planner/viewpoint_generation.hpp"
 #include "erwinia_os_nbv_planner/geometry_utils.hpp"
 #include "erwinia_os_nbv_planner/conversions.hpp"
+#include "erwinia_os_nbv_planner/ground_truth_evaluator.hpp"
 #include "erwinia_os_nbv_planner/nbv_planner_utils.hpp"
 
 using namespace erwinia_os_nbv_planner;
@@ -78,9 +79,7 @@ static int run(std::shared_ptr<rclcpp::Node> node)
         }
     }
 
-    // Save base metrics dirs (when n_runs > 1 these are expected to be the base folder)
-    const std::string base_metrics_plots_dir = config.metrics_plots_dir;
-    const std::string base_metrics_data_dir  = config.metrics_data_dir;
+    const std::string base_metrics_data_dir = config.metrics_data_dir;
 
     // Create trigger clients and stop any ongoing video capture
     auto trigger_clients = createTriggerClients(node);
@@ -91,9 +90,11 @@ static int run(std::shared_ptr<rclcpp::Node> node)
     RCLCPP_DEBUG(node->get_logger(), "MoveIt Interface initialized for group: %s with base link: %s",
                 config.manipulator_group_name.c_str(), moveit_interface->getPoseReferenceFrame().c_str());
 
-    // Initialize visualizer if requested
+    const bool gt_file_requested = !config.gt_points_file.empty();
+
+    // Initialize visualizer for planner visuals or GT marker publication
     std::shared_ptr<NBVVisualizer> visualizer;
-    if (config.visualize)
+    if (config.visualize || gt_file_requested)
         visualizer = std::make_shared<NBVVisualizer>(node, config.map_frame, config.visualization_topic);
 
     // Setup workspace with moveit interface (done once, reused)
@@ -132,28 +133,20 @@ static int run(std::shared_ptr<rclcpp::Node> node)
         RCLCPP_INFO(node->get_logger(), "NBV BASELINE RUN %d / %d", run_idx, n_runs);
         RCLCPP_INFO(node->get_logger(), "==============================\n");
 
-        // Metrics dir behavior:
-        // - n_runs == 1: keep config.metrics_* as passed in (likely .../plots and .../data)
-        // - n_runs > 1 : create .../run_###/{plots,data}
         if (n_runs > 1)
         {
             const std::string run_name = formatRunName(run_idx);
 
-            config.metrics_plots_dir =
-                (std::filesystem::path(base_metrics_plots_dir) / run_name / "plots").string();
             config.metrics_data_dir =
                 (std::filesystem::path(base_metrics_data_dir) / run_name / "data").string();
 
-            std::filesystem::create_directories(config.metrics_plots_dir);
             std::filesystem::create_directories(config.metrics_data_dir);
 
-            RCLCPP_INFO(node->get_logger(), "Run plots dir: %s", config.metrics_plots_dir.c_str());
             RCLCPP_INFO(node->get_logger(), "Run data dir : %s", config.metrics_data_dir.c_str());
         }
         else
         {
-            config.metrics_plots_dir = base_metrics_plots_dir;
-            config.metrics_data_dir  = base_metrics_data_dir;
+            config.metrics_data_dir = base_metrics_data_dir;
         }
 
         // Clear occupancy map before starting run (includes run 1)
@@ -213,12 +206,92 @@ static int run(std::shared_ptr<rclcpp::Node> node)
         waitForOctomap(node, octomap_interface, trigger_clients, config, node->get_logger());
 
         // Initialize evaluation if enabled (per run)
-        std::vector<EvaluationMetrics> all_metrics;
+        std::vector<ViewpointEvaluation> all_metrics;
         double initial_time = 0.0;
+        int viewpoint_index = 0;
+        GroundTruthEvaluator evaluator(node);
+        const std::string evaluation_json_path = config.metrics_data_dir + "/evaluation_metrics.json";
+        const bool do_evaluation = gt_file_requested && octomap_interface->isSemanticTree();
 
-        if (config.enable_evaluation && octomap_interface->isSemanticTree())
+        auto get_bbox = [&]() -> std::optional<std::pair<octomap::point3d, octomap::point3d>>
         {
-            if (!octomap_interface->loadGroundTruthSemantics(config.gt_points_file))
+            octomap::point3d min_out;
+            octomap::point3d max_out;
+            if (octomap_interface->getBoundingBox(min_out, max_out))
+            {
+                return std::make_pair(min_out, max_out);
+            }
+            return std::nullopt;
+        };
+
+        auto get_camera_pose = [&]() -> std::optional<geometry_msgs::msg::Pose>
+        {
+            geometry_msgs::msg::Pose pose;
+            if (moveit_interface->getLinkPose(config.camera_optical_link, pose))
+            {
+                return pose;
+            }
+            return std::nullopt;
+        };
+
+        auto publish_semantic_markers = [&](const std::vector<Cluster> &latest_clusters)
+        {
+            if (!visualizer)
+            {
+                return;
+            }
+            if (config.visualize)
+            {
+                visualizer->publishClusteredVoxels(
+                    latest_clusters,
+                    octomap_interface->getResolution(),
+                    false,
+                    0.55f,
+                    "semantic_clusters",
+                    octomap_interface->getOctomapFrameId());
+            }
+            if (evaluator.hasGroundTruth())
+            {
+                visualizer->publishSemanticPoints(
+                    evaluator.getGroundTruthInFrame(octomap_interface->getOctomapFrameId()),
+                    octomap_interface->getResolution() * 1.8,
+                    0.95f,
+                    true,
+                    "ground_truth_segments",
+                    octomap_interface->getOctomapFrameId());
+            }
+        };
+
+        auto record_evaluation = [&](int current_viewpoint_index)
+        {
+            auto latest_clusters = octomap_interface->clusterSemanticVoxels(false);
+            auto [occupied, free] = octomap_interface->getVoxelCounts();
+            auto evaluation = evaluator.buildViewpointEvaluation(
+                current_viewpoint_index,
+                node->now().seconds() - initial_time,
+                get_camera_pose(),
+                latest_clusters,
+                octomap_interface->getOctomapFrameId(),
+                get_bbox(),
+                static_cast<int>(occupied),
+                static_cast<int>(free),
+                octomap_interface->calculateCoverage());
+            all_metrics.push_back(evaluation);
+            evaluator.logViewpointEvaluation(evaluation);
+            publish_semantic_markers(latest_clusters);
+            evaluator.writeEvaluationsToJson(all_metrics, evaluation_json_path);
+            if (config.export_viewpoint_voxels && do_evaluation)
+            {
+                evaluator.exportVoxelSnapshot(
+                    *octomap_interface,
+                    current_viewpoint_index,
+                    config.viewpoint_voxel_export_dir);
+            }
+        };
+
+        if (do_evaluation)
+        {
+            if (!evaluator.loadGroundTruthFile(config.gt_points_file))
             {
                 RCLCPP_ERROR(node->get_logger(), "Failed to load ground truth file: %s", config.gt_points_file.c_str());
                 return 1;
@@ -228,31 +301,11 @@ static int run(std::shared_ptr<rclcpp::Node> node)
             // Store initial time for relative time calculations
             initial_time = node->now().seconds();
 
-            // Perform initial evaluation
-            EvaluationMetrics eval_metrics;
-            eval_metrics.time = 0.0;
-            auto latest_clusters = octomap_interface->clusterSemanticVoxels(false);
-            auto match_result = octomap_interface->matchClustersToGroundTruth(
-                latest_clusters, config.eval_threshold_radius, false);
-            eval_metrics.class_metrics = octomap_interface->evaluateMatchResults(match_result, false);
-
-            auto [occupied, free] = octomap_interface->getVoxelCounts();
-            eval_metrics.occupied_voxels = occupied;
-            eval_metrics.free_voxels = free;
-
-            eval_metrics.bbox_coverage = octomap_interface->calculateCoverage();
-            all_metrics.push_back(eval_metrics);
-
-            if (visualizer)
-            {
-                visualizer->publishMatchResults(match_result, config.eval_threshold_radius * 2, 0.8f);
-            }
-            // visualizer->plotAllMetrics(all_metrics, config.metrics_plots_dir);
-            visualizer->logAllMetricsToCSV(all_metrics, config.metrics_data_dir);
+            record_evaluation(viewpoint_index++);
         }
-        else
+        else if (!config.gt_points_file.empty())
         {
-            RCLCPP_WARN(node->get_logger(), "Evaluation disabled or octomap is not semantic, skipping evaluation setup");
+            RCLCPP_WARN(node->get_logger(), "GT file was provided, but the octomap is not semantic. Skipping GT evaluation.");
         }
 
         // Get transform between MoveIt and OctoMap frames
@@ -354,38 +407,17 @@ static int run(std::shared_ptr<rclcpp::Node> node)
 
             waitForOctomap(node, octomap_interface, trigger_clients, config, node->get_logger());
 
-            if (config.enable_evaluation && octomap_interface->isSemanticTree())
-            {
-                EvaluationMetrics eval_metrics;
-                eval_metrics.time = node->now().seconds() - initial_time;
-                auto latest_clusters = octomap_interface->clusterSemanticVoxels(false);
-                auto match_result = octomap_interface->matchClustersToGroundTruth(
-                    latest_clusters, config.eval_threshold_radius, false);
-                eval_metrics.class_metrics = octomap_interface->evaluateMatchResults(match_result, false);
-                auto [occupied, free] = octomap_interface->getVoxelCounts();
-                eval_metrics.occupied_voxels = occupied;
-                eval_metrics.free_voxels = free;
-                eval_metrics.bbox_coverage = octomap_interface->calculateCoverage();
-                all_metrics.push_back(eval_metrics);
-                RCLCPP_INFO(node->get_logger(), "\n=== Evaluation Results ===");
-                RCLCPP_INFO(node->get_logger(), "Class ID | TP Clusters | FP Clusters | TP Points | FN Points");
-                RCLCPP_INFO(node->get_logger(), "------------------------------------------------------------");
-                for (const auto &cm : eval_metrics.class_metrics)
-                    RCLCPP_INFO(node->get_logger(), "  %6d | %11d | %12d | %9d | %9d",
-                                cm.class_id, cm.tp_clusters, cm.fp_clusters, cm.tp_points, cm.fn_points);
-                RCLCPP_INFO(node->get_logger(), "------------------------------------------------------------");
-                RCLCPP_INFO(node->get_logger(), "Class ID | Precision | Recall | F1 Score");
-                RCLCPP_INFO(node->get_logger(), "------------------------------------------------------------");
-                for (const auto &cm : eval_metrics.class_metrics)
-                    RCLCPP_INFO(node->get_logger(), "  %6d | %9.2f%% | %6.2f%% | %8.2f%%",
-                                cm.class_id, cm.precision * 100.0, cm.recall * 100.0, cm.f1_score * 100.0);
-                if (visualizer)
-                    visualizer->publishMatchResults(match_result, config.eval_threshold_radius * 2, 0.8f);
-                visualizer->logAllMetricsToCSV(all_metrics, config.metrics_data_dir);
-            }
+            if (do_evaluation)
+                record_evaluation(viewpoint_index++);
+            else if (visualizer && octomap_interface->isSemanticTree())
+                publish_semantic_markers(octomap_interface->clusterSemanticVoxels(false));
 
             if (visualizer)
+            {
                 visualizer->clearAllMarkers();
+                if (octomap_interface->isSemanticTree())
+                    publish_semantic_markers(octomap_interface->clusterSemanticVoxels(false));
+            }
 
             if (!rclcpp::ok())
             {
@@ -416,50 +448,17 @@ static int run(std::shared_ptr<rclcpp::Node> node)
             waitForOctomap(node, octomap_interface, trigger_clients, config, node->get_logger());
 
             // Evaluate if enabled
-            if (config.enable_evaluation && octomap_interface->isSemanticTree())
-            {
-                EvaluationMetrics eval_metrics;
-                eval_metrics.time = node->now().seconds() - initial_time;
-
-                auto latest_clusters = octomap_interface->clusterSemanticVoxels(false);
-                auto match_result = octomap_interface->matchClustersToGroundTruth(
-                    latest_clusters, config.eval_threshold_radius, false);
-
-                eval_metrics.class_metrics = octomap_interface->evaluateMatchResults(match_result, false);
-
-                auto [occupied, free] = octomap_interface->getVoxelCounts();
-                eval_metrics.occupied_voxels = occupied;
-                eval_metrics.free_voxels = free;
-
-                eval_metrics.bbox_coverage = octomap_interface->calculateCoverage();
-                all_metrics.push_back(eval_metrics);
-
-                // Print results
-                RCLCPP_INFO(node->get_logger(), "\n=== Evaluation Results ===");
-                RCLCPP_INFO(node->get_logger(), "Class ID | TP Clusters | FP Clusters | TP Points | FN Points");
-                RCLCPP_INFO(node->get_logger(), "------------------------------------------------------------");
-                for (const auto &cm : eval_metrics.class_metrics)
-                    RCLCPP_INFO(node->get_logger(), "  %6d | %11d | %12d | %9d | %9d",
-                                cm.class_id, cm.tp_clusters, cm.fp_clusters, cm.tp_points, cm.fn_points);
-                RCLCPP_INFO(node->get_logger(), "------------------------------------------------------------");
-                RCLCPP_INFO(node->get_logger(), "Class ID | Precision | Recall | F1 Score");
-                RCLCPP_INFO(node->get_logger(), "------------------------------------------------------------");
-                for (const auto &cm : eval_metrics.class_metrics)
-                    RCLCPP_INFO(node->get_logger(), "  %6d | %9.2f%% | %6.2f%% | %8.2f%%",
-                                cm.class_id, cm.precision * 100.0, cm.recall * 100.0, cm.f1_score * 100.0);
-
-                if (visualizer)
-                {
-                    visualizer->publishMatchResults(match_result, config.eval_threshold_radius * 2, 0.8f);
-                }
-                // visualizer->plotAllMetrics(all_metrics, config.metrics_plots_dir);
-                visualizer->logAllMetricsToCSV(all_metrics, config.metrics_data_dir);
-            }
+            if (do_evaluation)
+                record_evaluation(viewpoint_index++);
+            else if (visualizer && octomap_interface->isSemanticTree())
+                publish_semantic_markers(octomap_interface->clusterSemanticVoxels(false));
 
             // Clear visualization
             if (visualizer)
             {
                 visualizer->clearAllMarkers();
+                if (octomap_interface->isSemanticTree())
+                    publish_semantic_markers(octomap_interface->clusterSemanticVoxels(false));
             }
 
             if (!rclcpp::ok())

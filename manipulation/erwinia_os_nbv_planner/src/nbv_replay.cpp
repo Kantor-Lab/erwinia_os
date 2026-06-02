@@ -4,8 +4,14 @@
  * 
  * Need to launch:
  * - ros2 bag play <bag_file> --clock --topics /tf /firefly_left/image_raw /firefly_left/camera_info /firefly_right/image_raw /firefly_right/camera_info
- * - ros2 launch erwinia_os_nbv_planner nbv_demo.launch.py use_sim_time:=true use_gazebo:=false planner_type:=replay stereo_matcher_model_trt:=fs_224x448_vit-small_iters5.plan detection_model_trt:=yolo26_large_seg_rivendale_v6_fold1.plan run:=test
+ * - ros2 launch erwinia_os_nbv_planner nbv_demo.launch.py use_sim_time:=true use_gazebo:=false planner_type:=replay stereo_matcher_model_trt:=fs_224x448_vit-small_iters5.plan detection_model_trt:=yolo26_large_seg_rivendale_v6_fold1.plan export_viewpoint_voxels:=true metrics_dir:=metrics/penn_state run:=tree_11/baseline/ gt_points_file:=metrics/penn_state/tree_11/gt_points.json
  */
+
+//  ros2 run rmw_zenoh_cpp rmw_zenohd
+//  ros2 bag play /media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_eval_recordings/recording_baseline_1/ --clock --topics /tf /firefly_left/image_raw /firefly_left/camera_info /firefly_right/image_raw /firefly_right/camera_info
+//  ros2 launch erwinia_os_description rosbag_playback.launch.py
+//  ros2 launch erwinia_os_nbv_planner nbv_demo.launch.py use_sim_time:=true use_gazebo:=false planner_type:=replay octomap_resolution:=0.02 camera_scaled_width:=896 camera_scaled_height:=672 stereo_matcher_model_trt:=fs_672x896_vit-small_iters16.plan detection_model_trt:=yolo26_large_seg_rivendale_v6_fold1.plan semantic_mismatch_penalty:=0.2 semantic_confidence_boost:=0.3 export_viewpoint_voxels:=true metrics_dir:=metrics/penn_state run:=tree_11/baseline/ gt_points_file:=metrics/penn_state/tree_11/gt_points.json conf_thresh:=0.15
+
 
 #include <rclcpp/rclcpp.hpp>
 #include <rosgraph_msgs/msg/clock.hpp>
@@ -36,6 +42,7 @@
 #include "erwinia_os_nbv_planner/viewpoint_generation.hpp"
 #include "erwinia_os_nbv_planner/geometry_utils.hpp"
 #include "erwinia_os_nbv_planner/conversions.hpp"
+#include "erwinia_os_nbv_planner/ground_truth_evaluator.hpp"
 #include "erwinia_os_nbv_planner/nbv_planner_utils.hpp"
 
 using namespace erwinia_os_nbv_planner;
@@ -228,9 +235,11 @@ static int run(std::shared_ptr<rclcpp::Node> node,
         executor.add_node(accumulator);
     }
 
-    // Initialize visualizer if requested
+    const bool gt_file_requested = !config.gt_points_file.empty();
+
+    // Initialize visualizer for planner visuals or GT marker publication
     std::shared_ptr<NBVVisualizer> visualizer;
-    if (config.visualize)
+    if (config.visualize || gt_file_requested)
         visualizer = std::make_shared<NBVVisualizer>(node, config.map_frame, config.visualization_topic);
 
     // Initialize TF2 buffer and listener
@@ -256,12 +265,85 @@ static int run(std::shared_ptr<rclcpp::Node> node,
     }
 
     // Initialize evaluation if enabled
-    std::vector<EvaluationMetrics> all_metrics;
+    std::vector<ViewpointEvaluation> all_metrics;
     double initial_time = 0.0;
+    int viewpoint_index = 0;
+    GroundTruthEvaluator evaluator(node);
+    const std::string evaluation_json_path = config.metrics_data_dir + "/evaluation_metrics.json";
+    bool do_evaluation = false;
 
-    if (config.enable_evaluation && octomap_interface->isSemanticTree())
+    auto get_bbox = [&]() -> std::optional<std::pair<octomap::point3d, octomap::point3d>>
     {
-        if (!octomap_interface->loadGroundTruthSemantics(config.gt_points_file))
+        octomap::point3d min_out;
+        octomap::point3d max_out;
+        if (octomap_interface->getBoundingBox(min_out, max_out))
+        {
+            return std::make_pair(min_out, max_out);
+        }
+        return std::nullopt;
+    };
+
+    auto publish_semantic_markers = [&](const std::vector<Cluster> &latest_clusters)
+    {
+        if (!visualizer)
+            return;
+        if (config.visualize)
+        {
+            visualizer->publishClusteredVoxels(
+                latest_clusters,
+                octomap_interface->getResolution(),
+                false,
+                0.55f,
+                "semantic_clusters",
+                octomap_interface->getOctomapFrameId());
+        }
+        if (evaluator.hasGroundTruth())
+        {
+            visualizer->publishSemanticPoints(
+                evaluator.getGroundTruthInFrame(octomap_interface->getOctomapFrameId()),
+                octomap_interface->getResolution() * 1.8,
+                0.95f,
+                true,
+                "ground_truth_segments",
+                octomap_interface->getOctomapFrameId());
+        }
+    };
+
+    auto build_evaluation = [&](int current_viewpoint_index, const geometry_msgs::msg::Pose *camera_pose) -> ViewpointEvaluation
+    {
+        auto latest_clusters = octomap_interface->clusterSemanticVoxels(false);
+        auto [occupied, free] = octomap_interface->getVoxelCounts();
+        std::optional<geometry_msgs::msg::Pose> optional_pose;
+        if (camera_pose != nullptr)
+        {
+            optional_pose = *camera_pose;
+        }
+        return evaluator.buildViewpointEvaluation(
+            current_viewpoint_index,
+            node->now().seconds() - initial_time,
+            optional_pose,
+            latest_clusters,
+            octomap_interface->getOctomapFrameId(),
+            get_bbox(),
+            static_cast<int>(occupied),
+            static_cast<int>(free),
+            octomap_interface->calculateCoverage());
+    };
+
+    if (gt_file_requested)
+    {
+        RCLCPP_INFO(node->get_logger(), "Waiting for first octomap message before initializing GT evaluation...");
+        rclcpp::Rate wait_rate(10);
+        while (rclcpp::ok() && !octomap_interface->isTreeAvailable())
+        {
+            wait_rate.sleep();
+        }
+    }
+
+    if (gt_file_requested && octomap_interface->isSemanticTree())
+    {
+        do_evaluation = true;
+        if (!evaluator.loadGroundTruthFile(config.gt_points_file))
         {
             RCLCPP_ERROR(node->get_logger(), "Failed to load ground truth file: %s", config.gt_points_file.c_str());
             rclcpp::shutdown();
@@ -272,31 +354,19 @@ static int run(std::shared_ptr<rclcpp::Node> node,
         // Store initial time for relative time calculations
         initial_time = node->now().seconds();
 
-        // Perform initial evaluation
-        EvaluationMetrics eval_metrics;
-        eval_metrics.time = 0.0;
-        auto latest_clusters = octomap_interface->clusterSemanticVoxels(false);
-        auto match_result = octomap_interface->matchClustersToGroundTruth(
-            latest_clusters, config.eval_threshold_radius, false);
-        eval_metrics.class_metrics = octomap_interface->evaluateMatchResults(match_result, false);
-
-        auto [occupied, free] = octomap_interface->getVoxelCounts();
-        eval_metrics.occupied_voxels = occupied;
-        eval_metrics.free_voxels = free;
-
-        eval_metrics.bbox_coverage = octomap_interface->calculateCoverage();
-        all_metrics.push_back(eval_metrics);
-
-        if (visualizer)
-        {
-            visualizer->publishMatchResults(match_result, config.eval_threshold_radius * 2, 0.8f);
-        }
-        // visualizer->plotAllMetrics(all_metrics, config.metrics_plots_dir);
-        visualizer->logAllMetricsToCSV(all_metrics, config.metrics_data_dir);
+        auto initial_evaluation = build_evaluation(viewpoint_index, nullptr);
+        all_metrics.push_back(initial_evaluation);
+        evaluator.logViewpointEvaluation(initial_evaluation);
+        publish_semantic_markers(octomap_interface->clusterSemanticVoxels(false));
+        evaluator.writeEvaluationsToJson(all_metrics, evaluation_json_path);
+        viewpoint_index = 1;
     }
-    else
+    else if (gt_file_requested)
     {
-        RCLCPP_WARN(node->get_logger(), "Evaluation disabled or octomap is not semantic, skipping evaluation setup");
+        RCLCPP_WARN(
+            node->get_logger(),
+            "GT file was provided, but the first received octomap is '%s'. Skipping GT evaluation.",
+            octomap_interface->getTreeTypeString().c_str());
     }
 
     // Main NBV Replay Loop
@@ -305,7 +375,7 @@ static int run(std::shared_ptr<rclcpp::Node> node,
     int i = 0;
     while (rclcpp::ok())
     {
-        RCLCPP_INFO(node->get_logger(), "\n********** NBV Replay Iteration %d **********", i);
+        RCLCPP_INFO(node->get_logger(), "\n********** NBV Replay Octomap Update %d **********", i);
 
         // Wait for the next octomap update
         rclcpp::Time prev_update_time = octomap_interface->getLastUpdateTime();
@@ -320,14 +390,15 @@ static int run(std::shared_ptr<rclcpp::Node> node,
         // Get current EEF position from TF
         Eigen::Vector3d eef_pos = Eigen::Vector3d::Zero();
         bool eef_moved = true;
+        geometry_msgs::msg::TransformStamped current_tf;
         try
         {
-            auto tf = tf_buffer->lookupTransform(
+            current_tf = tf_buffer->lookupTransform(
                 config.map_frame, config.camera_optical_link, tf2::TimePointZero);
             eef_pos = Eigen::Vector3d(
-                tf.transform.translation.x,
-                tf.transform.translation.y,
-                tf.transform.translation.z);
+                current_tf.transform.translation.x,
+                current_tf.transform.translation.y,
+                current_tf.transform.translation.z);
             if (has_prev_eef_pos && (eef_pos - prev_eef_pos).norm() < 1e-3)
                 eef_moved = false;
         }
@@ -336,41 +407,56 @@ static int run(std::shared_ptr<rclcpp::Node> node,
             RCLCPP_WARN(node->get_logger(), "TF lookup failed: %s", ex.what());
         }
 
-        if (config.enable_evaluation && octomap_interface->isSemanticTree())
+        geometry_msgs::msg::Pose camera_pose;
+        bool has_camera_pose = false;
+        if (eef_moved)
         {
-            EvaluationMetrics eval_metrics;
-            eval_metrics.time = node->now().seconds() - initial_time;
-            auto latest_clusters = octomap_interface->clusterSemanticVoxels(false);
-            auto match_result = octomap_interface->matchClustersToGroundTruth(latest_clusters, config.eval_threshold_radius, false);
-            eval_metrics.class_metrics = octomap_interface->evaluateMatchResults(match_result, false);
-            auto [occupied, free] = octomap_interface->getVoxelCounts();
-            eval_metrics.occupied_voxels = occupied;
-            eval_metrics.free_voxels = free;
-            eval_metrics.bbox_coverage = octomap_interface->calculateCoverage();
+            camera_pose.position.x = eef_pos.x();
+            camera_pose.position.y = eef_pos.y();
+            camera_pose.position.z = eef_pos.z();
+            camera_pose.orientation = current_tf.transform.rotation;
+            has_camera_pose = true;
+        }
+
+        const auto latest_clusters = octomap_interface->isSemanticTree()
+            ? octomap_interface->clusterSemanticVoxels(false)
+            : std::vector<Cluster>{};
+
+        if (do_evaluation)
+        {
+            const int current_viewpoint_index = eef_moved ? viewpoint_index++ : std::max(0, viewpoint_index - 1);
+            auto evaluation = build_evaluation(current_viewpoint_index, has_camera_pose ? &camera_pose : nullptr);
             if (!eef_moved && !all_metrics.empty())
-                all_metrics.back() = eval_metrics;   // EEF didn't move: overwrite
-            else
-                all_metrics.push_back(eval_metrics);
-            RCLCPP_INFO(node->get_logger(), "\n=== Evaluation Results ===");
-            RCLCPP_INFO(node->get_logger(), "Class ID | TP Clusters | FP Clusters | TP Points | FN Points");
-            RCLCPP_INFO(node->get_logger(), "------------------------------------------------------------");
-            for (const auto &cm : eval_metrics.class_metrics)
-                RCLCPP_INFO(node->get_logger(), "  %6d | %11d | %12d | %9d | %9d", cm.class_id, cm.tp_clusters, cm.fp_clusters, cm.tp_points, cm.fn_points);
-            RCLCPP_INFO(node->get_logger(), "------------------------------------------------------------");
-            RCLCPP_INFO(node->get_logger(), "Class ID | Precision | Recall | F1 Score");
-            RCLCPP_INFO(node->get_logger(), "------------------------------------------------------------");
-            for (const auto &cm : eval_metrics.class_metrics)
-                RCLCPP_INFO(node->get_logger(), "  %6d | %9.2f%% | %6.2f%% | %8.2f%%", cm.class_id, cm.precision * 100.0, cm.recall * 100.0, cm.f1_score * 100.0);
-            if (visualizer)
             {
-                visualizer->publishMatchResults(match_result, config.eval_threshold_radius * 2, 0.8f);
+                all_metrics.back() = evaluation;
             }
-            visualizer->logAllMetricsToCSV(all_metrics, config.metrics_data_dir);
+            else
+            {
+                all_metrics.push_back(evaluation);
+                if (config.export_viewpoint_voxels)
+                {
+                    evaluator.exportVoxelSnapshot(
+                        *octomap_interface,
+                        current_viewpoint_index,
+                        config.viewpoint_voxel_export_dir);
+                }
+            }
+            evaluator.logViewpointEvaluation(evaluation);
+            publish_semantic_markers(latest_clusters);
+            evaluator.writeEvaluationsToJson(all_metrics, evaluation_json_path);
+        }
+        else if (visualizer && octomap_interface->isSemanticTree())
+        {
+            publish_semantic_markers(latest_clusters);
         }
 
         if (visualizer)
         {
             visualizer->clearAllMarkers();
+            if (octomap_interface->isSemanticTree())
+            {
+                publish_semantic_markers(latest_clusters);
+            }
         }
 
         prev_eef_pos = eef_pos;
