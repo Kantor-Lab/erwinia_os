@@ -327,7 +327,7 @@ namespace erwinia_os_nbv_planner
 
         /**
          * @brief Publish semantic points with colors based on class_id
-         * @param semantic_points Vector of semantic points with id, class_id, and position
+         * @param semantic_points Vector of GT segments with id, class_id, and position
          * @param size Size of each point sphere (default: 0.02m)
          * @param alpha Alpha value for transparency (default: 0.8)
          * @param show_labels Whether to display ID labels above points (default: true)
@@ -335,7 +335,7 @@ namespace erwinia_os_nbv_planner
          * @param frame_id Frame ID for input points (default: empty = map_frame)
          */
         void publishSemanticPoints(
-            const std::vector<SemanticPoint> &semantic_points,
+            const std::vector<GroundTruthSegment> &semantic_points,
             double size = 0.02,
             float alpha = 0.8f,
             bool show_labels = true,

@@ -60,11 +60,10 @@ struct NBVPlannerConfig
     int num_camera_rays;
 
     // Evaluation Parameters
-    bool enable_evaluation;
-    double eval_threshold_radius;
     std::string gt_points_file;
-    std::string metrics_plots_dir;
     std::string metrics_data_dir;
+    bool export_viewpoint_voxels;
+    std::string viewpoint_voxel_export_dir;
 
     // General Parameters
     std::vector<double> init_joint_angles_rad;
@@ -172,11 +171,10 @@ NBVPlannerConfig loadConfiguration(const std::shared_ptr<rclcpp::Node> &node)
     config.num_camera_rays = node->get_parameter("num_camera_rays").as_int();
 
     // Evaluation Parameters
-    config.enable_evaluation = node->get_parameter("enable_evaluation").as_bool();
-    config.eval_threshold_radius = node->get_parameter("eval_threshold_radius").as_double();
     config.gt_points_file = node->get_parameter("gt_points_file").as_string();
-    config.metrics_plots_dir = node->get_parameter("metrics_plots_dir").as_string();
     config.metrics_data_dir = node->get_parameter("metrics_data_dir").as_string();
+    config.export_viewpoint_voxels = node->get_parameter("export_viewpoint_voxels").as_bool();
+    config.viewpoint_voxel_export_dir = node->get_parameter("viewpoint_voxel_export_dir").as_string();
 
     // General Parameters
     config.init_joint_angles_rad = geometry_utils::deg2Rad(node->get_parameter("init_joint_angles_deg").as_double_array());
@@ -273,11 +271,10 @@ void printConfiguration(const NBVPlannerConfig &config, const rclcpp::Logger &lo
 
     // Evaluation Parameters
     RCLCPP_INFO(logger, "--- Evaluation ---");
-    RCLCPP_INFO(logger, "  Enable evaluation: %s", config.enable_evaluation ? "true" : "false");
-    RCLCPP_INFO(logger, "  Threshold radius: %.2f m", config.eval_threshold_radius);
     RCLCPP_INFO(logger, "  GT points file: %s", config.gt_points_file.c_str());
-    RCLCPP_INFO(logger, "  Metrics plots dir: %s", config.metrics_plots_dir.c_str());
     RCLCPP_INFO(logger, "  Metrics data dir: %s", config.metrics_data_dir.c_str());
+    RCLCPP_INFO(logger, "  Export viewpoint voxels: %s", config.export_viewpoint_voxels ? "true" : "false");
+    RCLCPP_INFO(logger, "  Viewpoint voxel export dir: %s", config.viewpoint_voxel_export_dir.c_str());
 
     // General Parameters
     RCLCPP_INFO(logger, "--- General ---");

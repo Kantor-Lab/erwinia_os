@@ -8,9 +8,6 @@
 #include <rclcpp/rclcpp.hpp>
 #include <octomap/OcTree.h>
 #include <octomap_msgs/msg/octomap.hpp>
-#include <tf2_ros/buffer.h>
-#include <tf2_ros/transform_listener.h>
-
 #include <shared_mutex>
 #include <memory>
 #include <vector>
@@ -121,51 +118,6 @@ namespace erwinia_os_nbv_planner
             return nullptr;
         }
 
-        // Ground truth evaluation
-        /**
-         * @brief Load ground truth semantic points from YAML file
-         * @param yaml_file_path Path to the YAML file containing marker positions
-         * @return true if loaded successfully, false otherwise
-         */
-        bool loadGroundTruthSemantics(const std::string &yaml_file_path);
-
-        /**
-         * @brief Match semantic clusters to ground truth points
-         * @param clusters Vector of semantic clusters to match
-         * @param threshold_radius Maximum distance between cluster centroid and ground truth point for a match
-         * @param verbose If true, print detailed matching information
-         * @return MatchResult containing correct matches, class mismatches, and unmatched points/clusters
-         */
-        MatchResult matchClustersToGroundTruth(const std::vector<Cluster> &clusters,
-                                               double threshold_radius = 0.2,
-                                               bool verbose = false) const;
-
-        /**
-         * @brief Compute and print evaluation metrics from match results
-         * @param result MatchResult from matchClustersToGroundTruth
-         * @param verbose If true, print detailed lists of unmatched points and clusters
-         */
-        std::vector<ClassMetrics> evaluateMatchResults(const MatchResult &result, bool verbose = false) const;
-
-        /**
-         * @brief Evaluate semantic octomap against ground truth
-         * @param threshold_radius Maximum distance between cluster centroid and ground truth point for a match
-         * @param verbose If true, print detailed evaluation information
-         */
-        std::vector<ClassMetrics> evaluateSemanticOctomap(double threshold_radius = 0.2, bool verbose = false);
-
-        /**
-         * @brief Get the loaded ground truth points
-         * @return Vector of ground truth semantic points
-         */
-        const std::vector<SemanticPoint> &getGroundTruthPoints() const { return gt_points_; }
-
-        /**
-         * @brief Get the frame ID of the loaded ground truth points
-         * @return Frame ID string (empty if no GT loaded)
-         */
-        std::string getGroundTruthFrameId() const { return gt_frame_id_; }
-
         /**
          * @brief Get the frame ID of the current octomap
          * @return Frame ID string (empty if no octomap loaded)
@@ -200,6 +152,8 @@ namespace erwinia_os_nbv_planner
          */
         void printOctomapStats() const;
 
+        std::vector<VoxelSample> getVoxelSamples(bool include_free = false) const;
+
     private:
         void onOctomap(const erwinia_os_occupancy_map::msg::CustomOctomap::SharedPtr msg);
 
@@ -220,18 +174,9 @@ namespace erwinia_os_nbv_planner
         octomap::point3d bbox_max_{0.0, 0.0, 0.0};
         bool has_valid_bbox_{false};
         rclcpp::Time last_update_time_;
-
-        // Ground truth data
-        std::vector<SemanticPoint> gt_points_;
-        std::vector<int> gt_classes_;
-        std::string gt_frame_id_;  // Frame ID for ground truth points
         
         // Octomap frame
         std::string octomap_frame_id_;  // Frame ID for octomap
-        
-        // TF2 for coordinate transformations
-        std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
-        std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
     };
 
 } // namespace erwinia_os_nbv_planner

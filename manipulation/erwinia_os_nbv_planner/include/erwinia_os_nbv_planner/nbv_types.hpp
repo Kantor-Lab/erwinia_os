@@ -1,73 +1,106 @@
 #pragma once
 
+#include <geometry_msgs/msg/pose.hpp>
 #include <octomap/octomap.h>
+
+#include <string>
 #include <vector>
 
 namespace erwinia_os_nbv_planner
 {
     struct Cluster
     {
-        int label;
+        int label = -1;
         int32_t class_id = -1;
         octomap::point3d center;
-        int size;
+        int size = 0;
+        float max_confidence = 0.0f;
         std::vector<octomap::point3d> points;
     };
 
-    struct SemanticPoint
+    struct GroundTruthSegment
     {
-        int id;                 // Unique identifier for the semantic point (e.g., marker ID)
+        std::string id;
         int32_t class_id = -1;
-        octomap::point3d position;  // 3D position in map frame
+        std::string class_name;
+        int32_t cluster_index = -1;
+        int32_t count = 0;
+        octomap::point3d position;
     };
 
-    /**
-     * @brief Result of matching semantic clusters to ground truth points
-     */
+    struct PredictedClusterSummary
+    {
+        int label = -1;
+        int32_t class_id = -1;
+        octomap::point3d center;
+        int size = 0;
+        float max_confidence = 0.0f;
+    };
+
+    struct PairwiseDistance
+    {
+        std::string gt_id;
+        int predicted_label = -1;
+        int32_t gt_class_id = -1;
+        int32_t predicted_class_id = -1;
+        double distance_m = 0.0;
+        bool same_class = false;
+    };
+
+    struct CameraPoseRecord
+    {
+        bool valid = false;
+        geometry_msgs::msg::Pose pose;
+    };
+
+    struct VoxelSample
+    {
+        octomap::point3d center;
+        bool occupied = false;
+        int32_t class_id = -1;
+    };
+
     struct Match
     {
-        SemanticPoint gt_point;
-        std::vector<Cluster> clusters;
+        GroundTruthSegment gt_point;
+        std::vector<PredictedClusterSummary> clusters;
         std::vector<double> distances;
     };
-    
+
     struct MatchResult
     {
-        std::vector<Match> correct_matches;      // GT and clusters with matching class
-        std::vector<Match> class_mismatches;     // GT and clusters matched but wrong class
-        std::vector<SemanticPoint> unmatched_gt;
-        std::vector<Cluster> unmatched_clusters;
+        std::vector<Match> correct_matches;
+        std::vector<Match> class_mismatches;
+        std::vector<GroundTruthSegment> unmatched_gt;
+        std::vector<PredictedClusterSummary> unmatched_clusters;
+        std::vector<PairwiseDistance> pairwise_distances;
     };
 
-    /**
-     * @brief Evaluation metrics for a specific semantic class
-     */
     struct ClassMetrics
     {
-        int32_t class_id;
-
-        int32_t tp_clusters = 0;  // Class id clusters correctly matched to GT points of this class
-        int32_t fp_clusters = 0;  // Class id clusters incorrectly matched (class mismatch or no match)
-
-        int32_t tp_points = 0;    // GT points correctly matched to clusters of the same class
-        int32_t fn_points = 0;    // GT points not matched to any cluster (class mismatch or no match)
-        
-        double precision; // Computed using the cluster counts: tp_clusters / (tp_clusters + fp_clusters)
-        double recall;    // Computed using the GT point counts: tp_points / (tp_points + fn_points)
-        double f1_score;  // Harmonic mean of precision and recall: 2 * (precision * recall) / (precision + recall)
+        int32_t class_id = -1;
+        int32_t tp_clusters = 0;
+        int32_t fp_clusters = 0;
+        int32_t tp_points = 0;
+        int32_t fn_points = 0;
+        double precision = 0.0;
+        double recall = 0.0;
+        double f1_score = 0.0;
     };
 
-    /**
-     * @brief Resulting evaluation metrics for all semantic classes at a single point in time
-     * 
-     * Note: To track metrics over time, use std::vector<EvaluationMetrics>
-     */
-    struct EvaluationMetrics
+    struct ViewpointEvaluation
     {
-        double time;                              // Timestamp (seconds)
-        std::vector<ClassMetrics> class_metrics;  // Metrics for each semantic class
-        int free_voxels;                          // Count of free voxels
-        int occupied_voxels;                      // Count of occupied voxels
-        double bbox_coverage;                       // Percentage of bounding box covered by occupied voxels
+        int viewpoint_index = -1;
+        double time = 0.0;
+        CameraPoseRecord camera_pose;
+        std::vector<ClassMetrics> class_metrics;
+        int free_voxels = 0;
+        int occupied_voxels = 0;
+        double bbox_coverage = 0.0;
+        std::vector<GroundTruthSegment> gt_segments;
+        std::vector<PredictedClusterSummary> predicted_clusters;
+        std::vector<PairwiseDistance> pairwise_distances;
     };
-}
+
+    using EvaluationMetrics = ViewpointEvaluation;
+} // namespace erwinia_os_nbv_planner

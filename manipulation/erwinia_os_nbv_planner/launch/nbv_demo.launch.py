@@ -66,22 +66,14 @@ def launch_setup(context, *args, **kwargs):
 
     base_run_dir = os.path.join(metrics_dir, run_dir)
 
-    # If n_runs > 1:
-    #   - pass base_run_dir to the C++ node and it will create run_001/... subfolders
-    # If n_runs == 1:
-    #   - keep old behavior: base_run_dir/{plots,data}
     if n_runs > 1:
-        metrics_plots_dir = base_run_dir
         metrics_data_dir = base_run_dir
         os.makedirs(base_run_dir, exist_ok=True)
     else:
-        metrics_plots_dir = os.path.join(base_run_dir, 'plots')
         metrics_data_dir = os.path.join(base_run_dir, 'data')
-        os.makedirs(metrics_plots_dir, exist_ok=True)
         os.makedirs(metrics_data_dir, exist_ok=True)
 
     print(f"[nbv_demo.launch.py] n_runs: {n_runs}")
-    print(f"[nbv_demo.launch.py] Metrics plots directory: {metrics_plots_dir}")
     print(f"[nbv_demo.launch.py] Metrics data directory: {metrics_data_dir}")
 
     # Determine workspace file path
@@ -106,10 +98,10 @@ def launch_setup(context, *args, **kwargs):
             print(f"[nbv_demo.launch.py] Set learn_workspace:=true to learn a new workspace")
 
     # Ground truth file path
-    gt_points_file = os.path.join(
-        LaunchConfiguration('gt_points_dir').perform(context),
-        LaunchConfiguration('gt_points_file').perform(context)
-    )
+    gt_points_file = LaunchConfiguration('gt_points_file').perform(context)
+    viewpoint_voxel_export_dir = LaunchConfiguration('viewpoint_voxel_export_dir').perform(context)
+    if viewpoint_voxel_export_dir == '':
+        viewpoint_voxel_export_dir = os.path.join(base_run_dir, 'voxels')
 
     # Build parameters dictionary for saving and node configuration
     node_parameters = {
@@ -152,11 +144,10 @@ def launch_setup(context, *args, **kwargs):
         'num_camera_rays': int(LaunchConfiguration('num_camera_rays').perform(context)),
 
         # Evaluation Parameters
-        'enable_evaluation': LaunchConfiguration('enable_evaluation').perform(context).lower() == 'true',
-        'eval_threshold_radius': float(LaunchConfiguration('eval_threshold_radius').perform(context)),
         'gt_points_file': gt_points_file,
-        'metrics_plots_dir': metrics_plots_dir,
         'metrics_data_dir': metrics_data_dir,
+        'export_viewpoint_voxels': LaunchConfiguration('export_viewpoint_voxels').perform(context).lower() == 'true',
+        'viewpoint_voxel_export_dir': viewpoint_voxel_export_dir,
 
         # General Parameters
         # 'init_joint_angles_deg': [0.0, -45.0, -45.0, 0.0, 0.0, 90.0],
@@ -221,6 +212,7 @@ def launch_setup(context, *args, **kwargs):
         'stereo_matcher_model_trt': LaunchConfiguration('stereo_matcher_model_trt').perform(context),
         'use_semantics': LaunchConfiguration('use_semantics').perform(context).lower() == 'true',
         'use_seg_detection': LaunchConfiguration('use_seg_detection').perform(context).lower() == 'true',
+        'color_by_class': LaunchConfiguration('color_by_class').perform(context).lower() == 'true',
         'enable_detection': LaunchConfiguration('enable_detection').perform(context).lower() == 'true',
         'detection_model_trt': LaunchConfiguration('detection_model_trt').perform(context),
     }
@@ -245,7 +237,7 @@ def launch_setup(context, *args, **kwargs):
         'prob_miss': 0.4,
         'clamp_min': 0.12,
         'clamp_max': 0.97,
-        'occupancy_threshold': 0.5,
+        'occupancy_threshold': 0.4,
         'semantic_confidence_boost': float(LaunchConfiguration('semantic_confidence_boost').perform(context)),
         'semantic_mismatch_penalty': float(LaunchConfiguration('semantic_mismatch_penalty').perform(context)),
         'conf_thresh': float(LaunchConfiguration('conf_thresh').perform(context)),
@@ -366,10 +358,12 @@ def launch_setup(context, *args, **kwargs):
             'stereo_matcher_model_trt': LaunchConfiguration('stereo_matcher_model_trt'),
             'use_semantics': LaunchConfiguration('use_semantics'),
             'use_seg_detection': LaunchConfiguration('use_seg_detection'),
+            'color_by_class': LaunchConfiguration('color_by_class'),
             'enable_detection': LaunchConfiguration('enable_detection'),
             'detection_model_dir': LaunchConfiguration('detection_model_dir'),
             'detection_model_trt': LaunchConfiguration('detection_model_trt'),
             'conf_thresh': LaunchConfiguration('conf_thresh'),
+            'decimation_factor': LaunchConfiguration('decimation_factor'),
         }.items()
     )
 
@@ -389,7 +383,7 @@ def launch_setup(context, *args, **kwargs):
             'prob_miss': 0.4,
             'clamp_min': 0.12,
             'clamp_max': 0.97,
-            'occupancy_threshold': 0.5,
+            'occupancy_threshold': 0.4,
             'use_bounding_box': LaunchConfiguration('octomap_use_bbox'),
             'bbx_min_x': LaunchConfiguration('octomap_bbx_min_x'),
             'bbx_min_y': LaunchConfiguration('octomap_bbx_min_y'),
@@ -447,23 +441,23 @@ def launch_setup(context, *args, **kwargs):
                 node_parameters,
             ],
         )
-    # elif LaunchConfiguration('planner_type').perform(context).lower() == 'paper': # This is just a demo for the paper figures
-    #     nbv_node = Node(
-    #         package='erwinia_os_nbv_planner',
-    #         executable='paper_demo',
-    #         output='screen',
-    #         parameters=[
-    #             {'use_sim_time': use_sim_time},
-    #             robot_description,
-    #             robot_description_semantic,
-    #             kinematics_config,
-    #             joint_limits_config,
-    #             planner_config,
-    #             controller_config,
-    #             planning_scene_monitor_config,
-    #             node_parameters,
-    #         ],
-    #     )
+    elif LaunchConfiguration('planner_type').perform(context).lower() == 'replay': # This is just a demo for the paper figures
+        nbv_node = Node(
+            package='erwinia_os_nbv_planner',
+            executable='nbv_replay',
+            output='screen',
+            parameters=[
+                {'use_sim_time': use_sim_time},
+                robot_description,
+                robot_description_semantic,
+                kinematics_config,
+                joint_limits_config,
+                planner_config,
+                controller_config,
+                planning_scene_monitor_config,
+                node_parameters,
+            ],
+        )
     else:
         nbv_node = Node(
             package='erwinia_os_nbv_planner',
@@ -547,20 +541,16 @@ def generate_launch_description():
                               description='Fixed frame for visualization markers'),
 
         # Ground Truth Evaluation Parameters
-        DeclareLaunchArgument(
-            'gt_points_dir',
-            default_value=PathJoinSubstitution([FindPackageShare('erwinia_os_nbv_planner'), 'metrics', 'gt_points']),
-            description='Directory containing ground truth points YAML files for semantic evaluation'),
-        DeclareLaunchArgument('gt_points_file', default_value='aruco_gt_points_lab.yaml',
-                              description='Path to the ground truth points YAML file for semantic evaluation'),
-        DeclareLaunchArgument('enable_evaluation', default_value='false',
-                              description='Enable semantic octomap evaluation against ground truth'),
-        DeclareLaunchArgument('eval_threshold_radius', default_value='0.10',
-                              description='Threshold radius (meters) for matching clusters to ground truth points'),
+        DeclareLaunchArgument('gt_points_file', default_value='',
+                              description='Path to the ground truth points JSON file for semantic evaluation'),
         DeclareLaunchArgument('metrics_dir', default_value='metrics',
                               description='Directory for saving metrics (plots and CSV data)'),
         DeclareLaunchArgument('run', default_value='',
                               description='Directory for saving run data'),
+        DeclareLaunchArgument('export_viewpoint_voxels', default_value='false',
+                              description='Export per-viewpoint voxel snapshots as PLY files'),
+        DeclareLaunchArgument('viewpoint_voxel_export_dir', default_value='',
+                              description='Directory for saving per-viewpoint voxel snapshots'),
 
         # Firefly Camera Parameters
         DeclareLaunchArgument('calib_dir', default_value=PathJoinSubstitution([FindPackageShare('firefly-ros2-wrapper-bringup'), 'calibs']),
@@ -587,6 +577,8 @@ def generate_launch_description():
                               description='Enable semantic mode with detections for point cloud'),
         DeclareLaunchArgument('use_seg_detection', default_value='true',
                               description='Use segmentation detections for semantic point cloud coloring'),
+        DeclareLaunchArgument('color_by_class', default_value='true',
+                              description='Color point cloud by class instead of instance ID (only applies if use_seg_detection is true)'),
         DeclareLaunchArgument('enable_detection', default_value='true',
                               description='Enable YOLO detection node'),
         DeclareLaunchArgument('detection_model_dir', default_value=PathJoinSubstitution([FindPackageShare('multi_camera_rig_detection'), 'models']),
@@ -594,7 +586,9 @@ def generate_launch_description():
         DeclareLaunchArgument('detection_model_trt', default_value='best_lab_seg_v2.plan',
                               description='TensorRT engine file for YOLO detection model'),
         DeclareLaunchArgument('conf_thresh', default_value='0.3',
-                              description='Confidence threshold for YOLO detections'),
+                              description='Confidence threshold for YOLO detections. Also the threshold for considering a detection as "background" in semantic point cloud generation.'),
+        DeclareLaunchArgument('decimation_factor', default_value='1',
+                              description='Process every Nth frame (1 = all frames, 2 = every other frame, etc.)'),
 
         # Octomap Parameters
         DeclareLaunchArgument('octomap_resolution', default_value='0.04',

@@ -33,11 +33,11 @@ nbv_action_server:
     num_camera_rays: 25
 
     # Evaluation Parameters
-    enable_evaluation: false
-    eval_threshold_radius: 0.10
     gt_points_file: ""
     metrics_plots_dir: /tmp/nbv_metrics/plots
     metrics_data_dir: /tmp/nbv_metrics/data
+    export_viewpoint_voxels: false
+    viewpoint_voxel_export_dir: /tmp/nbv_metrics/voxels
 
     # General Parameters
     init_joint_angles_deg: [0.0, -20.0, -70.0, 0.0, 0.0, 90.0]
