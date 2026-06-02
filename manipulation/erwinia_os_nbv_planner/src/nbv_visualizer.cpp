@@ -42,12 +42,12 @@ namespace erwinia_os_nbv_planner
             return color;
         }
 
-        // Predefined color palette for classes 0-19
+        // Match the semantic octomap voxel palette from OccupancyMapVisualizer.
         const uint8_t palette[][3] = {
-            {230, 25, 75},   // Red - class 0
-            {60, 180, 75},   // Green - class 1
-            {255, 225, 25},  // Yellow - class 2
-            {0, 130, 200},   // Blue - class 3
+            {0, 150, 255},   // Blue - class 0
+            {230, 25, 75},   // Red - class 1
+            {60, 180, 75},   // Green - class 2
+            {255, 225, 25},  // Yellow - class 3
             {245, 130, 48},  // Orange - class 4
             {145, 30, 180},  // Purple - class 5
             {70, 240, 240},  // Cyan - class 6
@@ -1244,7 +1244,7 @@ namespace erwinia_os_nbv_planner
     }
 
     void NBVVisualizer::publishSemanticPoints(
-        const std::vector<SemanticPoint> &semantic_points,
+        const std::vector<GroundTruthSegment> &semantic_points,
         double size,
         float alpha,
         bool show_labels,
@@ -1274,7 +1274,7 @@ namespace erwinia_os_nbv_planner
             colors.push_back(colorForLabel(sp.class_id, alpha));
             if (show_labels)
             {
-                labels.push_back(std::to_string(sp.id));
+                labels.push_back(sp.id);
             }
         }
 
@@ -1293,10 +1293,10 @@ namespace erwinia_os_nbv_planner
         const std::string &frame_id)
     {
         // Keep track of all the gt points (correct, incorrect, both, and missed) and their labels/colors
-        std::vector<SemanticPoint> correct_gt_points;
-        std::vector<SemanticPoint> correct_incorrect_gt_points;
-        std::vector<SemanticPoint> incorrect_gt_points;
-        std::vector<SemanticPoint> missed_gt_points = match_result.unmatched_gt;
+        std::vector<GroundTruthSegment> correct_gt_points;
+        std::vector<GroundTruthSegment> correct_incorrect_gt_points;
+        std::vector<GroundTruthSegment> incorrect_gt_points;
+        std::vector<GroundTruthSegment> missed_gt_points = match_result.unmatched_gt;
 
         // Keep track of all the gt points to publish and their corresponding colors and labels
         std::vector<octomap::point3d> gt_points;
@@ -1368,7 +1368,7 @@ namespace erwinia_os_nbv_planner
         for (const auto &gt_pt : correct_gt_points)
         {
             gt_points.push_back(gt_pt.position);
-            labels.push_back(std::to_string(gt_pt.id));
+            labels.push_back(gt_pt.id);
             colors.push_back(correct_color);
         }
 
@@ -1376,7 +1376,7 @@ namespace erwinia_os_nbv_planner
         for (const auto &gt_pt : incorrect_gt_points)
         {
             gt_points.push_back(gt_pt.position);
-            labels.push_back(std::to_string(gt_pt.id));
+            labels.push_back(gt_pt.id);
             colors.push_back(incorrect_color);
         }
 
@@ -1384,7 +1384,7 @@ namespace erwinia_os_nbv_planner
         for (const auto &gt_pt : correct_incorrect_gt_points)
         {
             gt_points.push_back(gt_pt.position);
-            labels.push_back(std::to_string(gt_pt.id));
+            labels.push_back(gt_pt.id);
             colors.push_back(both_color);
         }
 
@@ -1392,7 +1392,7 @@ namespace erwinia_os_nbv_planner
         for (const auto &gt_pt : missed_gt_points)
         {
             gt_points.push_back(gt_pt.position);
-            labels.push_back(std::to_string(gt_pt.id));
+            labels.push_back(gt_pt.id);
             colors.push_back(missed_color);
         }
 

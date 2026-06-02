@@ -368,6 +368,19 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /yolo/debug_image
       Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: MarkerArray
+      Namespaces:
+        ground_truth_segments: true
+        ground_truth_segments_text: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /nbv_planner_visualization
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -414,7 +427,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 3.1924688816070557
+      Distance: 3.2767109870910645
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -429,10 +442,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.26539871096611023
+      Pitch: 0.2603987157344818
       Target Frame: amiga/base_link
       Value: Orbit (rviz)
-      Yaw: 2.261754274368286
+      Yaw: 2.2567551136016846
     Saved: ~
 Window Geometry:
   Displays:
