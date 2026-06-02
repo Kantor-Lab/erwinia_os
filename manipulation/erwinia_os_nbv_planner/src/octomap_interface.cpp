@@ -2,17 +2,13 @@
 #include "erwinia_os_occupancy_map/semantic_occupancy_map_tree.hpp"
 
 #include <octomap_msgs/conversions.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <cmath>
-#include <limits>
-#include <random>
-#include <numeric>
-#include <yaml-cpp/yaml.h>
 #include <fstream>
+#include <limits>
+#include <numeric>
+#include <random>
 #include <queue>
-#include <set>
-#include <sstream>
-#include <stdexcept>
+#include <type_traits>
 #include <unordered_set>
 
 namespace erwinia_os_nbv_planner
@@ -29,10 +25,6 @@ namespace erwinia_os_nbv_planner
         sub_ = node_->create_subscription<erwinia_os_occupancy_map::msg::CustomOctomap>(
             octomap_topic, qos,
             std::bind(&OctoMapInterface::onOctomap, this, std::placeholders::_1));
-
-        // Initialize TF2 for coordinate transformations
-        tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node_->get_clock());
-        tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
         RCLCPP_INFO(node_->get_logger(), "OctoMapInterface subscribing to %s", octomap_topic.c_str());
     }
@@ -550,84 +542,6 @@ namespace erwinia_os_nbv_planner
             return static_cast<int>(tree->getTreeDepth()); }, tree_);
     }
 
-    bool OctoMapInterface::loadGroundTruthSemantics(const std::string &yaml_file_path)
-    {
-        try
-        {
-            RCLCPP_INFO(node_->get_logger(), "Loading ground truth from: %s", yaml_file_path.c_str());
-
-            YAML::Node config = YAML::LoadFile(yaml_file_path);
-
-            if (!config["markers"])
-            {
-                RCLCPP_ERROR(node_->get_logger(), "YAML file does not contain 'markers' field");
-                return false;
-            }
-
-            // Read frame_id if present
-            if (config["frame_id"])
-            {
-                gt_frame_id_ = config["frame_id"].as<std::string>();
-                RCLCPP_INFO(node_->get_logger(), "Ground truth frame_id: %s", gt_frame_id_.c_str());
-            }
-            else
-            {
-                RCLCPP_WARN(node_->get_logger(), "No 'frame_id' field in YAML, frame consistency cannot be verified");
-                gt_frame_id_ = "";
-            }
-
-            gt_points_.clear();
-            gt_classes_.clear();
-            std::set<int32_t> unique_classes;
-
-            const YAML::Node &markers = config["markers"];
-            for (const auto &marker_node : markers)
-            {
-                SemanticPoint point;
-
-                if (!marker_node["id"] || !marker_node["class_id"] || !marker_node["position"])
-                {
-                    RCLCPP_WARN(node_->get_logger(), "Skipping marker with missing fields");
-                    continue;
-                }
-
-                point.id = marker_node["id"].as<int>();
-                point.class_id = marker_node["class_id"].as<int32_t>();
-
-                const YAML::Node &pos = marker_node["position"];
-                point.position = octomap::point3d(
-                    pos["x"].as<double>(),
-                    pos["y"].as<double>(),
-                    pos["z"].as<double>());
-
-                gt_points_.push_back(point);
-                unique_classes.insert(point.class_id);
-
-                RCLCPP_DEBUG(node_->get_logger(),
-                             "Loaded marker %d (class %d) at (%.3f, %.3f, %.3f)",
-                             point.id, point.class_id,
-                             point.position.x(), point.position.y(), point.position.z());
-            }
-
-            // Convert set to vector for gt_classes_
-            gt_classes_.assign(unique_classes.begin(), unique_classes.end());
-
-            RCLCPP_INFO(node_->get_logger(), "Loaded %zu ground truth markers with %zu unique classes", 
-                        gt_points_.size(), gt_classes_.size());
-            return true;
-        }
-        catch (const YAML::Exception &e)
-        {
-            RCLCPP_ERROR(node_->get_logger(), "YAML parsing error: %s", e.what());
-            return false;
-        }
-        catch (const std::exception &e)
-        {
-            RCLCPP_ERROR(node_->get_logger(), "Error loading ground truth: %s", e.what());
-            return false;
-        }
-    }
-
     std::vector<Cluster> OctoMapInterface::clusterSemanticVoxels(bool verbose) const
     {
         std::vector<Cluster> clusters;
@@ -685,6 +599,7 @@ namespace erwinia_os_nbv_planner
                 unvisited.erase(start_it);
 
                 double sum_x = 0, sum_y = 0, sum_z = 0;
+                float max_confidence = 0.0f;
 
                 while (!q.empty())
                 {
@@ -692,6 +607,10 @@ namespace erwinia_os_nbv_planner
 
                     // Convert key back to voxel center
                     octomap::point3d p = sem_tree->keyToCoord(cur);
+                    if (auto *node = sem_tree->search(cur))
+                    {
+                        max_confidence = std::max(max_confidence, node->getConfidence());
+                    }
                     cluster.points.push_back(p);
                     sum_x += p.x(); sum_y += p.y(); sum_z += p.z();
 
@@ -721,6 +640,7 @@ namespace erwinia_os_nbv_planner
                 {
                     cluster.center = octomap::point3d(sum_x/n, sum_y/n, sum_z/n);
                     cluster.size = static_cast<int>(n);
+                    cluster.max_confidence = max_confidence;
                     cluster.label = static_cast<int>(clusters.size());
                     clusters.push_back(std::move(cluster));
                 }
@@ -745,398 +665,6 @@ namespace erwinia_os_nbv_planner
             }
         }
         return clusters;
-    }
-
-    MatchResult OctoMapInterface::matchClustersToGroundTruth(const std::vector<Cluster> &clusters,
-                                                             double threshold_radius,
-                                                             bool verbose) const
-    {
-        MatchResult result;
-
-        if (gt_points_.empty())
-        {
-            if (verbose)
-                RCLCPP_WARN(node_->get_logger(), "No ground truth points loaded for matching");
-            // All clusters are unmatched (false positives)
-            result.unmatched_clusters = clusters;
-            return result;
-        }
-
-        // Get octomap frame (need to copy since we're const)
-        std::string octomap_frame;
-        {
-            std::shared_lock lk(mtx_);
-            octomap_frame = octomap_frame_id_;
-        }
-
-        // Transform GT points to octomap frame if necessary
-        std::vector<SemanticPoint> transformed_gt_points = gt_points_;
-        
-        if (!gt_frame_id_.empty() && !octomap_frame.empty())
-        {
-            if (gt_frame_id_ != octomap_frame)
-            {
-                RCLCPP_INFO(node_->get_logger(), 
-                    "Transforming ground truth from frame '%s' to octomap frame '%s'",
-                    gt_frame_id_.c_str(), octomap_frame.c_str());
-                
-                try
-                {
-                    // Get transform from GT frame to octomap frame
-                    geometry_msgs::msg::TransformStamped transform_stamped = 
-                        tf_buffer_->lookupTransform(octomap_frame, gt_frame_id_, 
-                                                   tf2::TimePointZero);
-                    
-                    // Transform each GT point
-                    for (auto& gt_point : transformed_gt_points)
-                    {
-                        geometry_msgs::msg::PointStamped point_in, point_out;
-                        point_in.header.frame_id = gt_frame_id_;
-                        point_in.point.x = gt_point.position.x();
-                        point_in.point.y = gt_point.position.y();
-                        point_in.point.z = gt_point.position.z();
-                        
-                        tf2::doTransform(point_in, point_out, transform_stamped);
-                        
-                        gt_point.position = octomap::point3d(
-                            point_out.point.x,
-                            point_out.point.y,
-                            point_out.point.z);
-                    }
-                    
-                    RCLCPP_INFO(node_->get_logger(), 
-                        "Successfully transformed %zu ground truth points",
-                        transformed_gt_points.size());
-                }
-                catch (const tf2::TransformException& ex)
-                {
-                    RCLCPP_ERROR(node_->get_logger(), 
-                        "Failed to transform ground truth points: %s. "
-                        "Proceeding with original coordinates (may produce incorrect results).",
-                        ex.what());
-                    // Keep original points if transform fails
-                }
-            }
-            else
-            {
-                RCLCPP_INFO(node_->get_logger(), 
-                    "Ground truth and octomap are in same frame '%s'", 
-                    gt_frame_id_.c_str());
-            }
-        }
-        else
-        {
-            RCLCPP_WARN(node_->get_logger(), 
-                "Frame IDs not available (GT: '%s', octomap: '%s') - assuming same frame",
-                gt_frame_id_.c_str(), octomap_frame.c_str());
-        }
-
-        // Warn about any GT points that fall outside the octomap bounding box.
-        // These can never produce a match and almost certainly indicate a frame or
-        // configuration mistake.
-        {
-            std::shared_lock lk(mtx_);
-            if (has_valid_bbox_)
-            {
-                for (const auto &gt_pt : transformed_gt_points)
-                {
-                    const auto &p = gt_pt.position;
-                    if (p.x() < bbox_min_.x() || p.x() > bbox_max_.x() ||
-                        p.y() < bbox_min_.y() || p.y() > bbox_max_.y() ||
-                        p.z() < bbox_min_.z() || p.z() > bbox_max_.z())
-                    {
-                        const std::string msg = [&] {
-                            std::ostringstream oss;
-                            oss << "Ground truth point (class " << gt_pt.class_id << ") ["
-                                << p.x() << ", " << p.y() << ", " << p.z()
-                                << "] is OUTSIDE the octomap bounding box ["
-                                << bbox_min_.x() << "," << bbox_min_.y() << "," << bbox_min_.z()
-                                << "] -> ["
-                                << bbox_max_.x() << "," << bbox_max_.y() << "," << bbox_max_.z()
-                                << "]. Check GT frame_id / transform.";
-                            return oss.str();
-                        }();
-                        RCLCPP_FATAL(node_->get_logger(), "%s", msg.c_str());
-                        throw std::runtime_error(msg);
-                    }
-                }
-            }
-        }
-
-        if (verbose)
-        {
-            RCLCPP_INFO(node_->get_logger(), "Matching %zu clusters to %zu ground truth points (threshold: %.3f m)",
-                        clusters.size(), transformed_gt_points.size(), threshold_radius);
-        }
-
-        double threshold_sq = threshold_radius * threshold_radius;
-        std::set<size_t> matched_cluster_indices;
-
-        // For each GT point, find all clusters within threshold
-        for (size_t j = 0; j < transformed_gt_points.size(); ++j)
-        {
-            const auto &gt_point = transformed_gt_points[j];
-
-            std::vector<Cluster> matching_class_clusters;
-            std::vector<double> matching_class_distances;
-            std::vector<Cluster> mismatching_class_clusters;
-            std::vector<double> mismatching_class_distances;
-
-            // Find all clusters within threshold of this GT point
-            for (size_t i = 0; i < clusters.size(); ++i)
-            {
-                const auto &cluster = clusters[i];
-                double dist_sq = sqdist(cluster.center, gt_point.position);
-
-                if (dist_sq <= threshold_sq)
-                {
-                    double distance = std::sqrt(dist_sq);
-                    matched_cluster_indices.insert(i);
-
-                    if (cluster.class_id == gt_point.class_id)
-                    {
-                        matching_class_clusters.push_back(cluster);
-                        matching_class_distances.push_back(distance);
-
-                        if (verbose)
-                        {
-                            RCLCPP_DEBUG(node_->get_logger(),
-                                         "✓ Cluster %zu (class %d, %zu voxels) matched GT marker %d at dist=%.3f m",
-                                         i, cluster.class_id, cluster.points.size(),
-                                         gt_point.id, distance);
-                        }
-                    }
-                    else
-                    {
-                        mismatching_class_clusters.push_back(cluster);
-                        mismatching_class_distances.push_back(distance);
-
-                        if (verbose)
-                        {
-                            RCLCPP_WARN(node_->get_logger(),
-                                        "✗ Cluster %zu (class %d) matched GT marker %d (class %d) but classes differ! dist=%.3f m",
-                                        i, cluster.class_id, gt_point.id, gt_point.class_id, distance);
-                        }
-                    }
-                }
-            }
-
-            // Create match entries for this GT point
-            if (!matching_class_clusters.empty())
-            {
-                Match match;
-                match.gt_point = gt_point;
-                match.clusters = matching_class_clusters;
-                match.distances = matching_class_distances;
-                result.correct_matches.push_back(match);
-            }
-
-            if (!mismatching_class_clusters.empty())
-            {
-                Match match;
-                match.gt_point = gt_point;
-                match.clusters = mismatching_class_clusters;
-                match.distances = mismatching_class_distances;
-                result.class_mismatches.push_back(match);
-            }
-
-            // If no clusters matched this GT point, it's a false negative
-            if (matching_class_clusters.empty() && mismatching_class_clusters.empty())
-            {
-                result.unmatched_gt.push_back(gt_point);
-            }
-        }
-
-        // Collect unmatched clusters (false positives)
-        for (size_t i = 0; i < clusters.size(); ++i)
-        {
-            if (matched_cluster_indices.find(i) == matched_cluster_indices.end())
-            {
-                result.unmatched_clusters.push_back(clusters[i]);
-            }
-        }
-
-        if (verbose)
-        {
-            RCLCPP_INFO(node_->get_logger(),
-                        "Matching complete: %zu correct GT points, %zu mismatched GT points, %zu unmatched GT, %zu unmatched clusters",
-                        result.correct_matches.size(), result.class_mismatches.size(),
-                        result.unmatched_gt.size(), result.unmatched_clusters.size());
-        }
-
-        return result;
-    }
-
-    std::vector<ClassMetrics> OctoMapInterface::evaluateMatchResults(const MatchResult &result, bool verbose) const
-    {
-        // Debug: Print input summary
-        RCLCPP_DEBUG(node_->get_logger(), "\n=== DEBUG: Evaluation Input ===");
-        RCLCPP_DEBUG(node_->get_logger(), "GT classes count: %zu", gt_classes_.size());
-        RCLCPP_DEBUG(node_->get_logger(), "Correct matches: %zu", result.correct_matches.size());
-        RCLCPP_DEBUG(node_->get_logger(), "Class mismatches: %zu", result.class_mismatches.size());
-        RCLCPP_DEBUG(node_->get_logger(), "Unmatched GT points: %zu", result.unmatched_gt.size());
-        RCLCPP_DEBUG(node_->get_logger(), "Unmatched clusters: %zu", result.unmatched_clusters.size());
-
-        // Determine the number of unique classes in GT and predictions and fill out the metrics vector
-        std::vector<ClassMetrics> metrics;
-        for (size_t i = 0; i < gt_classes_.size(); ++i)
-        {
-            // Create a ClassMetrics entry for each class and define the class_id
-            ClassMetrics cm;
-            cm.class_id = gt_classes_[i];
-
-            RCLCPP_DEBUG(node_->get_logger(), "\n--- Processing class %d ---", cm.class_id);
-
-            // Count true positive clusters for this class by summing clusters from correct matches that belong to this class
-            for (const auto &match : result.correct_matches)
-            {
-                RCLCPP_DEBUG(node_->get_logger(), "Checking correct match: GT class=%d vs target class=%d", match.gt_point.class_id, cm.class_id);
-                if (match.gt_point.class_id == cm.class_id)
-                {
-                    RCLCPP_DEBUG(node_->get_logger(), "Match! Adding %zu clusters", match.clusters.size());
-                    cm.tp_clusters += static_cast<int>(match.clusters.size());
-                }
-            }
-
-            // Count false positives for this class by summing unmatched clusters that belong to this class
-            for (const auto &cluster : result.unmatched_clusters)
-            {
-                if (cluster.class_id == cm.class_id)
-                {
-                    RCLCPP_DEBUG(node_->get_logger(), "Unmatched cluster: class=%d", cluster.class_id);
-                    cm.fp_clusters += 1;
-                }
-            }
-            
-            // The class mismatches also are counted as false positives for the predicted clusters
-            for (const auto &mismatch : result.class_mismatches)
-            {
-                for (const auto &cluster : mismatch.clusters)
-                {                   
-                    if (cluster.class_id == cm.class_id)
-                    {
-                        RCLCPP_DEBUG(node_->get_logger(), "Mismatched cluster: cluster_class=%d", cluster.class_id);
-                        cm.fp_clusters += 1;
-                    }
-                }
-            }
-
-            // Count true positives for GT points of this class
-            for (const auto &match : result.correct_matches)
-            {
-                RCLCPP_DEBUG(node_->get_logger(), "Checking TP point: GT class=%d vs target class=%d", match.gt_point.class_id, cm.class_id);
-                if (match.gt_point.class_id == cm.class_id)
-                {
-                    RCLCPP_DEBUG(node_->get_logger(), "TP point match!");
-                    cm.tp_points += 1;
-                }
-            }
-
-            // Count false negatives for GT points of this class
-            for (const auto &gt : result.unmatched_gt)
-            {
-                RCLCPP_DEBUG(node_->get_logger(), "Checking FN point: GT class=%d vs target class=%d", gt.class_id, cm.class_id);
-                if (gt.class_id == cm.class_id)
-                {
-                    RCLCPP_DEBUG(node_->get_logger(), "FN point match!");
-                    cm.fn_points += 1;
-                }
-            }
-            
-            // The class mismatches also are counted as false negatives for the GT points
-            for (const auto &mismatch : result.class_mismatches)
-            {
-                if (mismatch.gt_point.class_id == cm.class_id)
-                {
-                    RCLCPP_DEBUG(node_->get_logger(), "FN point (mismatch): GT marker %d", mismatch.gt_point.id);
-                    cm.fn_points += 1;
-                }
-            }
-            
-            RCLCPP_DEBUG(node_->get_logger(), "Final counts for class %d: TP_clusters=%d, FP_clusters=%d, TP_points=%d, FN_points=%d",
-                        cm.class_id, cm.tp_clusters, cm.fp_clusters, cm.tp_points, cm.fn_points);
-            
-            // Compute the precision, recall, and F1 score for this class
-            cm.precision = (cm.tp_clusters + cm.fp_clusters) > 0 ? static_cast<double>(cm.tp_clusters) / (cm.tp_clusters + cm.fp_clusters) : 0.0;
-            cm.recall = (cm.tp_points + cm.fn_points) > 0 ? static_cast<double>(cm.tp_points) / (cm.tp_points + cm.fn_points) : 0.0;
-            cm.f1_score = (cm.precision + cm.recall) > 0 ? 2.0 * cm.precision * cm.recall / (cm.precision + cm.recall) : 0.0;
-            
-            // Push the completed metrics object to the vector AFTER all modifications
-            metrics.push_back(cm);
-        }
-
-        // Verbose output
-        if (verbose)
-        {
-            // List correctly matched GT points
-            if (!result.correct_matches.empty())
-            {
-                RCLCPP_INFO(node_->get_logger(), "\nCorrectly Matched GT Points:");
-                for (const auto &match : result.correct_matches)
-                {
-                    RCLCPP_INFO(node_->get_logger(),
-                                "  Marker %d (class %d) at (%.2f, %.2f, %.2f) - %zu clusters:",
-                                match.gt_point.id, match.gt_point.class_id,
-                                match.gt_point.position.x(), match.gt_point.position.y(),
-                                match.gt_point.position.z(), match.clusters.size());
-                    for (size_t i = 0; i < match.clusters.size(); ++i)
-                    {
-                        RCLCPP_INFO(node_->get_logger(),
-                                    "    - Cluster (class %d, %zu voxels) at dist=%.3f m",
-                                    match.clusters[i].class_id, match.clusters[i].points.size(),
-                                    match.distances[i]);
-                    }
-                }
-            }
-
-            // List class mismatches
-            if (!result.class_mismatches.empty())
-            {
-                RCLCPP_INFO(node_->get_logger(), "\nGT Points with Class Mismatches:");
-                for (const auto &match : result.class_mismatches)
-                {
-                    RCLCPP_INFO(node_->get_logger(),
-                                "  Marker %d (class %d) at (%.2f, %.2f, %.2f) - %zu mismatched clusters:",
-                                match.gt_point.id, match.gt_point.class_id,
-                                match.gt_point.position.x(), match.gt_point.position.y(),
-                                match.gt_point.position.z(), match.clusters.size());
-                    for (size_t i = 0; i < match.clusters.size(); ++i)
-                    {
-                        RCLCPP_INFO(node_->get_logger(),
-                                    "    - Cluster (class %d, %zu voxels) at dist=%.3f m",
-                                    match.clusters[i].class_id, match.clusters[i].points.size(),
-                                    match.distances[i]);
-                    }
-                }
-            }
-
-            // List unmatched GT points
-            if (!result.unmatched_gt.empty())
-            {
-                RCLCPP_INFO(node_->get_logger(), "\nUnmatched GT Points:");
-                for (const auto &gt : result.unmatched_gt)
-                {
-                    RCLCPP_INFO(node_->get_logger(),
-                                "  Marker %d (class %d) at (%.2f, %.2f, %.2f)",
-                                gt.id, gt.class_id,
-                                gt.position.x(), gt.position.y(), gt.position.z());
-                }
-            }
-
-            // List unmatched clusters
-            if (!result.unmatched_clusters.empty())
-            {
-                RCLCPP_INFO(node_->get_logger(), "\nUnmatched Clusters:");
-                for (const auto &cluster : result.unmatched_clusters)
-                {                    RCLCPP_INFO(node_->get_logger(),
-                                "  Cluster (class %d, %zu voxels) at (%.2f, %.2f, %.2f)",
-                                cluster.class_id, cluster.points.size(),
-                                cluster.center.x(), cluster.center.y(), cluster.center.z());
-                }
-            }
-        }
-        
-        return metrics;
     }
 
     std::pair<size_t, size_t> OctoMapInterface::getVoxelCounts() const
@@ -1242,35 +770,41 @@ namespace erwinia_os_nbv_planner
         RCLCPP_INFO(node_->get_logger(), "==========================\n");
     }
 
-    std::vector<ClassMetrics> OctoMapInterface::evaluateSemanticOctomap(double threshold_radius, bool verbose)
+    std::vector<VoxelSample> OctoMapInterface::getVoxelSamples(bool include_free) const
     {
-        if (!isSemanticTree())
+        std::vector<VoxelSample> samples;
+        std::shared_lock lk(mtx_);
+
+        std::visit([&](auto &&tree)
         {
-            RCLCPP_WARN(node_->get_logger(), "Cannot evaluate: current tree is not semantic");
-            return {};
-        }
+            if (!tree)
+            {
+                return;
+            }
 
-        if (gt_points_.empty())
-        {
-            RCLCPP_WARN(node_->get_logger(), "Cannot evaluate: no ground truth points loaded");
-            return {};
-        }
+            for (auto it = tree->begin_leafs(); it != tree->end_leafs(); ++it)
+            {
+                VoxelSample sample;
+                sample.center = it.getCoordinate();
+                sample.occupied = tree->isNodeOccupied(*it);
+                if (!sample.occupied && !include_free)
+                {
+                    continue;
+                }
 
-        if (verbose)
-        {
-            RCLCPP_INFO(node_->get_logger(), "\n=== Semantic Octomap Evaluation ===");
-            RCLCPP_INFO(node_->get_logger(), "Ground truth points: %zu", gt_points_.size());
-            RCLCPP_INFO(node_->get_logger(), "Match threshold radius: %.3f m", threshold_radius);
-        }
+                if constexpr (std::is_same_v<std::decay_t<decltype(tree)>, std::shared_ptr<octomap::SemanticOcTree>>)
+                {
+                    sample.class_id = sample.occupied ? it->getClassId() : -1;
+                }
+                else
+                {
+                    sample.class_id = sample.occupied ? 0 : -1;
+                }
+                samples.push_back(sample);
+            }
+        }, tree_);
 
-        // Step 1: Cluster semantic voxels by class
-        auto clusters = clusterSemanticVoxels(verbose);
-
-        // Step 2: Match clusters to ground truth
-        auto match_result = matchClustersToGroundTruth(clusters, threshold_radius, verbose);
-
-        // Step 3: Evaluate and print metrics
-        return evaluateMatchResults(match_result, verbose);
+        return samples;
     }
 
 }
