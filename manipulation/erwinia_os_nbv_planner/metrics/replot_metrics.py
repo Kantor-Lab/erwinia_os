@@ -667,12 +667,20 @@ def plot_metrics(
     if len(metrics) == 1:
         axes = [axes]
 
-    palette = ["#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4", "#42d4f4", "#f032e6", "#469990"]
     plotdata_rows = []
     n_series = max(1, len(run_data) + len(planner_meanstd_runs) + len(planner_meanstd_trees))
 
+    # Build a palette large enough that colors never repeat.
+    # Sample tab20 → tab20b → tab20c (60 perceptually distinct colors total),
+    # then fill any remainder with evenly-spaced HSV hues.
+    _cmaps = [plt.cm.tab20, plt.cm.tab20b, plt.cm.tab20c]
+    palette = [c for cm in _cmaps for c in (cm(i / (cm.N - 1)) for i in range(cm.N))]
+    if len(palette) < n_series:
+        existing = len(palette)
+        palette += [plt.cm.hsv(i / (n_series - existing)) for i in range(n_series - existing)]
+
     for ax, metric in zip(axes, metrics):
-        color_iter = (palette[i % len(palette)] for i in range(n_series))
+        color_iter = iter(palette)
 
         for name, df in run_data.items():
             color = next(color_iter)

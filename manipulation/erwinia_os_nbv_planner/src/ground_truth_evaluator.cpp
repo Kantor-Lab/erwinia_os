@@ -173,18 +173,29 @@ ViewpointEvaluation GroundTruthEvaluator::buildViewpointEvaluation(
     if (bbox.has_value())
     {
         const auto &[bbx_min, bbx_max] = bbox.value();
-        for (const auto &gt_segment : evaluation.gt_segments)
-        {
-            const auto &p = gt_segment.position;
-            if (p.x() < bbx_min.x() || p.x() > bbx_max.x() ||
-                p.y() < bbx_min.y() || p.y() > bbx_max.y() ||
-                p.z() < bbx_min.z() || p.z() > bbx_max.z())
-            {
-                std::ostringstream oss;
-                oss << "GT segment " << gt_segment.id << " is outside the octomap bounding box";
-                throw std::runtime_error(oss.str());
-            }
-        }
+        auto &segs = evaluation.gt_segments;
+        segs.erase(
+            std::remove_if(segs.begin(), segs.end(),
+                [&](const GroundTruthSegment &gt_segment)
+                {
+                    const auto &p = gt_segment.position;
+                    if (p.x() < bbx_min.x() || p.x() > bbx_max.x() ||
+                        p.y() < bbx_min.y() || p.y() > bbx_max.y() ||
+                        p.z() < bbx_min.z() || p.z() > bbx_max.z())
+                    {
+                        RCLCPP_WARN(
+                            node_->get_logger(),
+                            "GT segment %s (count=%d) at (%.3f, %.3f, %.3f) is outside "
+                            "the octomap bounding box [(%.3f,%.3f,%.3f)-(%.3f,%.3f,%.3f)] — skipping",
+                            gt_segment.id.c_str(), gt_segment.count,
+                            p.x(), p.y(), p.z(),
+                            bbx_min.x(), bbx_min.y(), bbx_min.z(),
+                            bbx_max.x(), bbx_max.y(), bbx_max.z());
+                        return true;
+                    }
+                    return false;
+                }),
+            segs.end());
     }
     if (camera_pose.has_value())
     {

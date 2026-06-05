@@ -40,12 +40,12 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "metrics/penn_state/tree_12/gt_points.json",
         {"decimation_factor": "2"},
     ),
-    (
-        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_eval_recordings/recording_volumetric_2/",
-        "tree_12/volumetric/",
-        "metrics/penn_state/tree_12/gt_points.json",
-        {},
-    ),
+    # (
+    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_eval_recordings/recording_volumetric_2/",
+    #     "tree_12/volumetric/",
+    #     "metrics/penn_state/tree_12/gt_points.json",
+    #     {},
+    # ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_eval_recordings/recording_semantic_2/",
         "tree_12/semantic/",
@@ -58,12 +58,12 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "metrics/penn_state/tree_11/gt_points.json",
         {"decimation_factor": "2"},
     ),
-    (
-        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_eval_recordings/recording_volumetric_1/",
-        "tree_11/volumetric/",
-        "metrics/penn_state/tree_11/gt_points.json",
-        {},
-    ),
+    # (
+    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_eval_recordings/recording_volumetric_1/",
+    #     "tree_11/volumetric/",
+    #     "metrics/penn_state/tree_11/gt_points.json",
+    #     {},
+    # ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_eval_recordings/recording_semantic_1/",
         "tree_11/semantic/",
@@ -76,12 +76,12 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "metrics/penn_state/tree_10/gt_points.json",
         {"decimation_factor": "2"},
     ),
-    (
-        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_10/",
-        "tree_10/volumetric/",
-        "metrics/penn_state/tree_10/gt_points.json",
-        {},
-    ),
+    # (
+    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_10/",
+    #     "tree_10/volumetric/",
+    #     "metrics/penn_state/tree_10/gt_points.json",
+    #     {},
+    # ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_semantic_10/",
         "tree_10/semantic/",
@@ -94,19 +94,238 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "metrics/penn_state/tree_9/gt_points.json",
         {"decimation_factor": "2"},
     ),
-    (
-        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_9/",
-        "tree_9/volumetric/",
-        "metrics/penn_state/tree_9/gt_points.json",
-        {},
-    ),
+    # (
+    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_9/",
+    #     "tree_9/volumetric/",
+    #     "metrics/penn_state/tree_9/gt_points.json",
+    #     {},
+    # ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_semantic_9/",
         "tree_9/semantic/",
         "metrics/penn_state/tree_9/gt_points.json",
         {},
     ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_baseline_8/",
+        "tree_8/baseline/",
+        "metrics/penn_state/tree_8/gt_points.json",
+        {"decimation_factor": "2"},
+    ),
+    # (
+    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_8/",
+    #     "tree_8/volumetric/",
+    #     "metrics/penn_state/tree_8/gt_points.json",
+    #     {},
+    # ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_semantic_8/",
+        "tree_8/semantic/",
+        "metrics/penn_state/tree_8/gt_points.json",
+        {},
+    ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_baseline_7/",
+        "tree_7/baseline/",
+        "metrics/penn_state/tree_7/gt_points.json",
+        {"decimation_factor": "2"},
+    ),
+    # (
+    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_7/",
+    #     "tree_7/volumetric/",
+    #     "metrics/penn_state/tree_7/gt_points.json",
+    #     {},
+    # ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_semantic_7/",
+        "tree_7/semantic/",
+        "metrics/penn_state/tree_7/gt_points.json",
+        {},
+    ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_baseline_6/",
+        "tree_6/baseline/",
+        "metrics/penn_state/tree_6/gt_points.json",
+        {"decimation_factor": "2"},
+    ),
+    # (
+    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_6/",
+    #     "tree_6/volumetric/",
+    #     "metrics/penn_state/tree_6/gt_points.json",
+    #     {},
+    # ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_semantic_6/",
+        "tree_6/semantic/",
+        "metrics/penn_state/tree_6/gt_points.json",
+        {},
+    ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_baseline_5/",
+        "tree_5/baseline/",
+        "metrics/penn_state/tree_5/gt_points.json",
+        {"decimation_factor": "2"},
+    ),
+    # (
+    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_5/",
+    #     "tree_5/volumetric/",
+    #     "metrics/penn_state/tree_5/gt_points.json",
+    #     {},
+    # ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_semantic_5/",
+        "tree_5/semantic/",
+        "metrics/penn_state/tree_5/gt_points.json",
+        {},
+    ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_baseline_4/",
+        "tree_4/baseline/",
+        "metrics/penn_state/tree_4/gt_points.json",
+        {"decimation_factor": "2"},
+    ),
+    # (
+    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_4/",
+    #     "tree_4/volumetric/",
+    #     "metrics/penn_state/tree_4/gt_points.json",
+    #     {},
+    # ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_semantic_4/",
+        "tree_4/semantic/",
+        "metrics/penn_state/tree_4/gt_points.json",
+        {},
+    ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_baseline_3/",
+        "tree_3/baseline/",
+        "metrics/penn_state/tree_3/gt_points.json",
+        {"decimation_factor": "2"},
+    ),
+    # (
+    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_3/",
+    #     "tree_3/volumetric/",
+    #     "metrics/penn_state/tree_3/gt_points.json",
+    #     {},
+    # ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_semantic_3/",
+        "tree_3/semantic/",
+        "metrics/penn_state/tree_3/gt_points.json",
+        {},
+    ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_baseline_2/",
+        "tree_2/baseline/",
+        "metrics/penn_state/tree_2/gt_points.json",
+        {"decimation_factor": "2"},
+    ),
+    # (
+    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_2/",
+    #     "tree_2/volumetric/",
+    #     "metrics/penn_state/tree_2/gt_points.json",
+    #     {},
+    # ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_semantic_2/",
+        "tree_2/semantic/",
+        "metrics/penn_state/tree_2/gt_points.json",
+        {},
+    ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_baseline_1/",
+        "tree_1/baseline/",
+        "metrics/penn_state/tree_1/gt_points.json",
+        {"decimation_factor": "2"},
+    ),
+    # (
+    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_1/",
+    #     "tree_1/volumetric/",
+    #     "metrics/penn_state/tree_1/gt_points.json",
+    #     {},
+    # ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_semantic_1/",
+        "tree_1/semantic/",
+        "metrics/penn_state/tree_1/gt_points.json",
+        {},
+    ),
 ]
+
+# ============================================================================
+# ABLATION STUDIES — generated programmatically to avoid repetition.
+#
+# For every (baseline, semantic) pair across all trees we run 8 extra passes,
+# each varying one parameter at two extremes (low / high) while keeping all
+# other params at their NBV_BASE_PARAMS defaults.
+#
+# Naming: tree_N/<planner>_<param>_<level>/
+#   e.g.  tree_5/baseline_res_low/   tree_5/semantic_conf_high/
+# ============================================================================
+
+_EVAL_BASE = "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2"
+
+# (tree_id, baseline_bag, semantic_bag)
+_ABLATION_TREES: List[Tuple[int, str, str]] = [
+    (12, f"{_EVAL_BASE}/robot_eval_recordings/recording_baseline_2/",
+         f"{_EVAL_BASE}/robot_eval_recordings/recording_semantic_2/"),
+    (11, f"{_EVAL_BASE}/robot_eval_recordings/recording_baseline_1/",
+         f"{_EVAL_BASE}/robot_eval_recordings/recording_semantic_1/"),
+    (10, f"{_EVAL_BASE}/robot_demo_recordings/day1/recording_baseline_10/",
+         f"{_EVAL_BASE}/robot_demo_recordings/day1/recording_semantic_10/"),
+    (9,  f"{_EVAL_BASE}/robot_demo_recordings/day1/recording_baseline_9/",
+         f"{_EVAL_BASE}/robot_demo_recordings/day1/recording_semantic_9/"),
+    (8,  f"{_EVAL_BASE}/robot_demo_recordings/day1/recording_baseline_8/",
+         f"{_EVAL_BASE}/robot_demo_recordings/day1/recording_semantic_8/"),
+    (7,  f"{_EVAL_BASE}/robot_demo_recordings/day1/recording_baseline_7/",
+         f"{_EVAL_BASE}/robot_demo_recordings/day1/recording_semantic_7/"),
+    (6,  f"{_EVAL_BASE}/robot_demo_recordings/day1/recording_baseline_6/",
+         f"{_EVAL_BASE}/robot_demo_recordings/day1/recording_semantic_6/"),
+    (5,  f"{_EVAL_BASE}/robot_demo_recordings/day1/recording_baseline_5/",
+         f"{_EVAL_BASE}/robot_demo_recordings/day1/recording_semantic_5/"),
+    (4,  f"{_EVAL_BASE}/robot_demo_recordings/day1/recording_baseline_4/",
+         f"{_EVAL_BASE}/robot_demo_recordings/day1/recording_semantic_4/"),
+    (3,  f"{_EVAL_BASE}/robot_demo_recordings/day1/recording_baseline_3/",
+         f"{_EVAL_BASE}/robot_demo_recordings/day1/recording_semantic_3/"),
+    (2,  f"{_EVAL_BASE}/robot_demo_recordings/day1/recording_baseline_2/",
+         f"{_EVAL_BASE}/robot_demo_recordings/day1/recording_semantic_2/"),
+    (1,  f"{_EVAL_BASE}/robot_demo_recordings/day1/recording_baseline_1/",
+         f"{_EVAL_BASE}/robot_demo_recordings/day1/recording_semantic_1/"),
+]
+
+# (run_name_suffix, param_overrides)
+# The suffix becomes part of the output directory name so results are
+# self-documenting.  Baseline runs additionally carry decimation_factor=2.
+_ABLATION_PASSES: List[Tuple[str, dict]] = [
+    # Octomap resolution — affects map fidelity for both planners
+    ("res_low",      {"octomap_resolution": "0.04"}),   # coarser  (default 0.02)
+    ("res_high",     {"octomap_resolution": "0.01"}),   # finer    (default 0.02)
+    # Semantic mismatch penalty — penalises label disagreement in the semantic map
+    ("penalty_low",  {"semantic_mismatch_penalty": "0.1"}),  # default 0.2
+    ("penalty_high", {"semantic_mismatch_penalty": "0.4"}),  # default 0.2
+    # Semantic confidence boost — rewards label agreement
+    ("boost_low",    {"semantic_confidence_boost": "0.15"}), # default 0.3
+    ("boost_high",   {"semantic_confidence_boost": "0.5"}),  # default 0.3
+    # Detection confidence threshold — controls which detections enter the map
+    ("conf_low",     {"conf_thresh": "0.05"}),           # default 0.15
+    ("conf_high",    {"conf_thresh": "0.30"}),           # default 0.15
+]
+
+for _suffix, _overrides in _ABLATION_PASSES:
+    for _tree_id, _baseline_bag, _semantic_bag in _ABLATION_TREES:
+        _gt = f"metrics/penn_state/tree_{_tree_id}/gt_points.json"
+        EXPERIMENT_CONFIGS.append((
+            _baseline_bag,
+            f"tree_{_tree_id}/baseline_{_suffix}/",
+            _gt,
+            {"decimation_factor": "2", **_overrides},
+        ))
+        EXPERIMENT_CONFIGS.append((
+            _semantic_bag,
+            f"tree_{_tree_id}/semantic_{_suffix}/",
+            _gt,
+            _overrides,
+        ))
 
 # NBV demo launch parameters (these stay the same across runs)
 NBV_BASE_PARAMS = {
@@ -155,6 +374,12 @@ PLOT_METRICS = [
 # replot_metrics.py lives next to this script.
 REPLOT_SCRIPT = str(Path(__file__).resolve().parent / "replot_metrics.py")
 
+# Rosbag playback rate multiplier (1.0 = real-time, 2.0 = 2x speed, etc.).
+# All sim-time-driven nodes (octomap, evaluator) scale automatically via /clock.
+# Note: the stereo matcher and YOLO detector are compute-bound — at rates above
+# ~2x you may start dropping frames if the GPU can't keep up.
+ROSBAG_PLAYBACK_RATE = 2.0
+
 # Seconds to wait for nbv_demo to initialize before starting the rosbag
 NBV_STARTUP_WAIT = 5
 
@@ -199,14 +424,28 @@ def build_playback_launch_command() -> List[str]:
 
 def build_rosbag_command(rosbag_path: str) -> List[str]:
     """Build the ros2 bag play command."""
-    cmd = ["ros2", "bag", "play", rosbag_path, "--clock", "--topics"]
+    cmd = ["ros2", "bag", "play", rosbag_path, "--clock",
+           "--rate", str(ROSBAG_PLAYBACK_RATE), "--topics"]
     cmd.extend(ROSBAG_TOPICS)
     return cmd
 
 
-def start_process(cmd: List[str]) -> subprocess.Popen:
+def start_process(cmd: List[str], log_path: Optional[str] = None) -> subprocess.Popen:
     """Start a process in its own session/process group so the whole tree
-    (including child nodes spawned by ros2 launch) can be signaled together."""
+    (including child nodes spawned by ros2 launch) can be signaled together.
+
+    If log_path is given, stdout and stderr are tee'd to that file so warnings
+    emitted by ROS nodes can be inspected after the run.
+    """
+    if log_path:
+        Path(log_path).parent.mkdir(parents=True, exist_ok=True)
+        log_file = open(log_path, "w")
+        return subprocess.Popen(
+            cmd,
+            stdout=log_file,
+            stderr=log_file,
+            start_new_session=True,
+        )
     return subprocess.Popen(
         cmd,
         stdout=subprocess.DEVNULL,
@@ -316,6 +555,32 @@ def ensure_clean_node_graph() -> bool:
 
 
 # ============================================================================
+# LOG SCANNING
+# ============================================================================
+
+# Lines from the nbv_demo log that contain these substrings are surfaced after
+# each experiment. The GT_BBOX_WARNING tag is emitted by the evaluator when a
+# GT segment lies outside the octomap bounding box.
+LOG_WARN_PATTERNS = ["WARN", "ERROR"]
+
+
+def report_run_warnings(log_path: str) -> int:
+    """Print any warning/error lines from a run log. Returns the count found."""
+    try:
+        with open(log_path) as f:
+            lines = f.readlines()
+    except OSError:
+        return 0
+
+    hits = [l.rstrip() for l in lines if any(p in l for p in LOG_WARN_PATTERNS)]
+    if hits:
+        print(f"\n  [nbv_demo log warnings from {log_path}]")
+        for line in hits:
+            print(f"    {line}")
+    return len(hits)
+
+
+# ============================================================================
 # EXPERIMENT RUNNER
 # ============================================================================
 
@@ -340,6 +605,12 @@ def run_experiment(rosbag_path: str, run_name: str, gt_points_file: str, extra_p
         return False
     print("  Node graph is clean\n")
 
+    # Log file for nbv_demo stdout+stderr; warnings are surfaced after the run.
+    nbv_log_path = str(
+        Path(NBV_BASE_PARAMS["metrics_dir"]) / run_name.strip("/") / "nbv_demo.log"
+    )
+    print(f"  nbv_demo log: {nbv_log_path}\n")
+
     playback_process: Optional[subprocess.Popen] = None
     nbv_process: Optional[subprocess.Popen] = None
     rosbag_process: Optional[subprocess.Popen] = None
@@ -349,13 +620,14 @@ def run_experiment(rosbag_path: str, run_name: str, gt_points_file: str, extra_p
         nbv_cmd = build_nbv_launch_command(run_name, gt_points_file, extra_params)
         print("[2/6] Launching nbv_demo...")
         print(f"  Command: {' '.join(nbv_cmd)}\n")
-        nbv_process = start_process(nbv_cmd)
+        nbv_process = start_process(nbv_cmd, log_path=nbv_log_path)
 
         # Step 2: Wait for NBV to initialize
         print(f"[3/6] Waiting {NBV_STARTUP_WAIT}s for nbv_demo to initialize...")
         time.sleep(NBV_STARTUP_WAIT)
         if nbv_process.poll() is not None:
             print("ERROR: nbv_demo exited prematurely")
+            report_run_warnings(nbv_log_path)
             return False
         print(f"  nbv_demo is running (PID: {nbv_process.pid})\n")
 
@@ -368,6 +640,7 @@ def run_experiment(rosbag_path: str, run_name: str, gt_points_file: str, extra_p
         time.sleep(NBV_STARTUP_WAIT)
         if playback_process.poll() is not None:
             print("ERROR: rosbag_playback exited prematurely")
+            report_run_warnings(nbv_log_path)
             return False
         print(f"  rosbag_playback is running (PID: {playback_process.pid})\n")
 
@@ -385,6 +658,7 @@ def run_experiment(rosbag_path: str, run_name: str, gt_points_file: str, extra_p
         print("Stopping rosbag_playback and nbv_demo...")
         shutdown_process(playback_process, "rosbag_playback")
         shutdown_process(nbv_process, "nbv_demo")
+        report_run_warnings(nbv_log_path)
         return True
 
     finally:
