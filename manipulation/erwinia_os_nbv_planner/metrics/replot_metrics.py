@@ -287,19 +287,6 @@ def compute_map(viewpoint: dict, classes: Optional[list[int]], distance_threshol
     return float(np.mean(ap_values)) if ap_values else float("nan")
 
 
-def recompute_derived_metrics_from_counts(df: pd.DataFrame) -> pd.DataFrame:
-    out = df.copy()
-    if {"TP_Clusters", "FP_Clusters", "FN_Clusters"}.issubset(out.columns):
-        values = out.apply(
-            lambda row: compute_precision_recall_f1(row["TP_Clusters"], row["FP_Clusters"], row["FN_Clusters"]),
-            axis=1,
-            result_type="expand",
-        )
-        out["Precision"] = values[0]
-        out["Recall"] = values[1]
-        out["F1_Score"] = values[2]
-    return out
-
 
 def find_json_metrics_file(path: Path) -> Optional[Path]:
     candidates = [
@@ -425,62 +412,128 @@ def load_run(
     return load_json_run(metrics_path, classes, x_col, metrics, distance_threshold, map_thresholds, f1_confidence)
 
 
-def average_dfs_at_x(dfs: list[pd.DataFrame], x_col: str, metrics: list[str]) -> tuple[pd.DataFrame, pd.DataFrame]:
-    if not dfs:
-        empty = pd.DataFrame(columns=[x_col] + metrics)
-        return empty, empty
+def load_raw_viewpoints(json_path: Path) -> list[dict]:
+    """Return the raw viewpoints array from an evaluation_metrics.json file."""
+    with json_path.open("r", encoding="utf-8") as f:
+        return json.load(f).get("viewpoints", [])
 
-    all_x = sorted(set().union(*[set(df[x_col].tolist()) for df in dfs if x_col in df.columns]))
-    if not all_x:
-        empty = pd.DataFrame(columns=[x_col] + metrics)
-        return empty, empty
 
-    aligned = [df.set_index(x_col).reindex(all_x) for df in dfs]
-    combined = pd.concat(aligned, axis=0, keys=range(len(aligned)))
-    mean_df = combined.groupby(level=1).mean(numeric_only=True).reset_index().rename(columns={"index": x_col})
-    std_df = combined.groupby(level=1).std(numeric_only=True).reset_index().rename(columns={"index": x_col})
-    mean_df[x_col] = all_x
-    std_df[x_col] = all_x
+def make_pooled_viewpoint(viewpoint_pairs: list[tuple[str, dict]]) -> dict:
+    """Merge viewpoints from multiple series into one virtual viewpoint.
 
-    present_count_cols = [col for col in COUNT_METRICS if col in combined.columns]
-    if present_count_cols:
-        summed_counts = combined.groupby(level=1)[present_count_cols].sum(min_count=1).reset_index().rename(
-            columns={"index": x_col}
+    Each series gets a unique label offset so integer predicted-cluster labels
+    (and matching pairwiseDistances entries) never collide across series.
+    GT IDs are namespaced by series name for the same reason.
+    All existing AP/F1 code (`compute_ap_for_class`, `best_distance_pairs`,
+    `match_predictions_at_threshold`) works on the result without modification.
+    """
+    pooled_gt: list[dict] = []
+    pooled_clusters: list[dict] = []
+    pooled_pairwise: list[dict] = []
+    for series_idx, (series_name, vp) in enumerate(viewpoint_pairs):
+        offset = series_idx * 100_000
+        for gt in vp.get("groundTruthSegments", []):
+            pooled_gt.append({**gt, "id": f"{series_name}/{gt['id']}"})
+        for pred in vp.get("predictedClusters", []):
+            pooled_clusters.append({**pred, "label": pred["label"] + offset})
+        for pair in vp.get("pairwiseDistances", []):
+            pooled_pairwise.append({
+                **pair,
+                "gtId": f"{series_name}/{pair['gtId']}",
+                "predictedLabel": pair["predictedLabel"] + offset,
+            })
+    return {
+        "groundTruthSegments": pooled_gt,
+        "predictedClusters": pooled_clusters,
+        "pairwiseDistances": pooled_pairwise,
+    }
+
+
+def compute_pooled_metric_curve(
+    named_sequences: list[tuple[str, list[dict]]],
+    classes: Optional[list[int]],
+    x_col: str,
+    metrics: list[str],
+    distance_threshold: float,
+    map_thresholds: list[float],
+    f1_confidence: float = 0.0,
+) -> pd.DataFrame:
+    """Compute metrics at each viewpoint index by pooling across all sequences.
+
+    At each index the predictions and GT from every series (run/tree) that has
+    reached that viewpoint are merged into a single virtual viewpoint using
+    `make_pooled_viewpoint`, then all requested metrics are computed on it.
+
+    mAP and F1/Precision/Recall use the pooled predictions so that larger trees
+    contribute proportionally (COCO-style dataset-level AP).
+    Voxel-based metrics (Coverage_Percent, Occupied_Voxels, Free_Voxels) are
+    averaged across the sequences since each tree has its own octomap bbox.
+    """
+    if not named_sequences:
+        return pd.DataFrame(columns=[x_col] + metrics)
+
+    max_len = max(len(vps) for _, vps in named_sequences)
+    rows = []
+    for v_idx in range(max_len):
+        viewpoint_pairs = [
+            (name, vps[v_idx])
+            for name, vps in named_sequences
+            if v_idx < len(vps)
+        ]
+        if not viewpoint_pairs:
+            continue
+
+        pooled_vp = make_pooled_viewpoint(viewpoint_pairs)
+
+        # x-axis value: viewpoint index or sim-time from the first available sequence
+        if x_col == "Viewpoint":
+            x_val = viewpoint_pairs[0][1].get("viewpointIndex", v_idx)
+        else:
+            x_val = viewpoint_pairs[0][1].get("timeSec", float(v_idx))
+
+        row: dict = {x_col: x_val}
+
+        need_counts = any(
+            m in metrics
+            for m in ("Precision", "Recall", "F1_Score", "TP_Clusters", "FP_Clusters", "FN_Clusters")
         )
-        for col in present_count_cols:
-            mean_df[col] = summed_counts[col].to_numpy()
-        mean_df = recompute_derived_metrics_from_counts(mean_df)
+        if need_counts:
+            tp, fp, fn = match_predictions_at_threshold(
+                pooled_vp, classes, distance_threshold, min_confidence=f1_confidence
+            )
+            precision, recall, f1 = compute_precision_recall_f1(tp, fp, fn)
+            row.update({
+                "TP_Clusters": tp,
+                "FP_Clusters": fp,
+                "FN_Clusters": fn,
+                "Precision": precision,
+                "Recall": recall,
+                "F1_Score": f1,
+            })
 
-    ordered_cols = [x_col] + [metric for metric in metrics if metric in mean_df.columns]
-    std_cols = [x_col] + [metric for metric in metrics if metric in std_df.columns]
-    return mean_df[ordered_cols], std_df[std_cols]
+        if "mAP" in metrics:
+            row["mAP"] = compute_map(pooled_vp, classes, map_thresholds)
+
+        # Voxel metrics: mean across sequences present at this viewpoint
+        voxel_map = {
+            "Coverage_Percent": "bboxCoverage",
+            "Occupied_Voxels":  "occupiedVoxels",
+            "Free_Voxels":      "freeVoxels",
+        }
+        for col, key in voxel_map.items():
+            if col in metrics:
+                vals = [vp.get(key) for _, vp in viewpoint_pairs if vp.get(key) is not None]
+                row[col] = float(np.mean(vals)) if vals else float("nan")
+            if "Total_Voxels" in metrics and "Occupied_Voxels" in row and "Free_Voxels" in row:
+                row["Total_Voxels"] = row["Occupied_Voxels"] + row["Free_Voxels"]
+
+        rows.append(row)
+
+    df = pd.DataFrame(rows)
+    ordered = [x_col] + [m for m in metrics if m in df.columns]
+    return df[list(dict.fromkeys(ordered))].sort_values(x_col).reset_index(drop=True)
 
 
-def compute_planner_mean_std_over_runs(
-    planner_run_dfs: dict[str, list[pd.DataFrame]],
-    x_col: str,
-    metrics: list[str],
-) -> dict[str, tuple[pd.DataFrame, pd.DataFrame]]:
-    return {
-        planner: average_dfs_at_x(run_dfs, x_col, metrics)
-        for planner, run_dfs in planner_run_dfs.items()
-    }
-
-
-def average_tree_then_across_trees(
-    tree_planner_run_dfs: dict[str, dict[str, list[pd.DataFrame]]],
-    x_col: str,
-    metrics: list[str],
-) -> dict[str, tuple[pd.DataFrame, pd.DataFrame]]:
-    planner_tree_means = {}
-    for _tree, planners in tree_planner_run_dfs.items():
-        for planner, run_dfs in planners.items():
-            tree_mean_df, _ = average_dfs_at_x(run_dfs, x_col, metrics)
-            planner_tree_means.setdefault(planner, []).append(tree_mean_df)
-    return {
-        planner: average_dfs_at_x(tree_mean_dfs, x_col, metrics)
-        for planner, tree_mean_dfs in planner_tree_means.items()
-    }
 
 
 def output_stem(output_path: str) -> str:
@@ -538,8 +591,6 @@ def extract_row_at_x(df: pd.DataFrame, x_col: str, x_value: float) -> Optional[p
 
 def build_table_dataframe(
     run_data: dict[str, pd.DataFrame],
-    planner_meanstd_runs: dict[str, tuple[pd.DataFrame, pd.DataFrame]],
-    planner_meanstd_trees: dict[str, tuple[pd.DataFrame, pd.DataFrame]],
     x_col: str,
     metrics: list[str],
     x_value: float,
@@ -550,27 +601,6 @@ def build_table_dataframe(
         if row is None:
             continue
         rows.append({"Series": name, x_col: row[x_col], **{metric: row.get(metric, np.nan) for metric in metrics}})
-
-    for planner, (mean_df, _std_df) in planner_meanstd_runs.items():
-        row = extract_row_at_x(mean_df, x_col, x_value)
-        if row is None:
-            continue
-        rows.append({
-            "Series": f"{planner} (mean over runs)",
-            x_col: row[x_col],
-            **{metric: row.get(metric, np.nan) for metric in metrics},
-        })
-
-    for planner, (mean_df, _std_df) in planner_meanstd_trees.items():
-        row = extract_row_at_x(mean_df, x_col, x_value)
-        if row is None:
-            continue
-        rows.append({
-            "Series": f"{planner} (mean over trees)",
-            x_col: row[x_col],
-            **{metric: row.get(metric, np.nan) for metric in metrics},
-        })
-
     return pd.DataFrame(rows)
 
 
@@ -630,8 +660,6 @@ def save_table_outputs(
 
 def plot_metrics(
     run_data: dict[str, pd.DataFrame],
-    planner_meanstd_runs: dict[str, tuple[pd.DataFrame, pd.DataFrame]],
-    planner_meanstd_trees: dict[str, tuple[pd.DataFrame, pd.DataFrame]],
     x_col: str,
     metrics: list[str],
     output: Optional[str],
@@ -667,21 +695,16 @@ def plot_metrics(
     if len(metrics) == 1:
         axes = [axes]
 
-    plotdata_rows = []
-    n_series = max(1, len(run_data) + len(planner_meanstd_runs) + len(planner_meanstd_trees))
-
-    # Build a palette large enough that colors never repeat.
-    # Sample tab20 → tab20b → tab20c (60 perceptually distinct colors total),
-    # then fill any remainder with evenly-spaced HSV hues.
+    n_series = max(1, len(run_data))
     _cmaps = [plt.cm.tab20, plt.cm.tab20b, plt.cm.tab20c]
     palette = [c for cm in _cmaps for c in (cm(i / (cm.N - 1)) for i in range(cm.N))]
     if len(palette) < n_series:
         existing = len(palette)
         palette += [plt.cm.hsv(i / (n_series - existing)) for i in range(n_series - existing)]
 
+    plotdata_rows = []
     for ax, metric in zip(axes, metrics):
         color_iter = iter(palette)
-
         for name, df in run_data.items():
             color = next(color_iter)
             if metric not in df.columns:
@@ -691,32 +714,6 @@ def plot_metrics(
             ax.plot(x, y, label=name, color=color, linewidth=line_width, marker="o", markersize=marker_size)
             if output:
                 append_plotdata_rows(plotdata_rows, name, metric, x, y)
-
-        for planner, (mean_df, std_df) in planner_meanstd_runs.items():
-            color = next(color_iter)
-            if metric not in mean_df.columns:
-                continue
-            x = mean_df[x_col].to_numpy()
-            y = mean_df[metric].to_numpy()
-            err = std_df[metric].to_numpy() if metric in std_df.columns else np.zeros_like(y)
-            label = f"{planner} (mean +/- std over runs)"
-            ax.plot(x, y, label=label, color=color, linewidth=line_width, marker="o", markersize=marker_size)
-            ax.fill_between(x, y - err, y + err, color=color, alpha=0.2)
-            if output:
-                append_plotdata_rows(plotdata_rows, label, metric, x, y, err)
-
-        for planner, (mean_df, std_df) in planner_meanstd_trees.items():
-            color = next(color_iter)
-            if metric not in mean_df.columns:
-                continue
-            x = mean_df[x_col].to_numpy()
-            y = mean_df[metric].to_numpy()
-            err = std_df[metric].to_numpy() if metric in std_df.columns else np.zeros_like(y)
-            label = f"{planner} (mean +/- std over trees)"
-            ax.plot(x, y, label=label, color=color, linewidth=line_width, marker="o", markersize=marker_size)
-            ax.fill_between(x, y - err, y + err, color=color, alpha=0.2)
-            if output:
-                append_plotdata_rows(plotdata_rows, label, metric, x, y, err)
 
         ax.set_ylabel(metric.replace("_", " "))
         ax.set_title(metric.replace("_", " "))
@@ -771,13 +768,26 @@ def load_run_collection(
     return out
 
 
+def load_raw_viewpoints_collection(
+    run_paths: dict[str, Path],
+) -> list[tuple[str, list[dict]]]:
+    """Load raw viewpoint sequences for a set of named runs, skipping failures."""
+    out = []
+    for run_name, metrics_path in run_paths.items():
+        try:
+            out.append((run_name, load_raw_viewpoints(metrics_path)))
+        except Exception as exc:
+            print(f"[error] Failed to load {metrics_path}: {exc}")
+    return out
+
+
 def main():
     parser = argparse.ArgumentParser(description="Plot or tabulate NBV metrics from evaluation_metrics.json files.")
     parser.add_argument("--size", choices=["small", "large"], default="small", help="Plot and font size.")
 
-    parser.add_argument("--runs", nargs="+", metavar="DIR", help="One or more run directories or evaluation_metrics.json files.")
-    parser.add_argument("--study", metavar="DIR", help="Directory whose immediate subdirs are planner dirs.")
-    parser.add_argument("--metrics-root", metavar="DIR", help="Root containing tree dirs, each with planner dirs.")
+    parser.add_argument("--runs", nargs="+", metavar="DIR", help="One or more run directories or evaluation_metrics.json files. Each is plotted as a separate line.")
+    parser.add_argument("--study", metavar="DIR", help="Directory whose immediate subdirs are planner dirs. All runs for each planner are pooled.")
+    parser.add_argument("--metrics-root", metavar="DIR", help="Root containing tree dirs, each with planner dirs. All runs across all trees are pooled per planner.")
     parser.add_argument("--planners", nargs="+", default=None, metavar="PLANNER", help="Restrict planners.")
     parser.add_argument("--trees", nargs="+", default=None, metavar="TREE", help="Restrict trees for --metrics-root.")
 
@@ -789,9 +799,6 @@ def main():
     parser.add_argument("--output", default=None, help="Output file. Plot: image path. Table: CSV or PNG path.")
     parser.add_argument("--table", type=float, default=None, metavar="XVALUE", help="X-axis value for --output-kind table.")
     parser.add_argument("--table-format", choices=["csv", "png", "both"], default="csv")
-
-    parser.add_argument("--avg", action="store_true", help="For --study: aggregate per planner across runs.")
-    parser.add_argument("--avg-trees", action="store_true", help="For --metrics-root: aggregate runs per tree, then trees per planner.")
 
     parser.add_argument("--distance-threshold", type=float, default=0.10,
                         help="3D distance threshold in meters used as the IoU-equivalent cutoff for Precision/Recall/F1 matching.")
@@ -812,10 +819,6 @@ def main():
 
     if not args.runs and not args.study and not args.metrics_root:
         parser.error("Provide at least one of --runs, --study, or --metrics-root.")
-    if args.avg and not args.study:
-        parser.error("--avg requires --study.")
-    if args.avg_trees and not args.metrics_root:
-        parser.error("--avg-trees requires --metrics-root.")
     if args.output_kind == "table" and args.table is None:
         parser.error("--output-kind table requires --table XVALUE.")
     if args.output_kind == "table" and not args.output:
@@ -824,7 +827,18 @@ def main():
     x_col = X_COLUMN_MAP[args.x]
     map_thresholds = distance_thresholds_from_args(args)
 
-    run_data = {}
+    pool_kwargs = dict(
+        classes=args.classes,
+        x_col=x_col,
+        metrics=args.metrics,
+        distance_threshold=args.distance_threshold,
+        map_thresholds=map_thresholds,
+        f1_confidence=args.f1_confidence,
+    )
+
+    run_data: dict[str, pd.DataFrame] = {}
+
+    # --runs: each explicit path becomes its own line (no pooling)
     if args.runs:
         run_paths = {}
         for run_arg in args.runs:
@@ -834,59 +848,51 @@ def main():
                 print(f"[warn] No {JSON_METRICS_FILENAME} found in {path}, skipping.")
                 continue
             run_paths[path.parent.name if path.is_file() else path.name] = metrics_file
-        run_data = load_run_collection(
-            run_paths, args.classes, x_col, args.metrics, args.distance_threshold, map_thresholds, args.f1_confidence
-        )
+        run_data.update(load_run_collection(
+            run_paths, args.classes, x_col, args.metrics,
+            args.distance_threshold, map_thresholds, args.f1_confidence,
+        ))
 
-    planner_meanstd_runs = {}
+    # --study: pool all runs for each planner → one curve per planner
     if args.study:
-        planners = discover_single_study(Path(args.study))
         allowed_planners = set(args.planners) if args.planners else None
-        planner_run_dfs = {}
-        for planner_name, runs in planners.items():
+        for planner_name, runs in discover_single_study(Path(args.study)).items():
             if allowed_planners and planner_name not in allowed_planners:
                 continue
-            loaded = load_run_collection(
-                runs, args.classes, x_col, args.metrics, args.distance_threshold, map_thresholds, args.f1_confidence
-            )
-            if loaded:
-                planner_run_dfs[planner_name] = list(loaded.values())
-        if args.avg:
-            planner_meanstd_runs = compute_planner_mean_std_over_runs(planner_run_dfs, x_col, args.metrics)
-        else:
-            for planner_name, dfs in planner_run_dfs.items():
-                for i, df in enumerate(dfs, start=1):
-                    run_data[f"{planner_name}/run_{i}"] = df
+            sequences = load_raw_viewpoints_collection(runs)
+            if not sequences:
+                continue
+            df = compute_pooled_metric_curve(sequences, **pool_kwargs)
+            if not df.empty:
+                run_data[planner_name] = df
 
-    planner_meanstd_trees = {}
-    if args.metrics_root and args.avg_trees:
-        discovered = discover_metrics_root(Path(args.metrics_root))
+    # --metrics-root: pool all runs across all trees per planner → one curve per planner
+    if args.metrics_root:
         allowed_trees = set(args.trees) if args.trees else None
         allowed_planners = set(args.planners) if args.planners else None
-        tree_planner_run_dfs = {}
-        for tree_name, planners in discovered.items():
+        planner_sequences: dict[str, list[tuple[str, list[dict]]]] = {}
+        for tree_name, planners in discover_metrics_root(Path(args.metrics_root)).items():
             if allowed_trees and tree_name not in allowed_trees:
                 continue
-            tree_planner_run_dfs[tree_name] = {}
             for planner_name, runs in planners.items():
                 if allowed_planners and planner_name not in allowed_planners:
                     continue
-                loaded = load_run_collection(
-                    runs, args.classes, x_col, args.metrics, args.distance_threshold, map_thresholds, args.f1_confidence
+                sequences = load_raw_viewpoints_collection(runs)
+                planner_sequences.setdefault(planner_name, []).extend(
+                    (f"{tree_name}/{name}", vps) for name, vps in sequences
                 )
-                if loaded:
-                    tree_planner_run_dfs[tree_name][planner_name] = list(loaded.values())
-        planner_meanstd_trees = average_tree_then_across_trees(tree_planner_run_dfs, x_col, args.metrics)
+        for planner_name, sequences in planner_sequences.items():
+            df = compute_pooled_metric_curve(sequences, **pool_kwargs)
+            if not df.empty:
+                run_data[planner_name] = df
 
-    if not run_data and not planner_meanstd_runs and not planner_meanstd_trees:
+    if not run_data:
         print("No data loaded. Exiting.")
         return
 
     if args.output_kind == "plot":
         plot_metrics(
             run_data=run_data,
-            planner_meanstd_runs=planner_meanstd_runs,
-            planner_meanstd_trees=planner_meanstd_trees,
             x_col=x_col,
             metrics=args.metrics,
             output=args.output,
@@ -899,8 +905,6 @@ def main():
 
     table_df = build_table_dataframe(
         run_data=run_data,
-        planner_meanstd_runs=planner_meanstd_runs,
-        planner_meanstd_trees=planner_meanstd_trees,
         x_col=x_col,
         metrics=args.metrics,
         x_value=args.table,

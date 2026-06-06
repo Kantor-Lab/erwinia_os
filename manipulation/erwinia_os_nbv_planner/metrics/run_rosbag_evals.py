@@ -40,12 +40,12 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "metrics/penn_state/tree_12/gt_points.json",
         {"decimation_factor": "2"},
     ),
-    # (
-    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_eval_recordings/recording_volumetric_2/",
-    #     "tree_12/volumetric/",
-    #     "metrics/penn_state/tree_12/gt_points.json",
-    #     {},
-    # ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_eval_recordings/recording_volumetric_2/",
+        "tree_12/volumetric/",
+        "metrics/penn_state/tree_12/gt_points.json",
+        {},
+    ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_eval_recordings/recording_semantic_2/",
         "tree_12/semantic/",
@@ -58,12 +58,12 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "metrics/penn_state/tree_11/gt_points.json",
         {"decimation_factor": "2"},
     ),
-    # (
-    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_eval_recordings/recording_volumetric_1/",
-    #     "tree_11/volumetric/",
-    #     "metrics/penn_state/tree_11/gt_points.json",
-    #     {},
-    # ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_eval_recordings/recording_volumetric_1/",
+        "tree_11/volumetric/",
+        "metrics/penn_state/tree_11/gt_points.json",
+        {},
+    ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_eval_recordings/recording_semantic_1/",
         "tree_11/semantic/",
@@ -76,12 +76,12 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "metrics/penn_state/tree_10/gt_points.json",
         {"decimation_factor": "2"},
     ),
-    # (
-    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_10/",
-    #     "tree_10/volumetric/",
-    #     "metrics/penn_state/tree_10/gt_points.json",
-    #     {},
-    # ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_10/",
+        "tree_10/volumetric/",
+        "metrics/penn_state/tree_10/gt_points.json",
+        {},
+    ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_semantic_10/",
         "tree_10/semantic/",
@@ -94,12 +94,12 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "metrics/penn_state/tree_9/gt_points.json",
         {"decimation_factor": "2"},
     ),
-    # (
-    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_9/",
-    #     "tree_9/volumetric/",
-    #     "metrics/penn_state/tree_9/gt_points.json",
-    #     {},
-    # ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_9/",
+        "tree_9/volumetric/",
+        "metrics/penn_state/tree_9/gt_points.json",
+        {},
+    ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_semantic_9/",
         "tree_9/semantic/",
@@ -112,12 +112,12 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "metrics/penn_state/tree_8/gt_points.json",
         {"decimation_factor": "2"},
     ),
-    # (
-    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_8/",
-    #     "tree_8/volumetric/",
-    #     "metrics/penn_state/tree_8/gt_points.json",
-    #     {},
-    # ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_8/",
+        "tree_8/volumetric/",
+        "metrics/penn_state/tree_8/gt_points.json",
+        {},
+    ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_semantic_8/",
         "tree_8/semantic/",
@@ -130,12 +130,12 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "metrics/penn_state/tree_7/gt_points.json",
         {"decimation_factor": "2"},
     ),
-    # (
-    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_7/",
-    #     "tree_7/volumetric/",
-    #     "metrics/penn_state/tree_7/gt_points.json",
-    #     {},
-    # ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_7/",
+        "tree_7/volumetric/",
+        "metrics/penn_state/tree_7/gt_points.json",
+        {},
+    ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_semantic_7/",
         "tree_7/semantic/",
@@ -148,12 +148,12 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "metrics/penn_state/tree_6/gt_points.json",
         {"decimation_factor": "2"},
     ),
-    # (
-    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_6/",
-    #     "tree_6/volumetric/",
-    #     "metrics/penn_state/tree_6/gt_points.json",
-    #     {},
-    # ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_6/",
+        "tree_6/volumetric/",
+        "metrics/penn_state/tree_6/gt_points.json",
+        {},
+    ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_semantic_6/",
         "tree_6/semantic/",
@@ -166,12 +166,12 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "metrics/penn_state/tree_5/gt_points.json",
         {"decimation_factor": "2"},
     ),
-    # (
-    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_5/",
-    #     "tree_5/volumetric/",
-    #     "metrics/penn_state/tree_5/gt_points.json",
-    #     {},
-    # ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_5/",
+        "tree_5/volumetric/",
+        "metrics/penn_state/tree_5/gt_points.json",
+        {},
+    ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_semantic_5/",
         "tree_5/semantic/",
@@ -184,12 +184,12 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "metrics/penn_state/tree_4/gt_points.json",
         {"decimation_factor": "2"},
     ),
-    # (
-    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_4/",
-    #     "tree_4/volumetric/",
-    #     "metrics/penn_state/tree_4/gt_points.json",
-    #     {},
-    # ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_4/",
+        "tree_4/volumetric/",
+        "metrics/penn_state/tree_4/gt_points.json",
+        {},
+    ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_semantic_4/",
         "tree_4/semantic/",
@@ -202,12 +202,12 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "metrics/penn_state/tree_3/gt_points.json",
         {"decimation_factor": "2"},
     ),
-    # (
-    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_3/",
-    #     "tree_3/volumetric/",
-    #     "metrics/penn_state/tree_3/gt_points.json",
-    #     {},
-    # ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_3/",
+        "tree_3/volumetric/",
+        "metrics/penn_state/tree_3/gt_points.json",
+        {},
+    ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_semantic_3/",
         "tree_3/semantic/",
@@ -220,12 +220,12 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "metrics/penn_state/tree_2/gt_points.json",
         {"decimation_factor": "2"},
     ),
-    # (
-    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_2/",
-    #     "tree_2/volumetric/",
-    #     "metrics/penn_state/tree_2/gt_points.json",
-    #     {},
-    # ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_2/",
+        "tree_2/volumetric/",
+        "metrics/penn_state/tree_2/gt_points.json",
+        {},
+    ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_semantic_2/",
         "tree_2/semantic/",
@@ -238,12 +238,12 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "metrics/penn_state/tree_1/gt_points.json",
         {"decimation_factor": "2"},
     ),
-    # (
-    #     "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_1/",
-    #     "tree_1/volumetric/",
-    #     "metrics/penn_state/tree_1/gt_points.json",
-    #     {},
-    # ),
+    (
+        "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_1/",
+        "tree_1/volumetric/",
+        "metrics/penn_state/tree_1/gt_points.json",
+        {},
+    ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_semantic_1/",
         "tree_1/semantic/",
@@ -297,18 +297,20 @@ _ABLATION_TREES: List[Tuple[int, str, str]] = [
 # The suffix becomes part of the output directory name so results are
 # self-documenting.  Baseline runs additionally carry decimation_factor=2.
 _ABLATION_PASSES: List[Tuple[str, dict]] = [
-    # Octomap resolution — affects map fidelity for both planners
-    ("res_low",      {"octomap_resolution": "0.04"}),   # coarser  (default 0.02)
-    ("res_high",     {"octomap_resolution": "0.01"}),   # finer    (default 0.02)
-    # Semantic mismatch penalty — penalises label disagreement in the semantic map
-    ("penalty_low",  {"semantic_mismatch_penalty": "0.1"}),  # default 0.2
-    ("penalty_high", {"semantic_mismatch_penalty": "0.4"}),  # default 0.2
-    # Semantic confidence boost — rewards label agreement
-    ("boost_low",    {"semantic_confidence_boost": "0.15"}), # default 0.3
-    ("boost_high",   {"semantic_confidence_boost": "0.5"}),  # default 0.3
-    # Detection confidence threshold — controls which detections enter the map
-    ("conf_low",     {"conf_thresh": "0.05"}),           # default 0.15
-    ("conf_high",    {"conf_thresh": "0.30"}),           # default 0.15
+    # # Octomap resolution — affects map fidelity for both planners
+    # ("res_low",      {"octomap_resolution": "0.04"}),   # coarser  (default 0.02)
+    # ("res_high",     {"octomap_resolution": "0.01"}),   # finer    (default 0.02)
+    # # Semantic mismatch penalty — penalises label disagreement in the semantic map
+    # ("penalty_low",  {"semantic_mismatch_penalty": "0.1"}),  # default 0.2
+    # ("penalty_high", {"semantic_mismatch_penalty": "0.4"}),  # default 0.2
+    # # Semantic confidence boost — rewards label agreement
+    # ("boost_low",    {"semantic_confidence_boost": "0.15"}), # default 0.3
+    # ("boost_high",   {"semantic_confidence_boost": "0.5"}),  # default 0.3
+    # # Detection confidence threshold — controls which detections enter the map
+    # ("conf_low",     {"conf_thresh": "0.05"}),           # default 0.15
+    # ("conf_high",    {"conf_thresh": "0.30"}),           # default 0.15
+    # Camera max range — reduces stereo depth noise by cutting far detections
+    # ("range_low",    {"camera_max_range": "0.7"}),       # default 0.9
 ]
 
 for _suffix, _overrides in _ABLATION_PASSES:
@@ -332,7 +334,7 @@ NBV_BASE_PARAMS = {
     "use_sim_time": "true",
     "use_gazebo": "false",
     "planner_type": "replay",
-    "octomap_resolution": "0.02",
+    "octomap_resolution": "0.04",
     # "camera_scaled_width": "896",
     # "camera_scaled_height": "672",
     # "stereo_matcher_model_trt": "fs_672x896_vit-small_iters16.plan",
@@ -342,10 +344,10 @@ NBV_BASE_PARAMS = {
     "detection_model_trt": "yolo26_large_seg_rivendale_v6_fold1.plan",
     "semantic_mismatch_penalty": "0.2",
     "semantic_confidence_boost": "0.3",
-    "camera_max_range": "0.9",
+    "camera_max_range": "0.7",
     "export_viewpoint_voxels": "true",
     "metrics_dir": "metrics/penn_state",
-    "conf_thresh": "0.15",
+    "conf_thresh": "0.05",
 }
 
 # rosbag_playback.launch.py publishes the robot's static TF tree via
