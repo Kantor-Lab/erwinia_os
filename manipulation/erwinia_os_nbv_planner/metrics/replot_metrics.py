@@ -185,9 +185,8 @@ def match_predictions_at_threshold(
     distance_threshold: float,
     min_confidence: float = 0.0,
     split_clusters: bool = False,
+    merge_clusters: bool = False,
 ) -> tuple[int, int, int]:
-    if split_clusters:
-        viewpoint = split_clusters_by_gt(viewpoint, distance_threshold)
     gt_ids = {
         str(gt["id"])
         for gt in viewpoint.get("groundTruthSegments", [])
@@ -215,6 +214,22 @@ def match_predictions_at_threshold(
         used_gt.add(gt_id)
         used_pred.add(pred_label)
 
+    # Split credit: each matched cluster also credits any additional nearby unmatched GTs.
+    if split_clusters:
+        for pred_label in list(used_pred):
+            for gt_id in list(gt_ids - used_gt):
+                if pair_distances.get((gt_id, pred_label), float("inf")) <= distance_threshold:
+                    used_gt.add(gt_id)
+
+    # Merge cleanup: unmatched predictions that are within threshold of an already-TP GT
+    # are redundant coverage — don't count them as FPs.
+    if merge_clusters:
+        for pred_label in list(set(predictions) - used_pred):
+            for gt_id in used_gt:
+                if pair_distances.get((gt_id, pred_label), float("inf")) <= distance_threshold:
+                    used_pred.add(pred_label)
+                    break
+
     tp = len(used_gt)
     fp = len(predictions) - len(used_pred)
     fn = len(gt_ids) - len(used_gt)
@@ -227,11 +242,12 @@ def compute_best_f1(
     distance_threshold: float,
     fixed_confidence: Optional[float] = None,
     split_clusters: bool = False,
+    merge_clusters: bool = False,
 ) -> tuple[int, int, int, float, float, float]:
     if fixed_confidence is not None:
         tp, fp, fn = match_predictions_at_threshold(
             viewpoint, classes, distance_threshold, min_confidence=fixed_confidence,
-            split_clusters=split_clusters,
+            split_clusters=split_clusters, merge_clusters=merge_clusters,
         )
         precision, recall, f1 = compute_precision_recall_f1(tp, fp, fn)
         return tp, fp, fn, precision, recall, f1
@@ -244,7 +260,8 @@ def compute_best_f1(
 
     if not thresholds:
         tp, fp, fn = match_predictions_at_threshold(
-            viewpoint, classes, distance_threshold, split_clusters=split_clusters,
+            viewpoint, classes, distance_threshold,
+            split_clusters=split_clusters, merge_clusters=merge_clusters,
         )
         precision, recall, f1 = compute_precision_recall_f1(tp, fp, fn)
         return tp, fp, fn, precision, recall, f1
@@ -253,7 +270,7 @@ def compute_best_f1(
     for threshold in thresholds:
         tp, fp, fn = match_predictions_at_threshold(
             viewpoint, classes, distance_threshold, min_confidence=threshold,
-            split_clusters=split_clusters,
+            split_clusters=split_clusters, merge_clusters=merge_clusters,
         )
         precision, recall, f1 = compute_precision_recall_f1(tp, fp, fn)
         if best is None or (not pd.isna(f1) and (pd.isna(best[5]) or f1 > best[5])):
@@ -264,9 +281,13 @@ def compute_best_f1(
 
 
 
-def compute_ap_for_class(viewpoint: dict, class_id: int, distance_threshold: float, split_clusters: bool = False) -> float:
-    if split_clusters:
-        viewpoint = split_clusters_by_gt(viewpoint, distance_threshold)
+def compute_ap_for_class(
+    viewpoint: dict,
+    class_id: int,
+    distance_threshold: float,
+    split_clusters: bool = False,
+    merge_clusters: bool = False,
+) -> float:
     gt_ids = {
         str(gt["id"])
         for gt in viewpoint.get("groundTruthSegments", [])
@@ -308,7 +329,22 @@ def compute_ap_for_class(viewpoint: dict, class_id: int, distance_threshold: flo
             used_gt.add(best_gt)
             tp_flags.append(1.0)
             fp_flags.append(0.0)
+            # Split credit: also credit any additional unmatched GTs this cluster covers.
+            if split_clusters:
+                for other_gt in list(gt_ids - used_gt):
+                    d = pair_distances.get((other_gt, pred_label), float("inf"))
+                    if d <= distance_threshold:
+                        used_gt.add(other_gt)
+                        tp_flags.append(1.0)
+                        fp_flags.append(0.0)
         else:
+            # Merge cleanup: skip predictions that are redundant near an already-TP GT.
+            if merge_clusters and any(
+                gt_id in used_gt
+                and pair_distances.get((gt_id, pred_label), float("inf")) <= distance_threshold
+                for gt_id in gt_ids
+            ):
+                continue
             tp_flags.append(0.0)
             fp_flags.append(1.0)
 
@@ -326,7 +362,7 @@ def compute_ap_for_class(viewpoint: dict, class_id: int, distance_threshold: flo
     return float(np.sum((recall_points[changing + 1] - recall_points[changing]) * precision_points[changing + 1]))
 
 
-def compute_map(viewpoint: dict, classes: Optional[list[int]], distance_thresholds: list[float], split_clusters: bool = False) -> float:
+def compute_map(viewpoint: dict, classes: Optional[list[int]], distance_thresholds: list[float], split_clusters: bool = False, merge_clusters: bool = False) -> float:
     gt_classes = {
         int(gt["classId"])
         for gt in viewpoint.get("groundTruthSegments", [])
@@ -341,133 +377,11 @@ def compute_map(viewpoint: dict, classes: Optional[list[int]], distance_threshol
     ap_values = []
     for threshold in distance_thresholds:
         for class_id in all_classes:
-            ap = compute_ap_for_class(viewpoint, class_id, threshold, split_clusters=split_clusters)
+            ap = compute_ap_for_class(viewpoint, class_id, threshold, split_clusters=split_clusters, merge_clusters=merge_clusters)
             if not pd.isna(ap):
                 ap_values.append(ap)
     return float(np.mean(ap_values)) if ap_values else float("nan")
 
-
-def _has_voxel_data(viewpoints: list[dict]) -> bool:
-    for vp in viewpoints:
-        for cluster in vp.get("predictedClusters", []):
-            if cluster.get("voxels"):
-                return True
-    return False
-
-
-def split_clusters_by_gt(viewpoint: dict, threshold: float) -> dict:
-    """Split predicted clusters that span multiple GT points into per-GT sub-clusters.
-
-    A cluster is split only when its voxels include points within threshold of
-    two or more distinct GT segments of the same class. Each voxel is assigned
-    to its nearest nearby GT; the resulting sub-clusters become independent
-    predictions so one-to-one AP/F1 matching can credit each covered GT.
-
-    Because a GT is only considered "nearby" if at least one cluster voxel is
-    within threshold of it, every sub-cluster is guaranteed to have a voxel
-    within threshold of its assigned GT — so each split can only create TPs,
-    never spurious FPs at the current evaluation threshold.
-
-    Clusters without voxel exports are left unchanged, so this option is a
-    no-op for JSON files that contain only cluster centroids and pairwise
-    distances.
-    """
-    gt_segments = viewpoint.get("groundTruthSegments", [])
-    if not gt_segments:
-        return viewpoint
-
-    def _dist(a: list, b: list) -> float:
-        return float(np.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2))
-
-    new_clusters: list[dict] = []
-    label_remap: dict[int, list[int]] = {}  # original label -> replacement labels
-
-    for cluster in viewpoint.get("predictedClusters", []):
-        voxels = cluster.get("voxels")
-        if not voxels:
-            new_clusters.append(cluster)
-            label_remap[cluster["label"]] = [cluster["label"]]
-            continue
-
-        gt_pos = [[gt["centroid"][0], gt["centroid"][1], gt["centroid"][2]] for gt in gt_segments]
-        gt_class = [gt["classId"] for gt in gt_segments]
-        cluster_class = cluster["classId"]
-        orig_label = cluster["label"]
-
-        # Find same-class GTs within threshold of at least one cluster voxel.
-        nearby_gt_indices = set()
-        for voxel in voxels:
-            for gi, (gp, gc) in enumerate(zip(gt_pos, gt_class)):
-                if gc == cluster_class and _dist(voxel, gp) <= threshold:
-                    nearby_gt_indices.add(gi)
-
-        if len(nearby_gt_indices) <= 1:
-            new_clusters.append(cluster)
-            label_remap[orig_label] = [orig_label]
-            continue
-
-        # Assign each voxel to the closest nearby GT.
-        gt_indices = sorted(nearby_gt_indices)
-        buckets: dict[int, list] = {gi: [] for gi in gt_indices}
-        for voxel in voxels:
-            best_gi = min(gt_indices, key=lambda gi: _dist(voxel, gt_pos[gi]))
-            buckets[best_gi].append(voxel)
-
-        non_empty = [gi for gi in gt_indices if buckets[gi]]
-        if len(non_empty) <= 1:
-            # All voxels fell into one bucket, so leave the original cluster unchanged.
-            new_clusters.append(cluster)
-            label_remap[orig_label] = [orig_label]
-            continue
-
-        new_labels = []
-        for sub_idx, gi in enumerate(gt_indices):
-            bucket = buckets[gi]
-            if not bucket:
-                continue
-            arr = np.array(bucket)
-            centroid = arr.mean(axis=0).tolist()
-            new_label = (orig_label + 1) * 10_000_000 + sub_idx
-            new_labels.append(new_label)
-            new_clusters.append({
-                "label": new_label,
-                "classId": cluster_class,
-                "size": len(bucket),
-                "maxConfidence": cluster.get("maxConfidence", cluster.get("confidence", 1.0)),
-                "center": centroid,
-                "voxels": bucket,
-            })
-        label_remap[orig_label] = new_labels if new_labels else [orig_label]
-
-    # Rebuild pairwise distances so AP/F1 matching can use the new labels.
-    old_pairwise = viewpoint.get("pairwiseDistances", [])
-    new_pairwise: list[dict] = []
-    for pair in old_pairwise:
-        orig = pair["predictedLabel"]
-        new_labels = label_remap.get(orig)
-        if new_labels is None or new_labels == [orig]:
-            new_pairwise.append(pair)
-            continue
-        # Emit one distance entry per sub-cluster for this GT.
-        for new_label in new_labels:
-            sub_cluster = next((c for c in new_clusters if c["label"] == new_label), None)
-            if sub_cluster is None:
-                continue
-            sub_voxels = sub_cluster.get("voxels", [sub_cluster["center"]])
-            gt_id = pair["gtId"]
-            # Use the GT centroid to recompute distances for split clusters.
-            gt_seg = next((g for g in gt_segments if g["id"] == gt_id), None)
-            if gt_seg is None:
-                continue
-            gp = gt_seg["centroid"]
-            min_d = min(_dist(v, gp) for v in sub_voxels)
-            new_pairwise.append({**pair, "predictedLabel": new_label, "distanceM": min_d})
-
-    return {
-        **viewpoint,
-        "predictedClusters": new_clusters,
-        "pairwiseDistances": new_pairwise,
-    }
 
 
 def find_json_metrics_file(path: Path) -> Optional[Path]:
@@ -528,14 +442,12 @@ def load_json_run(
     map_thresholds: list[float],
     f1_confidence: Optional[float] = None,
     split_clusters: bool = True,
+    merge_clusters: bool = True,
 ) -> pd.DataFrame:
     with json_path.open("r", encoding="utf-8") as f:
         data = json.load(f)
 
     viewpoints = data.get("viewpoints", [])
-    if split_clusters and not _has_voxel_data(viewpoints):
-        print(f"[warn] Cluster splitting enabled but no voxel data found in {json_path}. "
-              "Splitting will have no effect (voxels are always exported by the C++ evaluator).")
 
     rows = []
     for viewpoint in viewpoints:
@@ -552,7 +464,7 @@ def load_json_run(
         if any(metric in metrics for metric in ("Precision", "Recall", "F1_Score", "TP_Clusters", "FP_Clusters", "FN_Clusters")):
             tp, fp, fn, precision, recall, f1 = compute_best_f1(
                 viewpoint, classes, distance_threshold, fixed_confidence=f1_confidence,
-                split_clusters=split_clusters,
+                split_clusters=split_clusters, merge_clusters=merge_clusters,
             )
             row.update({
                 "TP_Clusters": tp,
@@ -564,7 +476,7 @@ def load_json_run(
             })
 
         if "mAP" in metrics:
-            row["mAP"] = compute_map(viewpoint, classes, map_thresholds, split_clusters=split_clusters)
+            row["mAP"] = compute_map(viewpoint, classes, map_thresholds, split_clusters=split_clusters, merge_clusters=merge_clusters)
 
         rows.append(row)
 
@@ -595,10 +507,11 @@ def load_run(
     map_thresholds: list[float],
     f1_confidence: Optional[float] = None,
     split_clusters: bool = True,
+    merge_clusters: bool = True,
 ) -> pd.DataFrame:
     if metrics_path.name != JSON_METRICS_FILENAME and metrics_path.suffix.lower() != ".json":
         raise ValueError(f"Expected {JSON_METRICS_FILENAME}, got {metrics_path}")
-    return load_json_run(metrics_path, classes, x_col, metrics, distance_threshold, map_thresholds, f1_confidence, split_clusters)
+    return load_json_run(metrics_path, classes, x_col, metrics, distance_threshold, map_thresholds, f1_confidence, split_clusters, merge_clusters)
 
 
 def load_raw_viewpoints(json_path: Path) -> list[dict]:
@@ -647,6 +560,7 @@ def compute_pooled_metric_curve(
     map_thresholds: list[float],
     f1_confidence: Optional[float] = None,
     split_clusters: bool = True,
+    merge_clusters: bool = True,
 ) -> pd.DataFrame:
     """Compute dataset-level metrics at each viewpoint index.
 
@@ -663,11 +577,6 @@ def compute_pooled_metric_curve(
         return pd.DataFrame(columns=[x_col] + metrics)
 
     max_len = max(len(vps) for _, vps in named_sequences)
-    if split_clusters:
-        all_vps = [vp for _, vps in named_sequences for vp in vps]
-        if not _has_voxel_data(all_vps):
-            print("[warn] Cluster splitting enabled but no voxel data found in any sequence. "
-                  "Splitting will have no effect (voxels are always exported by the C++ evaluator).")
     rows = []
     for v_idx in range(max_len):
         viewpoint_pairs = [
@@ -695,7 +604,7 @@ def compute_pooled_metric_curve(
         if need_counts:
             tp, fp, fn, precision, recall, f1 = compute_best_f1(
                 pooled_vp, classes, distance_threshold, fixed_confidence=f1_confidence,
-                split_clusters=split_clusters,
+                split_clusters=split_clusters, merge_clusters=merge_clusters,
             )
             row.update({
                 "TP_Clusters": tp,
@@ -707,7 +616,7 @@ def compute_pooled_metric_curve(
             })
 
         if "mAP" in metrics:
-            row["mAP"] = compute_map(pooled_vp, classes, map_thresholds, split_clusters=split_clusters)
+            row["mAP"] = compute_map(pooled_vp, classes, map_thresholds, split_clusters=split_clusters, merge_clusters=merge_clusters)
 
         # Voxel metrics are averaged across sequences present at this viewpoint.
         voxel_map = {
@@ -954,11 +863,12 @@ def load_run_collection(
     map_thresholds: list[float],
     f1_confidence: Optional[float] = None,
     split_clusters: bool = True,
+    merge_clusters: bool = True,
 ) -> dict[str, pd.DataFrame]:
     out = {}
     for run_name, metrics_path in run_paths.items():
         try:
-            out[run_name] = load_run(metrics_path, classes, x_col, metrics, distance_threshold, map_thresholds, f1_confidence, split_clusters)
+            out[run_name] = load_run(metrics_path, classes, x_col, metrics, distance_threshold, map_thresholds, f1_confidence, split_clusters, merge_clusters)
         except Exception as exc:
             print(f"[error] Failed to load {metrics_path}: {exc}")
     return out
@@ -1028,7 +938,9 @@ def main():
                         help="Step size for descending mAP distance thresholds when --map-thresholds is not set.")
 
     parser.add_argument("--disable-cluster-splitting", action="store_true", default=False,
-                        help="Do not split voxel-exported clusters that cover multiple same-class GT segments.")
+                        help="Do not credit matched clusters for additional nearby unmatched GTs.")
+    parser.add_argument("--disable-cluster-merging", action="store_true", default=False,
+                        help="Do not absorb redundant predicted clusters that are near an already-matched GT.")
 
     parser.add_argument("--title", default=None, help="Optional plot title or table caption prefix.")
     parser.add_argument("--xlim", nargs=2, type=float, metavar=("XMIN", "XMAX"), default=None,
@@ -1057,6 +969,7 @@ def main():
         map_thresholds=map_thresholds,
         f1_confidence=args.f1_confidence,
         split_clusters=not args.disable_cluster_splitting,
+        merge_clusters=not args.disable_cluster_merging,
     )
 
     run_data: dict[str, pd.DataFrame] = {}
@@ -1075,6 +988,7 @@ def main():
             run_paths, args.classes, x_col, args.metrics,
             args.distance_threshold, map_thresholds, args.f1_confidence,
             not args.disable_cluster_splitting,
+            not args.disable_cluster_merging,
         ))
 
     # --study: pool all runs for each planner into one series per planner.
