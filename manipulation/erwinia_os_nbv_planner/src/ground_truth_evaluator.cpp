@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 
@@ -149,6 +150,7 @@ PredictedClusterSummary GroundTruthEvaluator::summarizeCluster(const Cluster &cl
     summary.center = cluster.center;
     summary.size = cluster.size;
     summary.max_confidence = cluster.max_confidence;
+    summary.voxels = cluster.points;
     return summary;
 }
 
@@ -217,8 +219,18 @@ ViewpointEvaluation GroundTruthEvaluator::buildViewpointEvaluation(
             pairwise.predicted_label = cluster.label;
             pairwise.gt_class_id = gt_segment.class_id;
             pairwise.predicted_class_id = cluster.class_id;
-            pairwise.distance_m = std::sqrt(sqdist(cluster.center, gt_segment.position));
             pairwise.same_class = cluster.class_id == gt_segment.class_id;
+            if (cluster.points.empty())
+            {
+                pairwise.distance_m = std::sqrt(sqdist(cluster.center, gt_segment.position));
+            }
+            else
+            {
+                double min_dist_sq = std::numeric_limits<double>::max();
+                for (const auto &point : cluster.points)
+                    min_dist_sq = std::min(min_dist_sq, sqdist(point, gt_segment.position));
+                pairwise.distance_m = std::sqrt(min_dist_sq);
+            }
             evaluation.pairwise_distances.push_back(pairwise);
         }
     }
@@ -311,7 +323,18 @@ bool GroundTruthEvaluator::writeEvaluationsToJson(
             out << "        {\"label\":" << cluster.label << ",\"classId\":" << cluster.class_id
                 << ",\"size\":" << cluster.size << ",\"maxConfidence\":" << cluster.max_confidence
                 << ",\"center\":[" << cluster.center.x() << ","
-                << cluster.center.y() << "," << cluster.center.z() << "]}";
+                << cluster.center.y() << "," << cluster.center.z() << "]";
+            if (!cluster.voxels.empty())
+            {
+                out << ",\"voxels\":[";
+                for (size_t k = 0; k < cluster.voxels.size(); ++k)
+                {
+                    out << "[" << cluster.voxels[k].x() << "," << cluster.voxels[k].y() << "," << cluster.voxels[k].z() << "]";
+                    out << (k + 1 < cluster.voxels.size() ? "," : "");
+                }
+                out << "]";
+            }
+            out << "}";
             out << (j + 1 < evaluation.predicted_clusters.size() ? ",\n" : "\n");
         }
         out << "      ],\n";

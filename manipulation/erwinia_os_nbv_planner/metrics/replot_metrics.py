@@ -1,33 +1,44 @@
 #!/usr/bin/env python3
 """
-Plot or tabulate NBV evaluation metrics from the current evaluation_metrics.json
-format.
+Plot or tabulate NBV metrics from current evaluation_metrics.json artifacts.
+
+Inputs can be individual JSON files, run directories containing
+evaluation_metrics.json, planner study directories, or a metrics root containing
+tree directories. The script writes either a plot or a table, selected
+explicitly with --output-kind.
 
 Common examples:
   # Plot one JSON run.
   python3 replot_metrics.py --runs metrics/penn_state/tree_11/semantic --output-kind plot \
       --metrics mAP F1_Score Coverage_Percent --output semantic.png
 
-  # Table at viewpoint 20 for one tree/study with planner directories.
-  python3 replot_metrics.py --study metrics/penn_state/tree_11 --avg --output-kind table \
+  # Table at viewpoint 20 for one study; each planner is pooled into one row.
+  python3 replot_metrics.py --study metrics/penn_state/tree_11 --output-kind table \
       --metrics mAP F1_Score Coverage_Percent --table 20 --output tree_11_summary.csv
 
-  # Plot planner means across trees.
-  python3 replot_metrics.py --metrics-root metrics/penn_state --avg-trees --output-kind plot \
+  # Plot pooled planner curves across all trees under a metrics root.
+  python3 replot_metrics.py --metrics-root metrics/penn_state --output-kind plot \
       --metrics mAP F1_Score Coverage_Percent --output planner_means.png
 
 JSON metric definitions:
-  F1_Score is the maximum F1 achieved across all confidence thresholds.
-  Predictions are processed in descending confidence order; at each implicit
-  threshold, predictions are matched one-to-one to the nearest unmatched
-  same-class GT within --distance-threshold meters, and the TP/FP/FN yielding
-  the highest F1 are reported.
+  Precision, Recall, F1_Score, TP_Clusters, FP_Clusters, and FN_Clusters are
+  recomputed from groundTruthSegments, predictedClusters, and pairwiseDistances.
+  By default F1_Score is the maximum F1 achieved across all observed detection
+  confidence thresholds. With --f1-confidence, the score is instead computed at
+  that fixed minimum confidence. At each threshold, predictions are matched
+  one-to-one to the nearest unmatched same-class GT within --distance-threshold
+  meters.
 
   mAP is computed like detection AP, but the "IoU threshold" is replaced by
   a 3D distance threshold in meters. By default AP is averaged over thresholds
-  0.30, 0.27, ..., 0.03 and over classes that have ground truth. At each
-  threshold, detections are sorted by confidence and matched one-to-one to the
-  nearest unmatched same-class ground-truth segment within that distance.
+  0.30, 0.27, ..., 0.03 and over classes that have ground truth or
+  predictions. Classes with predictions but no ground truth contribute AP = 0.
+  At each threshold, detections are sorted by confidence and matched
+  one-to-one to the nearest unmatched same-class ground-truth segment within
+  that distance.
+
+  Coverage_Percent, Occupied_Voxels, Free_Voxels, and Total_Voxels are read or
+  derived directly from the per-viewpoint JSON fields.
 """
 
 import argparse
@@ -102,6 +113,8 @@ def compute_precision_recall_f1(tp_clusters: float, fp_clusters: float, fn_clust
         return 0.0, 0.0, 0.0
     if predicted == 0 and actual == 0:
         return float("nan"), float("nan"), float("nan")
+    if predicted > 0 and actual == 0:
+        return 0.0, float("nan"), 0.0
 
     precision = safe_divide(tp_clusters, predicted)
     recall = safe_divide(tp_clusters, actual)
@@ -205,6 +218,43 @@ def match_predictions_at_threshold(
     return tp, fp, fn
 
 
+def compute_best_f1(
+    viewpoint: dict,
+    classes: Optional[list[int]],
+    distance_threshold: float,
+    fixed_confidence: Optional[float] = None,
+) -> tuple[int, int, int, float, float, float]:
+    if fixed_confidence is not None:
+        tp, fp, fn = match_predictions_at_threshold(
+            viewpoint, classes, distance_threshold, min_confidence=fixed_confidence
+        )
+        precision, recall, f1 = compute_precision_recall_f1(tp, fp, fn)
+        return tp, fp, fn, precision, recall, f1
+
+    predictions = build_prediction_lookup(viewpoint, classes)
+    thresholds = sorted(
+        {prediction_confidence(pred) for pred in predictions.values()},
+        reverse=True,
+    )
+
+    if not thresholds:
+        tp, fp, fn = match_predictions_at_threshold(viewpoint, classes, distance_threshold)
+        precision, recall, f1 = compute_precision_recall_f1(tp, fp, fn)
+        return tp, fp, fn, precision, recall, f1
+
+    best: Optional[tuple[int, int, int, float, float, float]] = None
+    for threshold in thresholds:
+        tp, fp, fn = match_predictions_at_threshold(
+            viewpoint, classes, distance_threshold, min_confidence=threshold
+        )
+        precision, recall, f1 = compute_precision_recall_f1(tp, fp, fn)
+        if best is None or (not pd.isna(f1) and (pd.isna(best[5]) or f1 > best[5])):
+            best = (tp, fp, fn, precision, recall, f1)
+
+    assert best is not None
+    return best
+
+
 
 def compute_ap_for_class(viewpoint: dict, class_id: int, distance_threshold: float) -> float:
     gt_ids = {
@@ -219,7 +269,7 @@ def compute_ap_for_class(viewpoint: dict, class_id: int, distance_threshold: flo
     ]
 
     if not gt_ids:
-        # Predictions with no GT are all FP → AP = 0; no predictions → don't count this class
+        # Predictions with no GT are all FP, so AP = 0; no predictions means the class is skipped.
         return 0.0 if predictions else float("nan")
 
     if not predictions:
@@ -287,6 +337,129 @@ def compute_map(viewpoint: dict, classes: Optional[list[int]], distance_threshol
     return float(np.mean(ap_values)) if ap_values else float("nan")
 
 
+def _has_voxel_data(viewpoints: list[dict]) -> bool:
+    for vp in viewpoints:
+        for cluster in vp.get("predictedClusters", []):
+            if cluster.get("voxels"):
+                return True
+    return False
+
+
+def split_clusters_by_gt(viewpoint: dict, max_threshold: float) -> dict:
+    """Split predicted clusters that span multiple GT points into per-GT sub-clusters.
+
+    A cluster is split only when its voxels include points within max_threshold
+    of two or more distinct GT segments of the same class. Each voxel is
+    assigned to its nearest nearby GT; the resulting sub-clusters become
+    independent predictions so one-to-one AP/F1 matching can credit each
+    covered GT.
+
+    Clusters without voxel exports are left unchanged, so this option is a
+    no-op for JSON files that contain only cluster centroids and pairwise
+    distances.
+    """
+    gt_segments = viewpoint.get("groundTruthSegments", [])
+    if not gt_segments:
+        return viewpoint
+
+    def _dist(a: list, b: list) -> float:
+        return float(np.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2))
+
+    new_clusters: list[dict] = []
+    label_remap: dict[int, list[int]] = {}  # original label -> replacement labels
+
+    for cluster in viewpoint.get("predictedClusters", []):
+        voxels = cluster.get("voxels")
+        if not voxels:
+            new_clusters.append(cluster)
+            label_remap[cluster["label"]] = [cluster["label"]]
+            continue
+
+        gt_pos = [[gt["centroid"][0], gt["centroid"][1], gt["centroid"][2]] for gt in gt_segments]
+        gt_class = [gt["classId"] for gt in gt_segments]
+        cluster_class = cluster["classId"]
+        orig_label = cluster["label"]
+
+        # Find same-class GTs within max_threshold of at least one cluster voxel.
+        nearby_gt_indices = set()
+        for voxel in voxels:
+            for gi, (gp, gc) in enumerate(zip(gt_pos, gt_class)):
+                if gc == cluster_class and _dist(voxel, gp) <= max_threshold:
+                    nearby_gt_indices.add(gi)
+
+        if len(nearby_gt_indices) <= 1:
+            new_clusters.append(cluster)
+            label_remap[orig_label] = [orig_label]
+            continue
+
+        # Assign each voxel to the closest nearby GT.
+        gt_indices = sorted(nearby_gt_indices)
+        buckets: dict[int, list] = {gi: [] for gi in gt_indices}
+        for voxel in voxels:
+            best_gi = min(gt_indices, key=lambda gi: _dist(voxel, gt_pos[gi]))
+            buckets[best_gi].append(voxel)
+
+        non_empty = [gi for gi in gt_indices if buckets[gi]]
+        if len(non_empty) <= 1:
+            # All voxels fell into one bucket, so leave the original cluster unchanged.
+            new_clusters.append(cluster)
+            label_remap[orig_label] = [orig_label]
+            continue
+
+        gt_ids = [gt_segments[gi]["id"] for gi in gt_indices]
+        print(f"  [split] cluster label={orig_label} classId={cluster_class} "
+              f"({len(voxels)} voxels) -> {len(non_empty)} sub-clusters "
+              f"(nearby GTs: {gt_ids})")
+        new_labels = []
+        for sub_idx, gi in enumerate(gt_indices):
+            bucket = buckets[gi]
+            if not bucket:
+                continue
+            arr = np.array(bucket)
+            centroid = arr.mean(axis=0).tolist()
+            new_label = (orig_label + 1) * 10_000_000 + sub_idx
+            new_labels.append(new_label)
+            print(f"    sub-cluster {sub_idx}: label={new_label}, {len(bucket)} voxels -> GT {gt_segments[gi]['id']}")
+            new_clusters.append({
+                "label": new_label,
+                "classId": cluster_class,
+                "size": len(bucket),
+                "maxConfidence": cluster.get("maxConfidence", cluster.get("confidence", 1.0)),
+                "center": centroid,
+                "voxels": bucket,
+            })
+        label_remap[orig_label] = new_labels if new_labels else [orig_label]
+
+    # Rebuild pairwise distances so AP/F1 matching can use the new labels.
+    old_pairwise = viewpoint.get("pairwiseDistances", [])
+    new_pairwise: list[dict] = []
+    for pair in old_pairwise:
+        orig = pair["predictedLabel"]
+        new_labels = label_remap.get(orig)
+        if new_labels is None or new_labels == [orig]:
+            new_pairwise.append(pair)
+            continue
+        # Emit one distance entry per sub-cluster for this GT.
+        for new_label in new_labels:
+            sub_cluster = next((c for c in new_clusters if c["label"] == new_label), None)
+            if sub_cluster is None:
+                continue
+            sub_voxels = sub_cluster.get("voxels", [sub_cluster["center"]])
+            gt_id = pair["gtId"]
+            # Use the GT centroid to recompute distances for split clusters.
+            gt_seg = next((g for g in gt_segments if g["id"] == gt_id), None)
+            if gt_seg is None:
+                continue
+            gp = gt_seg["centroid"]
+            min_d = min(_dist(v, gp) for v in sub_voxels)
+            new_pairwise.append({**pair, "predictedLabel": new_label, "distanceM": min_d})
+
+    return {
+        **viewpoint,
+        "predictedClusters": new_clusters,
+        "pairwiseDistances": new_pairwise,
+    }
+
 
 def find_json_metrics_file(path: Path) -> Optional[Path]:
     candidates = [
@@ -344,12 +517,19 @@ def load_json_run(
     metrics: list[str],
     distance_threshold: float,
     map_thresholds: list[float],
-    f1_confidence: float = 0.0,
+    f1_confidence: Optional[float] = None,
+    split_clusters: bool = True,
 ) -> pd.DataFrame:
     with json_path.open("r", encoding="utf-8") as f:
         data = json.load(f)
 
     viewpoints = data.get("viewpoints", [])
+    if split_clusters and map_thresholds:
+        if not _has_voxel_data(viewpoints):
+            print(f"[warn] Cluster splitting enabled but no voxel data found in {json_path}. "
+                  "Splitting will have no effect (voxels are always exported by the C++ evaluator).")
+        max_thresh = max(map_thresholds)
+        viewpoints = [split_clusters_by_gt(vp, max_thresh) for vp in viewpoints]
 
     rows = []
     for viewpoint in viewpoints:
@@ -364,8 +544,9 @@ def load_json_run(
             row["Total_Voxels"] = row["Occupied_Voxels"] + row["Free_Voxels"]
 
         if any(metric in metrics for metric in ("Precision", "Recall", "F1_Score", "TP_Clusters", "FP_Clusters", "FN_Clusters")):
-            tp, fp, fn = match_predictions_at_threshold(viewpoint, classes, distance_threshold, min_confidence=f1_confidence)
-            precision, recall, f1 = compute_precision_recall_f1(tp, fp, fn)
+            tp, fp, fn, precision, recall, f1 = compute_best_f1(
+                viewpoint, classes, distance_threshold, fixed_confidence=f1_confidence
+            )
             row.update({
                 "TP_Clusters": tp,
                 "FP_Clusters": fp,
@@ -405,11 +586,12 @@ def load_run(
     metrics: list[str],
     distance_threshold: float,
     map_thresholds: list[float],
-    f1_confidence: float = 0.0,
+    f1_confidence: Optional[float] = None,
+    split_clusters: bool = True,
 ) -> pd.DataFrame:
     if metrics_path.name != JSON_METRICS_FILENAME and metrics_path.suffix.lower() != ".json":
         raise ValueError(f"Expected {JSON_METRICS_FILENAME}, got {metrics_path}")
-    return load_json_run(metrics_path, classes, x_col, metrics, distance_threshold, map_thresholds, f1_confidence)
+    return load_json_run(metrics_path, classes, x_col, metrics, distance_threshold, map_thresholds, f1_confidence, split_clusters)
 
 
 def load_raw_viewpoints(json_path: Path) -> list[dict]:
@@ -456,11 +638,12 @@ def compute_pooled_metric_curve(
     metrics: list[str],
     distance_threshold: float,
     map_thresholds: list[float],
-    f1_confidence: float = 0.0,
+    f1_confidence: Optional[float] = None,
+    split_clusters: bool = True,
 ) -> pd.DataFrame:
-    """Compute metrics at each viewpoint index by pooling across all sequences.
+    """Compute dataset-level metrics at each viewpoint index.
 
-    At each index the predictions and GT from every series (run/tree) that has
+    At each index, the predictions and GT from every series (run/tree) that has
     reached that viewpoint are merged into a single virtual viewpoint using
     `make_pooled_viewpoint`, then all requested metrics are computed on it.
 
@@ -473,6 +656,12 @@ def compute_pooled_metric_curve(
         return pd.DataFrame(columns=[x_col] + metrics)
 
     max_len = max(len(vps) for _, vps in named_sequences)
+    max_thresh = max(map_thresholds) if map_thresholds else 0.0
+    if split_clusters and max_thresh > 0:
+        all_vps = [vp for _, vps in named_sequences for vp in vps]
+        if not _has_voxel_data(all_vps):
+            print("[warn] Cluster splitting enabled but no voxel data found in any sequence. "
+                  "Splitting will have no effect (voxels are always exported by the C++ evaluator).")
     rows = []
     for v_idx in range(max_len):
         viewpoint_pairs = [
@@ -482,10 +671,12 @@ def compute_pooled_metric_curve(
         ]
         if not viewpoint_pairs:
             continue
+        if split_clusters and max_thresh > 0:
+            viewpoint_pairs = [(name, split_clusters_by_gt(vp, max_thresh)) for name, vp in viewpoint_pairs]
 
         pooled_vp = make_pooled_viewpoint(viewpoint_pairs)
 
-        # x-axis value: viewpoint index or sim-time from the first available sequence
+        # Use the first sequence at this index to anchor the shared x value.
         if x_col == "Viewpoint":
             x_val = viewpoint_pairs[0][1].get("viewpointIndex", v_idx)
         else:
@@ -498,10 +689,9 @@ def compute_pooled_metric_curve(
             for m in ("Precision", "Recall", "F1_Score", "TP_Clusters", "FP_Clusters", "FN_Clusters")
         )
         if need_counts:
-            tp, fp, fn = match_predictions_at_threshold(
-                pooled_vp, classes, distance_threshold, min_confidence=f1_confidence
+            tp, fp, fn, precision, recall, f1 = compute_best_f1(
+                pooled_vp, classes, distance_threshold, fixed_confidence=f1_confidence
             )
-            precision, recall, f1 = compute_precision_recall_f1(tp, fp, fn)
             row.update({
                 "TP_Clusters": tp,
                 "FP_Clusters": fp,
@@ -514,7 +704,7 @@ def compute_pooled_metric_curve(
         if "mAP" in metrics:
             row["mAP"] = compute_map(pooled_vp, classes, map_thresholds)
 
-        # Voxel metrics: mean across sequences present at this viewpoint
+        # Voxel metrics are averaged across sequences present at this viewpoint.
         voxel_map = {
             "Coverage_Percent": "bboxCoverage",
             "Occupied_Voxels":  "occupiedVoxels",
@@ -757,12 +947,13 @@ def load_run_collection(
     metrics: list[str],
     distance_threshold: float,
     map_thresholds: list[float],
-    f1_confidence: float = 0.0,
+    f1_confidence: Optional[float] = None,
+    split_clusters: bool = True,
 ) -> dict[str, pd.DataFrame]:
     out = {}
     for run_name, metrics_path in run_paths.items():
         try:
-            out[run_name] = load_run(metrics_path, classes, x_col, metrics, distance_threshold, map_thresholds, f1_confidence)
+            out[run_name] = load_run(metrics_path, classes, x_col, metrics, distance_threshold, map_thresholds, f1_confidence, split_clusters)
         except Exception as exc:
             print(f"[error] Failed to load {metrics_path}: {exc}")
     return out
@@ -782,37 +973,63 @@ def load_raw_viewpoints_collection(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Plot or tabulate NBV metrics from evaluation_metrics.json files.")
-    parser.add_argument("--size", choices=["small", "large"], default="small", help="Plot and font size.")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Plot or tabulate NBV metrics from evaluation_metrics.json files. "
+            "Use --output-kind to choose exactly one output mode."
+        )
+    )
+    parser.add_argument("--size", choices=["small", "large"], default="small",
+                        help="Plot canvas and font size.")
 
-    parser.add_argument("--runs", nargs="+", metavar="DIR", help="One or more run directories or evaluation_metrics.json files. Each is plotted as a separate line.")
-    parser.add_argument("--study", metavar="DIR", help="Directory whose immediate subdirs are planner dirs. All runs for each planner are pooled.")
-    parser.add_argument("--metrics-root", metavar="DIR", help="Root containing tree dirs, each with planner dirs. All runs across all trees are pooled per planner.")
-    parser.add_argument("--planners", nargs="+", default=None, metavar="PLANNER", help="Restrict planners.")
-    parser.add_argument("--trees", nargs="+", default=None, metavar="TREE", help="Restrict trees for --metrics-root.")
+    parser.add_argument("--runs", nargs="+", metavar="PATH",
+                        help="Run directories or evaluation_metrics.json files. Each path becomes a separate series.")
+    parser.add_argument("--study", metavar="DIR",
+                        help="Study directory whose immediate subdirs are planners; runs are pooled per planner.")
+    parser.add_argument("--metrics-root", metavar="DIR",
+                        help="Metrics root containing tree dirs, each with planner dirs; all matching runs are pooled per planner.")
+    parser.add_argument("--planners", nargs="+", default=None, metavar="PLANNER",
+                        help="Only include these planner directory names.")
+    parser.add_argument("--trees", nargs="+", default=None, metavar="TREE",
+                        help="Only include these tree directory names for --metrics-root.")
 
-    parser.add_argument("--x", choices=["time", "viewpoint", "run"], default="viewpoint")
-    parser.add_argument("--classes", nargs="+", type=int, default=None, metavar="CLASS_ID")
-    parser.add_argument("--metrics", nargs="+", default=["mAP", "F1_Score", "Coverage_Percent"], metavar="METRIC")
+    parser.add_argument("--x", choices=["time", "viewpoint", "run"], default="viewpoint",
+                        help="X-axis/table lookup coordinate. 'run' is treated as viewpoint index.")
+    parser.add_argument("--classes", nargs="+", type=int, default=None, metavar="CLASS_ID",
+                        help="Restrict matching metrics to these class IDs.")
+    parser.add_argument("--metrics", nargs="+", default=["mAP", "F1_Score", "Coverage_Percent"], metavar="METRIC",
+                        help=f"Metrics to output. Available: {', '.join(AVAILABLE_METRICS)}.")
 
-    parser.add_argument("--output-kind", choices=["plot", "table"], required=True, help="Choose exactly what to write/show.")
-    parser.add_argument("--output", default=None, help="Output file. Plot: image path. Table: CSV or PNG path.")
-    parser.add_argument("--table", type=float, default=None, metavar="XVALUE", help="X-axis value for --output-kind table.")
-    parser.add_argument("--table-format", choices=["csv", "png", "both"], default="csv")
+    parser.add_argument("--output-kind", choices=["plot", "table"], required=True,
+                        help="Select plot generation or table export.")
+    parser.add_argument("--output", default=None,
+                        help="Output path. Plot mode writes an image and plotdata CSV; table mode writes CSV, PNG, or both.")
+    parser.add_argument("--table", type=float, default=None, metavar="XVALUE",
+                        help="X value to extract for --output-kind table.")
+    parser.add_argument("--table-format", choices=["csv", "png", "both"], default="csv",
+                        help="Table output format.")
 
     parser.add_argument("--distance-threshold", type=float, default=0.10,
-                        help="3D distance threshold in meters used as the IoU-equivalent cutoff for Precision/Recall/F1 matching.")
-    parser.add_argument("--f1-confidence", type=float, default=0.0,
-                        help="Minimum detection confidence for F1 matching (default 0.0 = no filtering).")
+                        help="3D distance cutoff in meters for Precision/Recall/F1 one-to-one matching.")
+    parser.add_argument("--f1-confidence", type=float, default=None,
+                        help="Use a fixed minimum detection confidence for F1 matching. By default, report the maximum F1 over all confidence thresholds.")
     parser.add_argument("--map-thresholds", nargs="+", type=float, default=None,
-                        help="Explicit mAP distance thresholds in meters.")
-    parser.add_argument("--map-threshold-max", type=float, default=DEFAULT_MAP_DISTANCE_THRESHOLD_MAX_M)
-    parser.add_argument("--map-threshold-min", type=float, default=DEFAULT_MAP_DISTANCE_THRESHOLD_MIN_M)
-    parser.add_argument("--map-threshold-step", type=float, default=DEFAULT_MAP_DISTANCE_THRESHOLD_STEP_M)
+                        help="Explicit mAP distance thresholds in meters; overrides --map-threshold-{max,min,step}.")
+    parser.add_argument("--map-threshold-max", type=float, default=DEFAULT_MAP_DISTANCE_THRESHOLD_MAX_M,
+                        help="Largest mAP distance threshold in meters when --map-thresholds is not set.")
+    parser.add_argument("--map-threshold-min", type=float, default=DEFAULT_MAP_DISTANCE_THRESHOLD_MIN_M,
+                        help="Smallest mAP distance threshold in meters when --map-thresholds is not set.")
+    parser.add_argument("--map-threshold-step", type=float, default=DEFAULT_MAP_DISTANCE_THRESHOLD_STEP_M,
+                        help="Step size for descending mAP distance thresholds when --map-thresholds is not set.")
 
-    parser.add_argument("--title", default=None)
-    parser.add_argument("--xlim", nargs=2, type=float, metavar=("XMIN", "XMAX"), default=None)
-    parser.add_argument("--ylim", nargs=2, type=float, metavar=("YMIN", "YMAX"), default=None)
+    parser.add_argument("--disable-cluster-splitting", action="store_true", default=False,
+                        help="Do not split voxel-exported clusters that cover multiple same-class GT segments.")
+
+    parser.add_argument("--title", default=None, help="Optional plot title or table caption prefix.")
+    parser.add_argument("--xlim", nargs=2, type=float, metavar=("XMIN", "XMAX"), default=None,
+                        help="Plot x-axis limits.")
+    parser.add_argument("--ylim", nargs=2, type=float, metavar=("YMIN", "YMAX"), default=None,
+                        help="Plot y-axis limits.")
 
     args = parser.parse_args()
     validate_metrics(args.metrics, parser)
@@ -834,11 +1051,12 @@ def main():
         distance_threshold=args.distance_threshold,
         map_thresholds=map_thresholds,
         f1_confidence=args.f1_confidence,
+        split_clusters=not args.disable_cluster_splitting,
     )
 
     run_data: dict[str, pd.DataFrame] = {}
 
-    # --runs: each explicit path becomes its own line (no pooling)
+    # --runs: each explicit path becomes its own series without pooling.
     if args.runs:
         run_paths = {}
         for run_arg in args.runs:
@@ -851,9 +1069,10 @@ def main():
         run_data.update(load_run_collection(
             run_paths, args.classes, x_col, args.metrics,
             args.distance_threshold, map_thresholds, args.f1_confidence,
+            not args.disable_cluster_splitting,
         ))
 
-    # --study: pool all runs for each planner → one curve per planner
+    # --study: pool all runs for each planner into one series per planner.
     if args.study:
         allowed_planners = set(args.planners) if args.planners else None
         for planner_name, runs in discover_single_study(Path(args.study)).items():
@@ -866,7 +1085,7 @@ def main():
             if not df.empty:
                 run_data[planner_name] = df
 
-    # --metrics-root: pool all runs across all trees per planner → one curve per planner
+    # --metrics-root: pool all runs across matching trees into one series per planner.
     if args.metrics_root:
         allowed_trees = set(args.trees) if args.trees else None
         allowed_planners = set(args.planners) if args.planners else None

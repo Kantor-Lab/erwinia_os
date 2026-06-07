@@ -35,6 +35,7 @@ namespace erwinia_os_nbv_planner
         octomap::point3d center;
         int size = 0;
         float max_confidence = 0.0f;
+        std::vector<octomap::point3d> voxels;
     };
 
     struct PairwiseDistance
