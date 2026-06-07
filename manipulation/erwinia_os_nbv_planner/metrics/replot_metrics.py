@@ -20,25 +20,42 @@ Common examples:
   python3 replot_metrics.py --metrics-root metrics/penn_state --output-kind plot \
       --metrics mAP F1_Score Coverage_Percent --output planner_means.png
 
+  # Time-axis plot sampled every 5 seconds.
+  python3 replot_metrics.py --runs metrics/penn_state/tree_11/semantic --output-kind plot \
+      --x time --x-step 5 --metrics mAP F1_Score --output semantic_time.png
+
 JSON metric definitions:
   Precision, Recall, F1_Score, TP_Clusters, FP_Clusters, and FN_Clusters are
   recomputed from groundTruthSegments, predictedClusters, and pairwiseDistances.
   By default F1_Score is the maximum F1 achieved across all observed detection
   confidence thresholds. With --f1-confidence, the score is instead computed at
-  that fixed minimum confidence. At each threshold, predictions are matched
-  one-to-one to the nearest unmatched same-class GT within --distance-threshold
-  meters.
+  that fixed minimum confidence.
 
-  mAP is computed like detection AP, but the "IoU threshold" is replaced by
-  a 3D distance threshold in meters. By default AP is averaged over thresholds
-  0.30, 0.27, ..., 0.03 and over classes that have ground truth or
-  predictions. Classes with predictions but no ground truth contribute AP = 0.
-  At each threshold, detections are sorted by confidence and matched
-  one-to-one to the nearest unmatched same-class ground-truth segment within
-  that distance.
+  Matching uses a three-stage algorithm at each distance threshold:
+    1. Greedy one-to-one matching: predictions sorted by confidence are matched
+       to the nearest unmatched same-class GT within --distance-threshold meters.
+    2. Split credit (--disable-cluster-splitting to turn off): each matched
+       prediction also credits any additional unmatched GTs within threshold,
+       reducing FNs without creating FPs.
+    3. Merge cleanup (--disable-cluster-merging to turn off): unmatched
+       predictions within threshold of an already-TP GT are treated as redundant
+       coverage and removed from the FP count.
+
+  mAP is computed like COCO detection AP but with a 3D distance threshold
+  instead of IoU. By default AP is averaged over thresholds 0.20, 0.18, ...,
+  0.02 m and over all classes that have ground truth or predictions. Classes
+  with predictions but no ground truth contribute AP = 0. The same three-stage
+  matching applies at each threshold.
 
   Coverage_Percent, Occupied_Voxels, Free_Voxels, and Total_Voxels are read or
   derived directly from the per-viewpoint JSON fields.
+
+X-axis modes (--x):
+  viewpoint  One point per viewpoint index (default). Use --x-step N to sample
+             every Nth viewpoint.
+  time       One point per integer second using zero-order hold: each second
+             uses the predictions from the most recently completed viewpoint.
+             Use --x-step N to sample every N seconds.
 """
 
 import argparse
@@ -53,9 +70,9 @@ import pandas as pd
 
 JSON_METRICS_FILENAME = "evaluation_metrics.json"
 
-DEFAULT_MAP_DISTANCE_THRESHOLD_MAX_M = 0.30
-DEFAULT_MAP_DISTANCE_THRESHOLD_MIN_M = 0.03
-DEFAULT_MAP_DISTANCE_THRESHOLD_STEP_M = 0.03
+DEFAULT_MAP_DISTANCE_THRESHOLD_MAX_M = 0.20
+DEFAULT_MAP_DISTANCE_THRESHOLD_MIN_M = 0.02
+DEFAULT_MAP_DISTANCE_THRESHOLD_STEP_M = 0.02
 
 COUNT_METRICS = {
     "TP_Clusters",
@@ -433,6 +450,18 @@ def discover_metrics_root(metrics_root: Path) -> dict[str, dict[str, dict[str, P
     return out
 
 
+def _viewpoint_at_time(viewpoints: list[dict], t: float) -> Optional[dict]:
+    """Return the last viewpoint whose timeSec <= t (zero-order hold), or None."""
+    result = None
+    for vp in viewpoints:
+        ts = vp.get("timeSec")
+        if ts is not None and ts <= t:
+            result = vp
+        elif ts is not None and ts > t:
+            break
+    return result
+
+
 def load_json_run(
     json_path: Path,
     classes: Optional[list[int]],
@@ -443,42 +472,50 @@ def load_json_run(
     f1_confidence: Optional[float] = None,
     split_clusters: bool = True,
     merge_clusters: bool = True,
+    x_step: int = 1,
 ) -> pd.DataFrame:
     with json_path.open("r", encoding="utf-8") as f:
         data = json.load(f)
 
     viewpoints = data.get("viewpoints", [])
 
-    rows = []
-    for viewpoint in viewpoints:
-        row = {
+    def _compute_row(viewpoint: dict, x_val) -> dict:
+        row: dict = {
             "Viewpoint": viewpoint.get(JSON_KEY_MAP["Viewpoint"]),
-            "Time": viewpoint.get(JSON_KEY_MAP["Time"]),
+            "Time": x_val if x_col == "Time" else viewpoint.get(JSON_KEY_MAP["Time"]),
             "Coverage_Percent": viewpoint.get(JSON_KEY_MAP["Coverage_Percent"]),
             "Occupied_Voxels": viewpoint.get(JSON_KEY_MAP["Occupied_Voxels"]),
             "Free_Voxels": viewpoint.get(JSON_KEY_MAP["Free_Voxels"]),
         }
         if row["Occupied_Voxels"] is not None and row["Free_Voxels"] is not None:
             row["Total_Voxels"] = row["Occupied_Voxels"] + row["Free_Voxels"]
-
-        if any(metric in metrics for metric in ("Precision", "Recall", "F1_Score", "TP_Clusters", "FP_Clusters", "FN_Clusters")):
+        if any(m in metrics for m in ("Precision", "Recall", "F1_Score", "TP_Clusters", "FP_Clusters", "FN_Clusters")):
             tp, fp, fn, precision, recall, f1 = compute_best_f1(
                 viewpoint, classes, distance_threshold, fixed_confidence=f1_confidence,
                 split_clusters=split_clusters, merge_clusters=merge_clusters,
             )
-            row.update({
-                "TP_Clusters": tp,
-                "FP_Clusters": fp,
-                "FN_Clusters": fn,
-                "Precision": precision,
-                "Recall": recall,
-                "F1_Score": f1,
-            })
-
+            row.update({"TP_Clusters": tp, "FP_Clusters": fp, "FN_Clusters": fn,
+                        "Precision": precision, "Recall": recall, "F1_Score": f1})
         if "mAP" in metrics:
-            row["mAP"] = compute_map(viewpoint, classes, map_thresholds, split_clusters=split_clusters, merge_clusters=merge_clusters)
+            row["mAP"] = compute_map(viewpoint, classes, map_thresholds,
+                                     split_clusters=split_clusters, merge_clusters=merge_clusters)
+        return row
 
-        rows.append(row)
+    if x_col == "Time":
+        times = [vp.get("timeSec") for vp in viewpoints if vp.get("timeSec") is not None]
+        if not times:
+            return pd.DataFrame(columns=["Time"] + metrics)
+        rows = []
+        for t in range(0, int(times[-1]) + 1, max(1, x_step)):
+            vp = _viewpoint_at_time(viewpoints, float(t))
+            if vp is not None:
+                rows.append(_compute_row(vp, float(t)))
+    else:
+        rows = [
+            _compute_row(vp, vp.get(JSON_KEY_MAP["Viewpoint"]))
+            for i, vp in enumerate(viewpoints)
+            if i % max(1, x_step) == 0
+        ]
 
     out = pd.DataFrame(rows)
     if x_col not in out.columns:
@@ -508,10 +545,11 @@ def load_run(
     f1_confidence: Optional[float] = None,
     split_clusters: bool = True,
     merge_clusters: bool = True,
+    x_step: int = 1,
 ) -> pd.DataFrame:
     if metrics_path.name != JSON_METRICS_FILENAME and metrics_path.suffix.lower() != ".json":
         raise ValueError(f"Expected {JSON_METRICS_FILENAME}, got {metrics_path}")
-    return load_json_run(metrics_path, classes, x_col, metrics, distance_threshold, map_thresholds, f1_confidence, split_clusters, merge_clusters)
+    return load_json_run(metrics_path, classes, x_col, metrics, distance_threshold, map_thresholds, f1_confidence, split_clusters, merge_clusters, x_step)
 
 
 def load_raw_viewpoints(json_path: Path) -> list[dict]:
@@ -561,42 +599,32 @@ def compute_pooled_metric_curve(
     f1_confidence: Optional[float] = None,
     split_clusters: bool = True,
     merge_clusters: bool = True,
+    x_step: int = 1,
 ) -> pd.DataFrame:
-    """Compute dataset-level metrics at each viewpoint index.
+    """Compute dataset-level metrics across all series, pooled at each sample point.
 
-    At each index, the predictions and GT from every series (run/tree) that has
-    reached that viewpoint are merged into a single virtual viewpoint using
-    `make_pooled_viewpoint`, then all requested metrics are computed on it.
+    In viewpoint mode (x_col != "Time"), sample points are viewpoint indices
+    0, x_step, 2*x_step, …. At each index, all series that have reached that
+    viewpoint are included.
 
-    mAP and F1/Precision/Recall use the pooled predictions so that larger trees
-    contribute proportionally (COCO-style dataset-level AP).
+    In time mode (x_col == "Time"), sample points are integer seconds
+    0, x_step, 2*x_step, … up to the latest timeSec across all series. At each
+    second, each series contributes its most-recent viewpoint via zero-order hold
+    (the last viewpoint whose timeSec <= t).
+
+    In both modes the contributing viewpoints are merged into a single virtual
+    viewpoint using `make_pooled_viewpoint`, then all requested metrics are
+    computed on it. mAP and F1/Precision/Recall use the pooled predictions so
+    that larger trees contribute proportionally (COCO-style dataset-level AP).
     Voxel-based metrics (Coverage_Percent, Occupied_Voxels, Free_Voxels) are
-    averaged across the sequences since each tree has its own octomap bbox.
+    averaged across contributing series since each tree has its own octomap bbox.
     """
     if not named_sequences:
         return pd.DataFrame(columns=[x_col] + metrics)
 
-    max_len = max(len(vps) for _, vps in named_sequences)
-    rows = []
-    for v_idx in range(max_len):
-        viewpoint_pairs = [
-            (name, vps[v_idx])
-            for name, vps in named_sequences
-            if v_idx < len(vps)
-        ]
-        if not viewpoint_pairs:
-            continue
-
-        pooled_vp = make_pooled_viewpoint(viewpoint_pairs)
-
-        # Use the first sequence at this index to anchor the shared x value.
-        if x_col == "Viewpoint":
-            x_val = viewpoint_pairs[0][1].get("viewpointIndex", v_idx)
-        else:
-            x_val = viewpoint_pairs[0][1].get("timeSec", float(v_idx))
-
+    def _pool_and_compute(pairs: list[tuple[str, dict]], x_val) -> dict:
+        pooled_vp = make_pooled_viewpoint(pairs)
         row: dict = {x_col: x_val}
-
         need_counts = any(
             m in metrics
             for m in ("Precision", "Recall", "F1_Score", "TP_Clusters", "FP_Clusters", "FN_Clusters")
@@ -606,32 +634,56 @@ def compute_pooled_metric_curve(
                 pooled_vp, classes, distance_threshold, fixed_confidence=f1_confidence,
                 split_clusters=split_clusters, merge_clusters=merge_clusters,
             )
-            row.update({
-                "TP_Clusters": tp,
-                "FP_Clusters": fp,
-                "FN_Clusters": fn,
-                "Precision": precision,
-                "Recall": recall,
-                "F1_Score": f1,
-            })
-
+            row.update({"TP_Clusters": tp, "FP_Clusters": fp, "FN_Clusters": fn,
+                        "Precision": precision, "Recall": recall, "F1_Score": f1})
         if "mAP" in metrics:
-            row["mAP"] = compute_map(pooled_vp, classes, map_thresholds, split_clusters=split_clusters, merge_clusters=merge_clusters)
-
-        # Voxel metrics are averaged across sequences present at this viewpoint.
+            row["mAP"] = compute_map(pooled_vp, classes, map_thresholds,
+                                     split_clusters=split_clusters, merge_clusters=merge_clusters)
         voxel_map = {
             "Coverage_Percent": "bboxCoverage",
-            "Occupied_Voxels":  "occupiedVoxels",
-            "Free_Voxels":      "freeVoxels",
+            "Occupied_Voxels": "occupiedVoxels",
+            "Free_Voxels": "freeVoxels",
         }
         for col, key in voxel_map.items():
             if col in metrics:
-                vals = [vp.get(key) for _, vp in viewpoint_pairs if vp.get(key) is not None]
+                vals = [vp.get(key) for _, vp in pairs if vp.get(key) is not None]
                 row[col] = float(np.mean(vals)) if vals else float("nan")
-            if "Total_Voxels" in metrics and "Occupied_Voxels" in row and "Free_Voxels" in row:
-                row["Total_Voxels"] = row["Occupied_Voxels"] + row["Free_Voxels"]
+        if "Total_Voxels" in metrics and "Occupied_Voxels" in row and "Free_Voxels" in row:
+            row["Total_Voxels"] = row["Occupied_Voxels"] + row["Free_Voxels"]
+        return row
 
-        rows.append(row)
+    rows = []
+
+    step = max(1, x_step)
+    if x_col == "Time":
+        all_times = [
+            vp.get("timeSec")
+            for _, vps in named_sequences
+            for vp in vps
+            if vp.get("timeSec") is not None
+        ]
+        if not all_times:
+            return pd.DataFrame(columns=[x_col] + metrics)
+        for t in range(0, int(max(all_times)) + 1, step):
+            pairs = [
+                (name, _viewpoint_at_time(vps, float(t)))
+                for name, vps in named_sequences
+            ]
+            pairs = [(name, vp) for name, vp in pairs if vp is not None]
+            if pairs:
+                rows.append(_pool_and_compute(pairs, float(t)))
+    else:
+        max_len = max(len(vps) for _, vps in named_sequences)
+        for v_idx in range(0, max_len, step):
+            pairs = [
+                (name, vps[v_idx])
+                for name, vps in named_sequences
+                if v_idx < len(vps)
+            ]
+            if not pairs:
+                continue
+            x_val = pairs[0][1].get("viewpointIndex", v_idx)
+            rows.append(_pool_and_compute(pairs, x_val))
 
     df = pd.DataFrame(rows)
     ordered = [x_col] + [m for m in metrics if m in df.columns]
@@ -864,11 +916,12 @@ def load_run_collection(
     f1_confidence: Optional[float] = None,
     split_clusters: bool = True,
     merge_clusters: bool = True,
+    x_step: int = 1,
 ) -> dict[str, pd.DataFrame]:
     out = {}
     for run_name, metrics_path in run_paths.items():
         try:
-            out[run_name] = load_run(metrics_path, classes, x_col, metrics, distance_threshold, map_thresholds, f1_confidence, split_clusters, merge_clusters)
+            out[run_name] = load_run(metrics_path, classes, x_col, metrics, distance_threshold, map_thresholds, f1_confidence, split_clusters, merge_clusters, x_step)
         except Exception as exc:
             print(f"[error] Failed to load {metrics_path}: {exc}")
     return out
@@ -910,6 +963,8 @@ def main():
 
     parser.add_argument("--x", choices=["time", "viewpoint", "run"], default="viewpoint",
                         help="X-axis/table lookup coordinate. 'run' is treated as viewpoint index.")
+    parser.add_argument("--x-step", type=int, default=1, metavar="N",
+                        help="Sample every N seconds (--x time) or every N viewpoints (--x viewpoint). Default 1 (every point).")
     parser.add_argument("--classes", nargs="+", type=int, default=None, metavar="CLASS_ID",
                         help="Restrict matching metrics to these class IDs.")
     parser.add_argument("--metrics", nargs="+", default=["mAP", "F1_Score", "Coverage_Percent"], metavar="METRIC",
@@ -970,6 +1025,7 @@ def main():
         f1_confidence=args.f1_confidence,
         split_clusters=not args.disable_cluster_splitting,
         merge_clusters=not args.disable_cluster_merging,
+        x_step=args.x_step,
     )
 
     run_data: dict[str, pd.DataFrame] = {}
@@ -989,6 +1045,7 @@ def main():
             args.distance_threshold, map_thresholds, args.f1_confidence,
             not args.disable_cluster_splitting,
             not args.disable_cluster_merging,
+            args.x_step,
         ))
 
     # --study: pool all runs for each planner into one series per planner.

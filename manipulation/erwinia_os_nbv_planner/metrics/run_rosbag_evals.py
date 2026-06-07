@@ -298,8 +298,7 @@ _ABLATION_TREES: List[Tuple[int, str, str]] = [
 # self-documenting.  Baseline runs additionally carry decimation_factor=2.
 _ABLATION_PASSES: List[Tuple[str, dict]] = [
     # # Octomap resolution — affects map fidelity for both planners
-    # ("res_low",      {"octomap_resolution": "0.04"}),   # coarser  (default 0.02)
-    # ("res_high",     {"octomap_resolution": "0.01"}),   # finer    (default 0.02)
+    ("res_high",     {"octomap_resolution": "0.02"}),
     # # Semantic mismatch penalty — penalises label disagreement in the semantic map
     # ("penalty_low",  {"semantic_mismatch_penalty": "0.1"}),  # default 0.2
     # ("penalty_high", {"semantic_mismatch_penalty": "0.4"}),  # default 0.2
@@ -307,10 +306,9 @@ _ABLATION_PASSES: List[Tuple[str, dict]] = [
     # ("boost_low",    {"semantic_confidence_boost": "0.15"}), # default 0.3
     # ("boost_high",   {"semantic_confidence_boost": "0.5"}),  # default 0.3
     # # Detection confidence threshold — controls which detections enter the map
-    # ("conf_low",     {"conf_thresh": "0.05"}),           # default 0.15
-    # ("conf_high",    {"conf_thresh": "0.30"}),           # default 0.15
+    ("conf_high",    {"conf_thresh": "0.10"}),
     # Camera max range — reduces stereo depth noise by cutting far detections
-    # ("range_low",    {"camera_max_range": "0.7"}),       # default 0.9
+    ("range_high",    {"camera_max_range": "0.9"}),
 ]
 
 for _suffix, _overrides in _ABLATION_PASSES:
