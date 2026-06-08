@@ -36,7 +36,6 @@ setup(
     entry_points={
         'console_scripts': [
             'gazebo_viewpoint_capture_node = erwinia_os_gz.gazebo_viewpoint_capture_node:main',
-            'generate_aruco_models = erwinia_os_gz.generate_aruco_models:main',
         ],
     },
 )
