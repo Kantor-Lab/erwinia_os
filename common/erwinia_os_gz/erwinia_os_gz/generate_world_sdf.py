@@ -1,6 +1,20 @@
-<?xml version="1.0"?>
+def generate_world_sdf(
+    model_name: str = 'apple_tree_1',
+    x: float = 0.0,
+    y: float = -1.6,
+    z: float = 0.0,
+    roll: float = 0.0,
+    pitch: float = 0.0,
+    yaw: float = 1.5708,
+) -> str:
+    """Return a Gazebo world SDF string.
+
+    Includes the shared apple_tree_ground model at the world origin and the
+    chosen model at the specified (x, y, z, roll, pitch, yaw) pose.
+    """
+    return f"""<?xml version="1.0"?>
 <sdf version="1.7">
-    <world name="apple_tree_5">
+    <world name="apple_tree_world">
 
         <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
         <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
@@ -9,8 +23,6 @@
         <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
             <render_engine>ogre2</render_engine>
         </plugin>
-        <!-- <plugin filename="gz-sim-navsat-system" name="gz::sim::systems::NavSat"/>
-        <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/> -->
 
         <physics type="ode">
             <max_step_size>0.01</max_step_size>
@@ -32,9 +44,9 @@
             </sky>
             <shadows>false</shadows>
         </scene>
-        
+
         <light name='sun' type='directional'>
-            <pose>0 0 10 0 -0 0</pose>
+            <pose>0 0 10 0 0 0</pose>
             <cast_shadows>false</cast_shadows>
             <intensity>1</intensity>
             <direction>-0.5 0.1 -0.9</direction>
@@ -59,11 +71,11 @@
             <pose>0 0 0 0 0 -1.57</pose>
         </include>
 
-        <!-- Apple tree with crook canker disease -->
         <include>
-            <uri>model://apple_tree_5</uri>
-            <name>apple_tree_5</name>
-            <pose>0.37377 -1.6 0 0 0 3.14159</pose> <!-- This goes 1.6 in x direction and -1 in y direction -->
+            <uri>model://{model_name}</uri>
+            <name>{model_name}</name>
+            <pose>{x} {y} {z} {roll} {pitch} {yaw}</pose>
         </include>
+
     </world>
-</sdf>
+</sdf>"""

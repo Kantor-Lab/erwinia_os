@@ -1,4 +1,5 @@
 import os
+import tempfile
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, SetEnvironmentVariable, IncludeLaunchDescription, OpaqueFunction, GroupAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -6,14 +7,22 @@ from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 
+from erwinia_os_gz.generate_world_sdf import generate_world_sdf
+
+
+# World names that are individual model scenes and should use the
+# dynamic SDF generator instead of the static .sdf world file.
+APPLE_TREE_WORLDS = {'apple_tree_1', 'apple_tree_2', 'apple_tree_3', 'apple_tree_4', 'apple_tree_5'}
+
 
 def launch_setup(context, *args, **kwargs):
     """
     Launch Gazebo with the specified world.
     Sets up resource paths for custom models and worlds.
     """
-    world = LaunchConfiguration('world')
-    world_value = world.perform(context)
+    world_value    = LaunchConfiguration('world').perform(context)
+    position_value = LaunchConfiguration('position').perform(context)
+    rotation_value = LaunchConfiguration('rotation').perform(context)
 
     pkg_gz = get_package_share_directory('erwinia_os_gz')
     worlds_dir = os.path.join(pkg_gz, 'worlds')
@@ -39,17 +48,28 @@ def launch_setup(context, *args, **kwargs):
         ([gz_existing] if gz_existing else [])
     )
 
-    # Determine the .sdf world files available
-    worlds = {f[:-4] for f in os.listdir(worlds_dir) if f.endswith('.sdf')}
-    if world_value in worlds:
-        # Use one of our custom worlds
-        world_file = PathJoinSubstitution([pkg_gz, 'worlds', f'{world_value}.sdf'])
-    elif os.path.isabs(world_value):
-        # Absolute path provided
-        world_file = world_value
+    # Determine the world file to load
+    if world_value in APPLE_TREE_WORLDS:
+        # Generate a temporary world SDF with the model at the given pose
+        pos = position_value.split()
+        rot = rotation_value.split()
+        sdf_str = generate_world_sdf(
+            model_name=world_value,
+            x=float(pos[0]), y=float(pos[1]), z=float(pos[2]),
+            roll=float(rot[0]), pitch=float(rot[1]), yaw=float(rot[2]),
+        )
+        tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.sdf', delete=False)
+        tmp.write(sdf_str)
+        tmp.close()
+        world_file = tmp.name
     else:
-        # Assume it's a relative path from our worlds directory
-        world_file = PathJoinSubstitution([pkg_gz, 'worlds', world_value])
+        worlds = {f[:-4] for f in os.listdir(worlds_dir) if f.endswith('.sdf')}
+        if world_value in worlds:
+            world_file = PathJoinSubstitution([pkg_gz, 'worlds', f'{world_value}.sdf'])
+        elif os.path.isabs(world_value):
+            world_file = world_value
+        else:
+            world_file = PathJoinSubstitution([pkg_gz, 'worlds', world_value])
 
     # Build launch actions list
     launch_actions = [
@@ -110,8 +130,18 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
             'world',
-            default_value='apple_orchard',
-            description='World to load: "empty", "apple_orchard", custom world name, or absolute path to .sdf file'
+            default_value='empty',
+            description='World to load: apple_tree_1..5, "empty", "apple_orchard", or absolute path to .sdf'
+        ),
+        DeclareLaunchArgument(
+            'position',
+            default_value='0.0 -1.6 0.0',
+            description="Model position as 'x y z' in meters (used for apple_tree worlds)"
+        ),
+        DeclareLaunchArgument(
+            'rotation',
+            default_value='0.0 0.0 1.5708',
+            description="Model rotation as 'roll pitch yaw' in radians (used for apple_tree worlds)"
         ),
         DeclareLaunchArgument(
             'launch_clock_bridge',

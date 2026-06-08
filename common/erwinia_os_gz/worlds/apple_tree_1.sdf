@@ -53,6 +53,12 @@
             </spot>
         </light>
 
+        <include>
+            <uri>model://apple_tree_ground</uri>
+            <name>apple_tree_ground</name>
+            <pose>0 0 0 0 0 -1.57</pose>
+        </include>
+
         <!-- Apple tree with crook canker disease -->
         <include>
             <uri>model://apple_tree_1</uri>

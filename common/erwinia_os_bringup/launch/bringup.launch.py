@@ -28,6 +28,8 @@ def launch_setup(context, *args, **kwargs):
     use_gazebo = LaunchConfiguration('use_gazebo')
     use_sim_time = LaunchConfiguration('use_sim_time')
     world = LaunchConfiguration('world')
+    position = LaunchConfiguration('position')
+    rotation = LaunchConfiguration('rotation')
     use_rviz = LaunchConfiguration('use_rviz')
     use_foxglove = LaunchConfiguration('use_foxglove')
     manipulator_prefix = LaunchConfiguration('manipulator_prefix')
@@ -54,6 +56,8 @@ def launch_setup(context, *args, **kwargs):
             ),
             launch_arguments={
                 'world': world,
+                'position': position,
+                'rotation': rotation,
             }.items()
         )
         launch_actions.append(gazebo_launch)
@@ -171,7 +175,17 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'world',
             default_value='empty',
-            description='World to load: "empty" or path to .sdf file'
+            description='World to load: apple_tree_1..5, "empty", "apple_orchard", or path to .sdf file'
+        ),
+        DeclareLaunchArgument(
+            'position',
+            default_value='0.0 -1.6 0.0',
+            description="Model position as 'x y z' in meters (used for apple_tree worlds)"
+        ),
+        DeclareLaunchArgument(
+            'rotation',
+            default_value='0.0 0.0 1.5708',
+            description="Model rotation as 'roll pitch yaw' in radians (used for apple_tree worlds)"
         ),
         DeclareLaunchArgument(
             'use_rviz',
