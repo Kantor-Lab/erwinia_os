@@ -7,6 +7,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
+#include <Eigen/Geometry>
 
 #include <array>
 #include <optional>
@@ -24,6 +25,9 @@ namespace erwinia_os_nbv_planner
 
         bool loadGroundTruthFile(const std::string &file_path);
         bool hasGroundTruth() const { return !gt_segments_.empty(); }
+
+        void setPointTransform(const Eigen::Vector3d &translation,
+                               const Eigen::Quaterniond &rotation);
 
         const std::vector<GroundTruthSegment> &getGroundTruthSegments() const { return gt_segments_; }
         const std::string &getGroundTruthFrameId() const { return gt_frame_id_; }
@@ -65,5 +69,8 @@ namespace erwinia_os_nbv_planner
         std::string gt_file_path_;
         std::string gt_frame_id_;
         std::vector<GroundTruthSegment> gt_segments_;
+
+        Eigen::Vector3d gt_translation_ = Eigen::Vector3d::Zero();
+        Eigen::Quaterniond gt_rotation_ = Eigen::Quaterniond::Identity();
     };
 } // namespace erwinia_os_nbv_planner

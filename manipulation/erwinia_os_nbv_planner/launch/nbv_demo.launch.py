@@ -97,8 +97,10 @@ def launch_setup(context, *args, **kwargs):
             print(f"[nbv_demo.launch.py] WARNING: No workspace files found in {data_dir}")
             print(f"[nbv_demo.launch.py] Set learn_workspace:=true to learn a new workspace")
 
-    # Ground truth file path
+    # Ground truth file path and transform
     gt_points_file = LaunchConfiguration('gt_points_file').perform(context)
+    gt_points_position = [float(v) for v in LaunchConfiguration('gt_points_position').perform(context).split()]
+    gt_points_rotation = [float(v) for v in LaunchConfiguration('gt_points_rotation').perform(context).split()]
     viewpoint_voxel_export_dir = LaunchConfiguration('viewpoint_voxel_export_dir').perform(context)
     if viewpoint_voxel_export_dir == '':
         viewpoint_voxel_export_dir = os.path.join(base_run_dir, 'voxels')
@@ -145,6 +147,8 @@ def launch_setup(context, *args, **kwargs):
 
         # Evaluation Parameters
         'gt_points_file': gt_points_file,
+        'gt_points_position': gt_points_position,
+        'gt_points_rotation': gt_points_rotation,
         'metrics_data_dir': metrics_data_dir,
         'export_viewpoint_voxels': LaunchConfiguration('export_viewpoint_voxels').perform(context).lower() == 'true',
         'viewpoint_voxel_export_dir': viewpoint_voxel_export_dir,
@@ -543,6 +547,10 @@ def generate_launch_description():
         # Ground Truth Evaluation Parameters
         DeclareLaunchArgument('gt_points_file', default_value='',
                               description='Path to the ground truth points JSON file for semantic evaluation'),
+        DeclareLaunchArgument('gt_points_position', default_value='0.0 0.0 0.0',
+                              description="GT points translation as 'x y z' in meters"),
+        DeclareLaunchArgument('gt_points_rotation', default_value='0.0 0.0 0.0',
+                              description="GT points rotation as 'roll pitch yaw' in radians"),
         DeclareLaunchArgument('metrics_dir', default_value='metrics',
                               description='Directory for saving metrics (plots and CSV data)'),
         DeclareLaunchArgument('run', default_value='',

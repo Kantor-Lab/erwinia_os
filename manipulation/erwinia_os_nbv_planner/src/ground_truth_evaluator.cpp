@@ -5,6 +5,7 @@
 #include <geometry_msgs/msg/point_stamped.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <yaml-cpp/yaml.h>
+#include <Eigen/Geometry>
 
 #include <algorithm>
 #include <array>
@@ -113,9 +114,31 @@ bool GroundTruthEvaluator::loadGroundTruthFile(const std::string &file_path)
     }
 }
 
+void GroundTruthEvaluator::setPointTransform(
+    const Eigen::Vector3d &translation, const Eigen::Quaterniond &rotation)
+{
+    gt_translation_ = translation;
+    gt_rotation_ = rotation.normalized();
+}
+
 std::vector<GroundTruthSegment> GroundTruthEvaluator::getGroundTruthInFrame(const std::string &target_frame) const
 {
     std::vector<GroundTruthSegment> transformed = gt_segments_;
+
+    const bool has_user_transform =
+        !gt_translation_.isZero() ||
+        gt_rotation_.angularDistance(Eigen::Quaterniond::Identity()) > 1e-9;
+
+    if (has_user_transform)
+    {
+        for (auto &seg : transformed)
+        {
+            Eigen::Vector3d p(seg.position.x(), seg.position.y(), seg.position.z());
+            p = gt_rotation_ * p + gt_translation_;
+            seg.position = octomap::point3d(p.x(), p.y(), p.z());
+        }
+    }
+
     if (gt_frame_id_.empty() || target_frame.empty() || gt_frame_id_ == target_frame)
     {
         return transformed;
@@ -280,6 +303,11 @@ bool GroundTruthEvaluator::writeEvaluationsToJson(
     out << "{\n";
     out << "  \"groundTruthFile\": \"" << escapeJson(gt_file_path_) << "\",\n";
     out << "  \"groundTruthFrameId\": \"" << escapeJson(gt_frame_id_) << "\",\n";
+    out << "  \"groundTruthTranslation\": ["
+        << gt_translation_.x() << "," << gt_translation_.y() << "," << gt_translation_.z() << "],\n";
+    out << "  \"groundTruthRotation\": ["
+        << gt_rotation_.x() << "," << gt_rotation_.y() << ","
+        << gt_rotation_.z() << "," << gt_rotation_.w() << "],\n";
     out << "  \"viewpoints\": [\n";
     for (size_t i = 0; i < evaluations.size(); ++i)
     {

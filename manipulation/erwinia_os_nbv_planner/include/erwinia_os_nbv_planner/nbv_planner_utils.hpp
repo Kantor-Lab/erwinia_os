@@ -61,6 +61,8 @@ struct NBVPlannerConfig
 
     // Evaluation Parameters
     std::string gt_points_file;
+    std::vector<double> gt_points_position; // [x, y, z] meters
+    std::vector<double> gt_points_rotation; // [roll, pitch, yaw] radians
     std::string metrics_data_dir;
     bool export_viewpoint_voxels;
     std::string viewpoint_voxel_export_dir;
@@ -172,6 +174,8 @@ NBVPlannerConfig loadConfiguration(const std::shared_ptr<rclcpp::Node> &node)
 
     // Evaluation Parameters
     config.gt_points_file = node->get_parameter("gt_points_file").as_string();
+    config.gt_points_position = node->get_parameter("gt_points_position").as_double_array();
+    config.gt_points_rotation = node->get_parameter("gt_points_rotation").as_double_array();
     config.metrics_data_dir = node->get_parameter("metrics_data_dir").as_string();
     config.export_viewpoint_voxels = node->get_parameter("export_viewpoint_voxels").as_bool();
     config.viewpoint_voxel_export_dir = node->get_parameter("viewpoint_voxel_export_dir").as_string();
@@ -272,6 +276,12 @@ void printConfiguration(const NBVPlannerConfig &config, const rclcpp::Logger &lo
     // Evaluation Parameters
     RCLCPP_INFO(logger, "--- Evaluation ---");
     RCLCPP_INFO(logger, "  GT points file: %s", config.gt_points_file.c_str());
+    if (config.gt_points_position.size() == 3)
+        RCLCPP_INFO(logger, "  GT points position: [%.4f, %.4f, %.4f]",
+            config.gt_points_position[0], config.gt_points_position[1], config.gt_points_position[2]);
+    if (config.gt_points_rotation.size() == 3)
+        RCLCPP_INFO(logger, "  GT points rotation (rpy rad): [%.4f, %.4f, %.4f]",
+            config.gt_points_rotation[0], config.gt_points_rotation[1], config.gt_points_rotation[2]);
     RCLCPP_INFO(logger, "  Metrics data dir: %s", config.metrics_data_dir.c_str());
     RCLCPP_INFO(logger, "  Export viewpoint voxels: %s", config.export_viewpoint_voxels ? "true" : "false");
     RCLCPP_INFO(logger, "  Viewpoint voxel export dir: %s", config.viewpoint_voxel_export_dir.c_str());

@@ -350,6 +350,12 @@ static int run(std::shared_ptr<rclcpp::Node> node,
             return 1;
         }
         RCLCPP_INFO(node->get_logger(), "Ground truth loaded successfully");
+        evaluator.setPointTransform(
+            Eigen::Vector3d(config.gt_points_position[0], config.gt_points_position[1], config.gt_points_position[2]),
+            Eigen::Quaterniond(
+                Eigen::AngleAxisd(config.gt_points_rotation[2], Eigen::Vector3d::UnitZ()) *
+                Eigen::AngleAxisd(config.gt_points_rotation[1], Eigen::Vector3d::UnitY()) *
+                Eigen::AngleAxisd(config.gt_points_rotation[0], Eigen::Vector3d::UnitX())));
 
         // Store initial time for relative time calculations
         initial_time = node->now().seconds();
