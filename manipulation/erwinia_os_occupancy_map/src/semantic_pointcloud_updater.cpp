@@ -198,8 +198,7 @@ namespace erwinia_os_occupancy_map
 
         // Step 1: Aggregate by voxel key with max-confidence fusion
         auto aggregate_start = node_->now();
-        std::unordered_map<octomap::OcTreeKey, SemanticBest, OcTreeKeyHash, OcTreeKeyEqual> best;
-        best.reserve(points.size());
+        std::map<octomap::OcTreeKey, SemanticBest, OcTreeKeyCompare> best;
 
         for (const auto &p : points)
         {

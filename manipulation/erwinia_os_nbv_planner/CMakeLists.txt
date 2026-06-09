@@ -23,6 +23,7 @@ find_package(tf2_geometry_msgs REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
+find_package(ompl REQUIRED)
 
 # Generate custom action interfaces
 rosidl_generate_interfaces(${PROJECT_NAME}
@@ -38,6 +39,7 @@ add_library(moveit_interface SHARED
 target_include_directories(moveit_interface PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
+  ${OMPL_INCLUDE_DIRS}
 )
 ament_target_dependencies(moveit_interface
   rclcpp
@@ -45,6 +47,7 @@ ament_target_dependencies(moveit_interface
   moveit_ros_planning
   geometry_msgs
 )
+target_link_libraries(moveit_interface ${OMPL_LIBRARIES})
 
 # Define the OctoMap interface library
 add_library(octomap_interface SHARED

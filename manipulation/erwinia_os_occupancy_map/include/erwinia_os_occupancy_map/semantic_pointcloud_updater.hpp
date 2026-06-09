@@ -10,7 +10,7 @@
 
 #include <memory>
 #include <string>
-#include <unordered_map>
+#include <map>
 
 namespace erwinia_os_occupancy_map
 {
@@ -49,6 +49,19 @@ namespace erwinia_os_occupancy_map
         bool operator()(const octomap::OcTreeKey &a, const octomap::OcTreeKey &b) const noexcept
         {
             return a.k[0] == b.k[0] && a.k[1] == b.k[1] && a.k[2] == b.k[2];
+        }
+    };
+
+    /**
+     * @brief Strict-weak-ordering comparator for OcTreeKey (needed for std::map/std::set)
+     */
+    struct OcTreeKeyCompare
+    {
+        bool operator()(const octomap::OcTreeKey &a, const octomap::OcTreeKey &b) const noexcept
+        {
+            if (a.k[0] != b.k[0]) return a.k[0] < b.k[0];
+            if (a.k[1] != b.k[1]) return a.k[1] < b.k[1];
+            return a.k[2] < b.k[2];
         }
     };
 

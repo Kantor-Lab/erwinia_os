@@ -7,6 +7,7 @@
 #include <tf2_eigen/tf2_eigen.hpp>
 #include <random>
 #include <ctime>
+#include <ompl/util/RandomNumbers.h>
 
 namespace erwinia_os_nbv_planner
 {
@@ -15,6 +16,7 @@ namespace erwinia_os_nbv_planner
                                      const std::string &group_name)
         : node_(node), group_name_(group_name)
     {
+        ompl::RNG::setSeed(42);
         move_group_ = std::make_unique<moveit::planning_interface::MoveGroupInterface>(node_, group_name_);
         psm_ = std::make_shared<planning_scene_monitor::PlanningSceneMonitor>(node_, "robot_description");
 

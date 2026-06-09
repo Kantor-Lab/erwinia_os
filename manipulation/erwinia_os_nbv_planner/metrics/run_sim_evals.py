@@ -37,14 +37,14 @@ from typing import Dict, List, Optional, Tuple
 # (tree_id, world_name, position_str, gt_points_file)
 TREE_CONFIGS: List[Tuple[int, str, str, str]] = [
     (1, "apple_tree_1", "0 -1.6 0", "metrics/blender/tree_1/gt_points.json"),
-    # (2, "apple_tree_2", "0 -1.6 0", "metrics/blender/tree_2/gt_points.json"),
-    # (3, "apple_tree_3", "0 -1.6 0", "metrics/blender/tree_3/gt_points.json"),
-    # (4, "apple_tree_4", "0 -1.6 0", "metrics/blender/tree_4/gt_points.json"),
-    # (5, "apple_tree_5", "0 -1.6 0", "metrics/blender/tree_5/gt_points.json"),
+    (2, "apple_tree_2", "0 -1.6 0", "metrics/blender/tree_2/gt_points.json"),
+    (3, "apple_tree_3", "0 -1.6 0", "metrics/blender/tree_3/gt_points.json"),
+    (4, "apple_tree_4", "0 -1.6 0", "metrics/blender/tree_4/gt_points.json"),
+    (5, "apple_tree_5", "0 -1.6 0", "metrics/blender/tree_5/gt_points.json"),
 ]
 
 # Step size (degrees) between rotation experiments. 360 must be divisible by this.
-ROTATION_STEP_DEG: int = 0
+ROTATION_STEP_DEG: int = 60
 
 # Additional yaw angles to sweep (degrees). The base 1.5708 rad aligns the
 # Blender-exported model with Gazebo's world axes; each step rotates on top of that.
@@ -58,8 +58,8 @@ BASE_YAW_RAD: float = 1.5708
 # run_label is used for the output subdirectory and log path; planner_type is the
 # actual launch argument. They differ for ablation runs.
 PLANNERS: List[Tuple[str, str, Dict[str, str]]] = [
-    # ("baseline",   "baseline",   {}),
-    # ("volumetric", "volumetric", {}),
+    ("baseline",   "baseline",   {}),
+    ("volumetric", "volumetric", {}),
     ("semantic",   "semantic",   {}),
 ]
 
@@ -95,7 +95,7 @@ NBV_BASE_PARAMS: Dict[str, str] = {
     "conf_thresh":               "0.1",
     "export_viewpoint_voxels":   "true",
     "octomap_resolution":        "0.02",
-    "camera_max_range":          "0.7",
+    "camera_max_range":          "0.9",
     "semantic_mismatch_penalty": "0.2",
     "semantic_confidence_boost": "0.3",
     "beta_semantic_weight":      "0.5",

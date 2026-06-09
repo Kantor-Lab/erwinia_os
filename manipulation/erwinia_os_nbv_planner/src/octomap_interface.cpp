@@ -9,7 +9,7 @@
 #include <random>
 #include <queue>
 #include <type_traits>
-#include <unordered_set>
+#include <set>
 
 namespace erwinia_os_nbv_planner
 {
@@ -580,12 +580,17 @@ namespace erwinia_os_nbv_planner
                 return a.k[0]==b.k[0] && a.k[1]==b.k[1] && a.k[2]==b.k[2];
             }
         };
+        struct KeyCompare {
+            bool operator()(const octomap::OcTreeKey& a, const octomap::OcTreeKey& b) const noexcept {
+                if (a.k[0] != b.k[0]) return a.k[0] < b.k[0];
+                if (a.k[1] != b.k[1]) return a.k[1] < b.k[1];
+                return a.k[2] < b.k[2];
+            }
+        };
 
         for (const auto& [class_id, keys] : keys_by_class)
         {
-            std::unordered_set<octomap::OcTreeKey, KeyHash, KeyEq> unvisited;
-            unvisited.reserve(keys.size() * 2);
-            for (const auto& k : keys) unvisited.insert(k);
+            std::set<octomap::OcTreeKey, KeyCompare> unvisited(keys.begin(), keys.end());
 
             while (!unvisited.empty())
             {
