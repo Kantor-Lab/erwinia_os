@@ -140,7 +140,8 @@ def launch_setup(context, *args, **kwargs):
             arguments=[
                 'platform_velocity_controller',
                 '--controller-manager', '/controller_manager',
-                '--param-file', str(controllers_yaml_path)
+                '--param-file', str(controllers_yaml_path),
+                '--controller-manager-timeout', '60',
                 ],
             parameters=[{'use_sim_time': use_sim_time}]
         )
@@ -151,7 +152,8 @@ def launch_setup(context, *args, **kwargs):
             arguments=[
                 'xarm6_traj_controller',
                 '--controller-manager', '/controller_manager',
-                '--param-file', str(controllers_yaml_path)
+                '--param-file', str(controllers_yaml_path),
+                '--controller-manager-timeout', '60',
                 ],
             parameters=[{'use_sim_time': use_sim_time}]
         )

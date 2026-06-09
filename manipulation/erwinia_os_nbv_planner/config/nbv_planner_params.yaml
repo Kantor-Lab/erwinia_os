@@ -79,6 +79,9 @@ nbv_action_server:
     z_bias_sigma: 0.5
     viewpoint_overlap_ratio: 0.40
 
+    # Visited Viewpoint Filtering
+    min_revisit_pose_distance: 0.05
+
     # Debug Parameters
     visualize: true
     visualization_topic: nbv_planner_visualization

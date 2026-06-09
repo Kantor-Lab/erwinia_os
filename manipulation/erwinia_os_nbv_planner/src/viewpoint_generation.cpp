@@ -847,7 +847,9 @@ namespace erwinia_os_nbv_planner
         double total_gain = 0.0;
         int num_rays_cast = 0;
 
-        const int num_steps = static_cast<int>(max_range / resolution);
+        const int num_steps  = static_cast<int>(max_range / resolution);
+        const double t_peak  = max_range / 2.0;
+        const double t_sigma = max_range / 4.0;
 
         for (int v = 0; v < height; v += stride_v)
         {
@@ -901,9 +903,11 @@ namespace erwinia_os_nbv_planner
                             float conf = node->getConfidence();
                             if (std::isnan(conf) || std::isinf(conf)) conf = 0.0f;
                             conf = std::min(1.0f, std::max(0.0f, conf));
-                            ray_gain += static_cast<double>(beta) * 10 * (1.0 - static_cast<double>(conf));
+                            // const double dist_weight = std::exp(-0.5 * std::pow((t - t_peak) / t_sigma, 2.0));
+                            const double dist_weight = 1.0; // No distance weighting for now
+                            ray_gain += static_cast<double>(beta) * static_cast<double>(num_steps) * (1.0 - static_cast<double>(conf)) * dist_weight;
                         }
-                        // else { ray_gain += static_cast<double>(beta) * 10.0; } // No semantic info => max uncertainty
+                        // else { ray_gain += static_cast<double>(beta) * static_cast<double>(num_steps); } // No semantic info => max uncertainty
 
                         // Stop ray at occupied voxel
                         break;

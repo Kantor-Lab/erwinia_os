@@ -341,6 +341,17 @@ static int run(std::shared_ptr<rclcpp::Node> node)
             return 1;
         }
 
+        // SE(3) pose distance: sqrt(||Δpos||² + (r·Δθ)²), r = ideal_camera_distance
+        auto poseSimilarityDistance = [&](const Viewpoint& a, const Viewpoint& b) {
+            const double r   = config.ideal_camera_distance;
+            double pos_sq    = (a.position - b.position).squaredNorm();
+            double dot       = std::abs(a.orientation[0]*b.orientation[0] + a.orientation[1]*b.orientation[1]
+                                      + a.orientation[2]*b.orientation[2] + a.orientation[3]*b.orientation[3]);
+            double theta     = 2.0 * std::acos(std::min(1.0, dot));
+            return std::sqrt(pos_sq + (r * theta) * (r * theta));
+        };
+        std::vector<Viewpoint> visited_viewpoints;
+
         // Main NBV Planning Loop
         for (int i = 0; i < config.max_iterations; i++)
         {
@@ -481,6 +492,22 @@ static int run(std::shared_ptr<rclcpp::Node> node)
                 RCLCPP_WARN(node->get_logger(), "No reachable viewpoints found!");
                 break;
             }
+
+            // Filter out viewpoints too similar to previously visited poses
+            if (!visited_viewpoints.empty() && config.min_revisit_pose_distance > 0.0) {
+                reachable_viewpoints.erase(
+                    std::remove_if(reachable_viewpoints.begin(), reachable_viewpoints.end(),
+                        [&](const Viewpoint& vp) {
+                            return std::any_of(visited_viewpoints.begin(), visited_viewpoints.end(),
+                                [&](const Viewpoint& v) {
+                                    return poseSimilarityDistance(vp, v) < config.min_revisit_pose_distance;
+                                });
+                        }),
+                    reachable_viewpoints.end());
+                RCLCPP_DEBUG(node->get_logger(), "%zu reachable viewpoints after visited filter",
+                    reachable_viewpoints.size());
+            }
+
             if (visualizer)
             {
                 std::vector<geometry_msgs::msg::Pose> viewpoint_poses;
@@ -549,6 +576,7 @@ static int run(std::shared_ptr<rclcpp::Node> node)
                 RCLCPP_ERROR(node->get_logger(), "Motion execution failed, ending NBV planning");
                 break;
             }
+            visited_viewpoints.push_back(best_viewpoint);
 
             // Update the octomap after motion
             waitForOctomap(node, octomap_interface, trigger_clients, config, node->get_logger());

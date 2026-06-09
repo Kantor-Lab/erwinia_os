@@ -93,6 +93,9 @@ struct NBVPlannerConfig
     double z_bias_sigma;             // M_PI / 3.0
     double viewpoint_overlap_ratio;
 
+    // Visited Viewpoint Filtering
+    double min_revisit_pose_distance = 0.05;  // m (SE(3) combined metric)
+
     // Debug Parameters
     bool visualize;
     std::string visualization_topic;
@@ -224,6 +227,9 @@ NBVPlannerConfig loadConfiguration(const std::shared_ptr<rclcpp::Node> &node)
     config.num_viewpoints_per_frontier = node->get_parameter("num_viewpoints_per_frontier").as_int();
     config.z_bias_sigma = node->get_parameter("z_bias_sigma").as_double();
     config.viewpoint_overlap_ratio = node->get_parameter("viewpoint_overlap_ratio").as_double();
+
+    // Visited Viewpoint Filtering
+    config.min_revisit_pose_distance = node->declare_parameter<double>("min_revisit_pose_distance", 0.05);
 
     // Debug Parameters
     config.visualize = node->get_parameter("visualize").as_bool();
