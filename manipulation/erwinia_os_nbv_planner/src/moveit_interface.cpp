@@ -986,8 +986,8 @@ namespace erwinia_os_nbv_planner
             return false;
         }
 
-        // Random number generator for seed jittering
-        std::mt19937 rng(static_cast<unsigned>(std::time(nullptr)));
+        // Random number generator for seed jittering (fixed seed for reproducibility)
+        std::mt19937 rng(42u);
 
         // Build ordered seed list: current state → caller hints → jittered random
         std::vector<std::vector<double>> seeds;

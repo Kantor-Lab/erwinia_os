@@ -85,9 +85,8 @@ namespace erwinia_os_nbv_planner
         const std::vector<std::string> &joint_names = jmg->getActiveJointModelNames();
         std::vector<double> random_joint_positions(joint_names.size());
 
-        // Random number generator
-        static std::random_device rd;
-        static std::mt19937 gen(rd());
+        // Random number generator (fixed seed for reproducibility)
+        static std::mt19937 gen(42u);
 
         // Sample random joint positions within bounds
         for (size_t i = 0; i < joint_names.size(); ++i)

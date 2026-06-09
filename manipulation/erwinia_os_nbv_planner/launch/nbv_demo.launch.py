@@ -1,7 +1,7 @@
 # nbv_demo.launch.py
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, OpaqueFunction, IncludeLaunchDescription, RegisterEventHandler, EmitEvent
+from launch.actions import DeclareLaunchArgument, OpaqueFunction, IncludeLaunchDescription, RegisterEventHandler, EmitEvent, SetEnvironmentVariable
 from launch.event_handlers import OnProcessExit
 from launch.events import Shutdown
 from launch.substitutions import LaunchConfiguration, Command
@@ -481,7 +481,10 @@ def launch_setup(context, *args, **kwargs):
         )
     
 
-    actions = [firefly_launch, octomap_server_node, nbv_node]
+    actions = [
+        SetEnvironmentVariable('CUBLAS_WORKSPACE_CONFIG', ':4096:8'),
+        firefly_launch, octomap_server_node, nbv_node,
+    ]
 
     if not node_parameters['keep_alive']:
         actions.append(RegisterEventHandler(

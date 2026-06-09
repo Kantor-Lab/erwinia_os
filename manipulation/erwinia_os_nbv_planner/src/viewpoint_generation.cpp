@@ -297,9 +297,8 @@ namespace erwinia_os_nbv_planner
 
         const double z_sign = use_positive_z ? 1.0 : -1.0;
 
-        // Random number generators
-        std::random_device rd;
-        std::mt19937 gen(rd());
+        // Random number generators (fixed seed for reproducibility)
+        std::mt19937 gen(42u);
         std::uniform_real_distribution<> uniform_01(0.0, 1.0);
         std::uniform_real_distribution<> uniform_phi(0.0, 2.0 * M_PI);
         std::normal_distribution<> gaussian_theta(0.0, z_bias_sigma);

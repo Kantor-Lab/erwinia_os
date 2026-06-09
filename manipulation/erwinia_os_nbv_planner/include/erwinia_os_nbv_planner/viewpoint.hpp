@@ -33,7 +33,11 @@ struct Viewpoint
      */
     bool operator<(const Viewpoint& other) const
     {
-        return utility < other.utility;
+        if (utility != other.utility)
+            return utility < other.utility;
+        if (position.x() != other.position.x()) return position.x() < other.position.x();
+        if (position.y() != other.position.y()) return position.y() < other.position.y();
+        return position.z() < other.position.z();
     }
 };
 
