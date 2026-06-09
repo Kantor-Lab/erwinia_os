@@ -309,7 +309,7 @@ static int run(std::shared_ptr<rclcpp::Node> node,
         }
     };
 
-    auto build_evaluation = [&](int current_viewpoint_index, const geometry_msgs::msg::Pose *camera_pose) -> ViewpointEvaluation
+    auto build_evaluation = [&](int current_viewpoint_index, const geometry_msgs::msg::Pose *camera_pose, double elapsed_time) -> ViewpointEvaluation
     {
         auto latest_clusters = octomap_interface->clusterSemanticVoxels(false);
         auto [occupied, free] = octomap_interface->getVoxelCounts();
@@ -320,7 +320,7 @@ static int run(std::shared_ptr<rclcpp::Node> node,
         }
         return evaluator.buildViewpointEvaluation(
             current_viewpoint_index,
-            node->now().seconds() - initial_time,
+            elapsed_time,
             optional_pose,
             latest_clusters,
             octomap_interface->getOctomapFrameId(),
@@ -360,7 +360,7 @@ static int run(std::shared_ptr<rclcpp::Node> node,
         // Store initial time for relative time calculations
         initial_time = node->now().seconds();
 
-        auto initial_evaluation = build_evaluation(viewpoint_index, nullptr);
+        auto initial_evaluation = build_evaluation(viewpoint_index, nullptr, 0.0);
         all_metrics.push_back(initial_evaluation);
         evaluator.logViewpointEvaluation(initial_evaluation);
         publish_semantic_markers(octomap_interface->clusterSemanticVoxels(false));
@@ -375,9 +375,48 @@ static int run(std::shared_ptr<rclcpp::Node> node,
             octomap_interface->getTreeTypeString().c_str());
     }
 
+    // Motion accumulator — tracks total path length (translation + rotation) between
+    // octomap updates so that moves-and-returns are counted as motion.
+    struct MotionAccumulator {
+        double translation = 0.0;
+        double rotation    = 0.0;
+        geometry_msgs::msg::TransformStamped last_tf;
+        bool has_last_tf = false;
+    };
+    MotionAccumulator motion_acc;
+    std::mutex motion_mutex;
+
+    auto motion_timer = node->create_wall_timer(
+        std::chrono::milliseconds(20),
+        [&]() {
+            geometry_msgs::msg::TransformStamped tf;
+            try {
+                tf = tf_buffer->lookupTransform(
+                    config.map_frame, config.camera_optical_link, tf2::TimePointZero);
+            } catch (const tf2::TransformException &) { return; }
+
+            std::lock_guard<std::mutex> lock(motion_mutex);
+            if (motion_acc.has_last_tf) {
+                const auto &t0 = motion_acc.last_tf.transform.translation;
+                const auto &t1 = tf.transform.translation;
+                double dt = std::sqrt(std::pow(t1.x - t0.x, 2) +
+                                      std::pow(t1.y - t0.y, 2) +
+                                      std::pow(t1.z - t0.z, 2));
+
+                const auto &q0 = motion_acc.last_tf.transform.rotation;
+                const auto &q1 = tf.transform.rotation;
+                double dot = std::min(1.0, std::abs(q0.x*q1.x + q0.y*q1.y +
+                                                    q0.z*q1.z + q0.w*q1.w));
+                double dtheta = 2.0 * std::acos(dot);
+
+                motion_acc.translation += dt;
+                motion_acc.rotation    += dtheta;
+            }
+            motion_acc.last_tf     = tf;
+            motion_acc.has_last_tf = true;
+        });
+
     // Main NBV Replay Loop
-    Eigen::Vector3d prev_eef_pos = Eigen::Vector3d::Zero();
-    bool has_prev_eef_pos = false;
     int i = 0;
     while (rclcpp::ok())
     {
@@ -392,36 +431,39 @@ static int run(std::shared_ptr<rclcpp::Node> node,
                 break;
             spin_rate.sleep();
         }
+        if (!rclcpp::ok())
+            break;
 
-        // Get current EEF position from TF
-        Eigen::Vector3d eef_pos = Eigen::Vector3d::Zero();
-        bool eef_moved = true;
-        geometry_msgs::msg::TransformStamped current_tf;
+        // Capture timestamp immediately after update is detected, before any slow processing
+        double update_time = node->now().seconds() - initial_time;
+
+        // Consume accumulated motion since last octomap update and reset
+        double total_translation, total_rotation;
+        {
+            std::lock_guard<std::mutex> lock(motion_mutex);
+            total_translation = motion_acc.translation;
+            total_rotation    = motion_acc.rotation;
+            motion_acc.translation = 0.0;
+            motion_acc.rotation    = 0.0;
+        }
+        bool eef_moved = (total_translation > 1e-3 || total_rotation > 1e-2);
+
+        // Look up current camera pose for evaluation metadata
+        geometry_msgs::msg::Pose camera_pose;
+        bool has_camera_pose = false;
         try
         {
-            current_tf = tf_buffer->lookupTransform(
+            auto current_tf = tf_buffer->lookupTransform(
                 config.map_frame, config.camera_optical_link, tf2::TimePointZero);
-            eef_pos = Eigen::Vector3d(
-                current_tf.transform.translation.x,
-                current_tf.transform.translation.y,
-                current_tf.transform.translation.z);
-            if (has_prev_eef_pos && (eef_pos - prev_eef_pos).norm() < 1e-3)
-                eef_moved = false;
+            camera_pose.position.x  = current_tf.transform.translation.x;
+            camera_pose.position.y  = current_tf.transform.translation.y;
+            camera_pose.position.z  = current_tf.transform.translation.z;
+            camera_pose.orientation = current_tf.transform.rotation;
+            has_camera_pose = true;
         }
         catch (const tf2::TransformException &ex)
         {
             RCLCPP_WARN(node->get_logger(), "TF lookup failed: %s", ex.what());
-        }
-
-        geometry_msgs::msg::Pose camera_pose;
-        bool has_camera_pose = false;
-        if (eef_moved)
-        {
-            camera_pose.position.x = eef_pos.x();
-            camera_pose.position.y = eef_pos.y();
-            camera_pose.position.z = eef_pos.z();
-            camera_pose.orientation = current_tf.transform.rotation;
-            has_camera_pose = true;
         }
 
         const auto latest_clusters = octomap_interface->isSemanticTree()
@@ -431,7 +473,7 @@ static int run(std::shared_ptr<rclcpp::Node> node,
         if (do_evaluation)
         {
             const int current_viewpoint_index = eef_moved ? viewpoint_index++ : std::max(0, viewpoint_index - 1);
-            auto evaluation = build_evaluation(current_viewpoint_index, has_camera_pose ? &camera_pose : nullptr);
+            auto evaluation = build_evaluation(current_viewpoint_index, has_camera_pose ? &camera_pose : nullptr, update_time);
             if (!eef_moved && !all_metrics.empty())
             {
                 all_metrics.back() = evaluation;
@@ -465,8 +507,6 @@ static int run(std::shared_ptr<rclcpp::Node> node,
             }
         }
 
-        prev_eef_pos = eef_pos;
-        has_prev_eef_pos = true;
         ++i;
     }
 
