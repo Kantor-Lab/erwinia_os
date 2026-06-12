@@ -981,7 +981,7 @@ def main():
 
     parser.add_argument("--distance-threshold", type=float, default=0.10,
                         help="3D distance cutoff in meters for Precision/Recall/F1 one-to-one matching.")
-    parser.add_argument("--f1-confidence", type=float, default=None,
+    parser.add_argument("--f1-confidence", type=float, default=0.05,
                         help="Use a fixed minimum detection confidence for F1 matching. By default, report the maximum F1 over all confidence thresholds.")
     parser.add_argument("--map-thresholds", nargs="+", type=float, default=None,
                         help="Explicit mAP distance thresholds in meters; overrides --map-threshold-{max,min,step}.")

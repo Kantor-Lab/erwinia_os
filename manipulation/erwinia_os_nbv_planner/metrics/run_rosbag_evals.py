@@ -38,7 +38,7 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_eval_recordings/recording_baseline_2/",
         "tree_12/baseline/",
         "metrics/penn_state/tree_12/gt_points.json",
-        {"decimation_factor": "2"},
+        {"decimation_factor": "1.64"},
     ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_eval_recordings/recording_volumetric_2/",
@@ -56,7 +56,7 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_eval_recordings/recording_baseline_1/",
         "tree_11/baseline/",
         "metrics/penn_state/tree_11/gt_points.json",
-        {"decimation_factor": "2"},
+        {"decimation_factor": "1.94"},
     ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_eval_recordings/recording_volumetric_1/",
@@ -74,7 +74,7 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_baseline_10/",
         "tree_10/baseline/",
         "metrics/penn_state/tree_10/gt_points.json",
-        {"decimation_factor": "2"},
+        {"decimation_factor": "1"},
     ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_10/",
@@ -92,7 +92,7 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_baseline_9/",
         "tree_9/baseline/",
         "metrics/penn_state/tree_9/gt_points.json",
-        {"decimation_factor": "2"},
+        {"decimation_factor": "1.14"},
     ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_9/",
@@ -110,7 +110,7 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_baseline_8/",
         "tree_8/baseline/",
         "metrics/penn_state/tree_8/gt_points.json",
-        {"decimation_factor": "2"},
+        {"decimation_factor": "1.67"},
     ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_8/",
@@ -128,7 +128,7 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_baseline_7/",
         "tree_7/baseline/",
         "metrics/penn_state/tree_7/gt_points.json",
-        {"decimation_factor": "2"},
+        {"decimation_factor": "1.4"},
     ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_7/",
@@ -146,7 +146,7 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_baseline_6/",
         "tree_6/baseline/",
         "metrics/penn_state/tree_6/gt_points.json",
-        {"decimation_factor": "2"},
+        {"decimation_factor": "1"},
     ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_6/",
@@ -164,7 +164,7 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_baseline_5/",
         "tree_5/baseline/",
         "metrics/penn_state/tree_5/gt_points.json",
-        {"decimation_factor": "2"},
+        {"decimation_factor": "1.04"},
     ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_5/",
@@ -182,7 +182,7 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_baseline_4/",
         "tree_4/baseline/",
         "metrics/penn_state/tree_4/gt_points.json",
-        {"decimation_factor": "2"},
+        {"decimation_factor": "1.27"},
     ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_4/",
@@ -200,7 +200,7 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_baseline_3/",
         "tree_3/baseline/",
         "metrics/penn_state/tree_3/gt_points.json",
-        {"decimation_factor": "2"},
+        {"decimation_factor": "1"},
     ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_3/",
@@ -218,7 +218,7 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_baseline_2/",
         "tree_2/baseline/",
         "metrics/penn_state/tree_2/gt_points.json",
-        {"decimation_factor": "2"},
+        {"decimation_factor": "1.34"},
     ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_2/",
@@ -236,7 +236,7 @@ EXPERIMENT_CONFIGS: List[Tuple[str, str, str, dict]] = [
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_baseline_1/",
         "tree_1/baseline/",
         "metrics/penn_state/tree_1/gt_points.json",
-        {"decimation_factor": "2"},
+        {"decimation_factor": "1.64"},
     ),
     (
         "/media/hayden/T7/penn_state_3-26/fireblight_data_days1-2/robot_demo_recordings/day1/recording_volumetric_1/",
@@ -298,7 +298,7 @@ _ABLATION_TREES: List[Tuple[int, str, str]] = [
 # self-documenting.  Baseline runs additionally carry decimation_factor=2.
 _ABLATION_PASSES: List[Tuple[str, dict]] = [
     # # Octomap resolution — affects map fidelity for both planners
-    ("res_high",     {"octomap_resolution": "0.02"}),
+    # ("res_high",     {"octomap_resolution": "0.02"}),
     # # Semantic mismatch penalty — penalises label disagreement in the semantic map
     # ("penalty_low",  {"semantic_mismatch_penalty": "0.1"}),  # default 0.2
     # ("penalty_high", {"semantic_mismatch_penalty": "0.4"}),  # default 0.2
@@ -306,9 +306,9 @@ _ABLATION_PASSES: List[Tuple[str, dict]] = [
     # ("boost_low",    {"semantic_confidence_boost": "0.15"}), # default 0.3
     # ("boost_high",   {"semantic_confidence_boost": "0.5"}),  # default 0.3
     # # Detection confidence threshold — controls which detections enter the map
-    ("conf_high",    {"conf_thresh": "0.10"}),
+    # ("conf_high",    {"conf_thresh": "0.10"}),
     # Camera max range — reduces stereo depth noise by cutting far detections
-    ("range_high",    {"camera_max_range": "0.9"}),
+    # ("range_high",    {"camera_max_range": "0.9"}),
 ]
 
 for _suffix, _overrides in _ABLATION_PASSES:
@@ -342,7 +342,7 @@ NBV_BASE_PARAMS = {
     "detection_model_trt": "yolo26_large_seg_rivendale_v6_fold1.plan",
     "semantic_mismatch_penalty": "0.2",
     "semantic_confidence_boost": "0.3",
-    "camera_max_range": "0.7",
+    "camera_max_range": "0.9",
     "export_viewpoint_voxels": "true",
     "metrics_dir": "metrics/penn_state",
     "conf_thresh": "0.05",
