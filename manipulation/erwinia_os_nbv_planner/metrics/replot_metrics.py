@@ -821,7 +821,7 @@ def plot_metrics(
     output: Optional[str],
     title: Optional[str],
     xlim: Optional[list[float]],
-    ylim: Optional[list[float]],
+    ylims: list[Optional[list[float]]],
     size: str = "small",
 ):
     plt = get_pyplot()
@@ -847,8 +847,10 @@ def plot_metrics(
         "figure.titlesize": font_sizes["suptitle"],
     })
 
-    fig, axes = plt.subplots(len(metrics), 1, figsize=(fig_width, fig_height_per_metric * len(metrics)), sharex=True)
-    if len(metrics) == 1:
+    n_metrics = len(metrics)
+    per_metric_h = fig_height_per_metric if n_metrics == 1 else int(fig_height_per_metric * 0.75)
+    fig, axes = plt.subplots(n_metrics, 1, figsize=(fig_width, per_metric_h * n_metrics), sharex=True)
+    if n_metrics == 1:
         axes = [axes]
 
     n_series = max(1, len(run_data))
@@ -858,10 +860,11 @@ def plot_metrics(
         existing = len(palette)
         palette += [plt.cm.hsv(i / (n_series - existing)) for i in range(n_series - existing)]
 
+    sorted_run_data = dict(sorted(run_data.items()))
     plotdata_rows = []
-    for ax, metric in zip(axes, metrics):
+    for i, (ax, metric) in enumerate(zip(axes, metrics)):
         color_iter = iter(palette)
-        for name, df in run_data.items():
+        for name, df in sorted_run_data.items():
             color = next(color_iter)
             if metric not in df.columns:
                 continue
@@ -871,19 +874,21 @@ def plot_metrics(
             if output:
                 append_plotdata_rows(plotdata_rows, name, metric, x, y)
 
-        ax.set_ylabel(metric.replace("_", " "))
         ax.set_title(metric.replace("_", " "))
         ax.grid(True, alpha=0.3)
-        ax.legend(fontsize=font_sizes["legend"])
+        if i == 0:
+            ax.legend(fontsize=font_sizes["legend"])
         if xlim:
             ax.set_xlim(xlim[0], xlim[1])
+        ylim = ylims[i] if i < len(ylims) else None
         if ylim:
             ax.set_ylim(ylim[0], ylim[1])
 
     axes[-1].set_xlabel(x_col.replace("_", " "))
     if title:
         fig.suptitle(title, fontsize=font_sizes["suptitle"], fontweight="bold")
-    plt.tight_layout()
+    top = 0.97 if title else 1.0
+    plt.tight_layout(rect=[0, 0, 1, top])
 
     if output:
         out_dir = os.path.dirname(os.path.abspath(output))
@@ -981,7 +986,7 @@ def main():
 
     parser.add_argument("--distance-threshold", type=float, default=0.10,
                         help="3D distance cutoff in meters for Precision/Recall/F1 one-to-one matching.")
-    parser.add_argument("--f1-confidence", type=float, default=0.05,
+    parser.add_argument("--f1-confidence", type=float, default=None,
                         help="Use a fixed minimum detection confidence for F1 matching. By default, report the maximum F1 over all confidence thresholds.")
     parser.add_argument("--map-thresholds", nargs="+", type=float, default=None,
                         help="Explicit mAP distance thresholds in meters; overrides --map-threshold-{max,min,step}.")
@@ -1000,8 +1005,8 @@ def main():
     parser.add_argument("--title", default=None, help="Optional plot title or table caption prefix.")
     parser.add_argument("--xlim", nargs=2, type=float, metavar=("XMIN", "XMAX"), default=None,
                         help="Plot x-axis limits.")
-    parser.add_argument("--ylim", nargs=2, type=float, metavar=("YMIN", "YMAX"), default=None,
-                        help="Plot y-axis limits.")
+    parser.add_argument("--ylim", nargs="+", type=float, metavar="VAL", default=None,
+                        help="Y-axis limits per metric: YMIN1 YMAX1 [YMIN2 YMAX2 ...]. Metrics without a pair get auto-scaling.")
 
     args = parser.parse_args()
     validate_metrics(args.metrics, parser)
@@ -1086,6 +1091,11 @@ def main():
         return
 
     if args.output_kind == "plot":
+        raw_ylim = args.ylim or []
+        per_metric_ylims = [
+            [raw_ylim[i * 2], raw_ylim[i * 2 + 1]] if i * 2 + 1 < len(raw_ylim) else None
+            for i in range(len(args.metrics))
+        ]
         plot_metrics(
             run_data=run_data,
             x_col=x_col,
@@ -1093,7 +1103,7 @@ def main():
             output=args.output,
             title=args.title,
             xlim=args.xlim,
-            ylim=args.ylim,
+            ylims=per_metric_ylims,
             size=args.size,
         )
         return
