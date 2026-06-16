@@ -219,6 +219,8 @@ def launch_setup(context, *args, **kwargs):
         'color_by_class': LaunchConfiguration('color_by_class').perform(context).lower() == 'true',
         'enable_detection': LaunchConfiguration('enable_detection').perform(context).lower() == 'true',
         'detection_model_trt': LaunchConfiguration('detection_model_trt').perform(context),
+        'background_conf': float(LaunchConfiguration('background_conf').perform(context)),
+        'conf_thresh': float(LaunchConfiguration('conf_thresh').perform(context)),
     }
 
     # Capture octomap parameters
@@ -367,6 +369,7 @@ def launch_setup(context, *args, **kwargs):
             'detection_model_dir': LaunchConfiguration('detection_model_dir'),
             'detection_model_trt': LaunchConfiguration('detection_model_trt'),
             'conf_thresh': LaunchConfiguration('conf_thresh'),
+            'background_conf': LaunchConfiguration('background_conf'),
             'decimation_factor': LaunchConfiguration('decimation_factor'),
         }.items()
     )
@@ -598,6 +601,8 @@ def generate_launch_description():
                               description='TensorRT engine file for YOLO detection model'),
         DeclareLaunchArgument('conf_thresh', default_value='0.3',
                               description='Confidence threshold for YOLO detections. Also the threshold for considering a detection as "background" in semantic point cloud generation.'),
+        DeclareLaunchArgument('background_conf', default_value='0.3',
+                              description='Background confidence for semantic fusion in the occupancy map'),
         DeclareLaunchArgument('decimation_factor', default_value='1',
                               description='Process every Nth frame (1 = all frames, 2 = every other frame, etc.)'),
 

@@ -196,9 +196,12 @@ namespace erwinia_os_occupancy_map
             transform.transform.translation.y,
             transform.transform.translation.z);
 
-        // Step 1: Aggregate by voxel key with max-confidence fusion
+        // Step 1: Aggregate by voxel key
+        // For each voxel, keep the highest-confidence semantic point (class_id >= 0).
+        // Fall back to a background point (class_id == -1) only if no semantic point exists.
         auto aggregate_start = node_->now();
-        std::map<octomap::OcTreeKey, SemanticBest, OcTreeKeyCompare> best;
+        std::map<octomap::OcTreeKey, SemanticBest, OcTreeKeyCompare> best_semantic;
+        std::map<octomap::OcTreeKey, SemanticBest, OcTreeKeyCompare> best_background;
 
         for (const auto &p : points)
         {
@@ -229,15 +232,29 @@ namespace erwinia_os_occupancy_map
             if (!semantic_tree_->coordToKeyChecked(point_map, key))
                 continue;
 
-            // Just keep the label with highest confidence for this voxel
-            auto &v = best[key];
-            if (p.confidence > v.confidence)
+            if (p.class_id >= 0)
             {
-                v.confidence = p.confidence;
-                v.class_id = p.class_id;
-                v.rgb = p.rgb;
+                auto &v = best_semantic[key];
+                if (p.confidence > v.confidence)
+                {
+                    v.class_id = p.class_id;
+                    v.confidence = p.confidence;
+                    v.rgb = p.rgb;
+                }
+            }
+            else
+            {
+                // All background points share the same confidence; store one per voxel
+                best_background.try_emplace(key, SemanticBest{p.class_id, p.confidence, p.rgb});
             }
         }
+
+        // Merge: semantic takes priority; background fills voxels with no semantic point
+        std::map<octomap::OcTreeKey, SemanticBest, OcTreeKeyCompare> best;
+        for (const auto &[key, v] : best_semantic)
+            best[key] = v;
+        for (const auto &[key, v] : best_background)
+            best.try_emplace(key, v);
 
         if (best.empty())
         {

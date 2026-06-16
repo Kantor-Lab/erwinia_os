@@ -78,7 +78,7 @@ namespace octomap
          * @param mismatch_penalty Penalty multiplier when labels differ (default 0.1)
          */
         inline void fuseSemanticMax(int32_t class_id, float confidence, 
-                                   float confidence_boost = 0.05f, 
+                                   float confidence_boost = 0.1f, 
                                    float mismatch_penalty = 0.1f)
         {
             if (class_id_ == 0 || confidence_ <= 0.0f)
@@ -90,7 +90,8 @@ namespace octomap
             else if (class_id == class_id_)
             {
                 // Same label - average confidence scores + small boost
-                float updated_confidence = (confidence_ + confidence) / 2.0f + confidence_boost;
+                // float updated_confidence = (confidence_ + confidence) / 2.0f + confidence_boost;
+                float updated_confidence = (confidence_ + confidence) / 2.0f * (1.0f + confidence_boost);
                 confidence_ = std::min(1.0f, std::max(0.0f, updated_confidence));
             }
             else
@@ -105,6 +106,37 @@ namespace octomap
                 confidence_ = std::min(1.0f, std::max(0.0f, confidence_ * (1.0f - mismatch_penalty)));
             }
         }
+
+        // inline void fuseSemanticMax(int32_t class_id, float confidence,
+        //                     float /*confidence_boost*/ = 0.05f,
+        //                     float /*mismatch_penalty*/ = 0.1f)
+        // {
+        //     if (class_id_ == 0 || confidence_ <= 0.0f)
+        //     {
+        //         class_id_ = class_id;
+        //         confidence_ = confidence;
+        //         return;
+        //     }
+
+        //     if (class_id == class_id_)
+        //     {
+        //         // P(correct after two independent agreements) = 1 - (1-p_old)(1-p_new)
+        //         confidence_ = 1.0f - (1.0f - confidence_) * (1.0f - confidence);
+        //     }
+        //     else
+        //     {
+        //         float old_conf = confidence_;
+        //         if (confidence > confidence_)
+        //         {
+        //             class_id_ = class_id;
+        //             confidence_ = confidence * (1.0f - old_conf);
+        //         }
+        //         else
+        //         {
+        //             confidence_ = old_conf * (1.0f - confidence);
+        //         }
+        //     }
+        // }
 
         // ---- Child plumbing (CRITICAL to avoid slicing) ----
         SemanticOcTreeNode *createChild(unsigned int i);
