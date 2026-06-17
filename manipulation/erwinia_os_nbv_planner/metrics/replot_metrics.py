@@ -111,6 +111,13 @@ JSON_KEY_MAP = {
 }
 
 
+def normalize_color(color: str) -> str:
+    """Add a leading '#' to bare hex color strings (e.g. '99ccff' -> '#99ccff')."""
+    if len(color) in (3, 4, 6, 8) and all(c in "0123456789abcdefABCDEF" for c in color):
+        return f"#{color}"
+    return color
+
+
 def get_pyplot():
     os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
     import matplotlib.pyplot as plt
@@ -815,7 +822,7 @@ def save_table_outputs(
 
 
 def plot_metrics(
-    run_data: dict[str, pd.DataFrame],
+    groups: list[tuple[Optional[str], dict[str, pd.DataFrame]]],
     x_col: str,
     metrics: list[str],
     output: Optional[str],
@@ -823,14 +830,24 @@ def plot_metrics(
     xlim: Optional[list[float]],
     ylims: list[Optional[list[float]]],
     size: str = "small",
+    colors: Optional[list[str]] = None,
 ):
+    """Plot each metric as a row. Each entry in `groups` is (column_label, run_data) and
+    becomes its own column of subplots, sharing the y-axis scale per row. Use a single
+    group with column_label=None for the normal one-column layout."""
     plt = get_pyplot()
-    if size == "large":
-        font_sizes = {"title": 22, "label": 18, "legend": 15, "ticks": 15, "suptitle": 26}
-        fig_width = 14
-        fig_height_per_metric = 6
-        line_width = 3.0
-        marker_size = 7
+    if size == "xlarge":
+        font_sizes = {"title": 42, "label": 38, "legend": 34, "ticks": 34, "suptitle": 48}
+        fig_width = 20
+        fig_height_per_metric = 9
+        line_width = 5.0
+        marker_size = 11
+    elif size == "large":
+        font_sizes = {"title": 34, "label": 28, "legend": 24, "ticks": 24, "suptitle": 40}
+        fig_width = 18
+        fig_height_per_metric = 8
+        line_width = 4.5
+        marker_size = 10
     else:
         font_sizes = {"title": 13, "label": 11, "legend": 8, "ticks": 10, "suptitle": 14}
         fig_width = 10
@@ -848,47 +865,84 @@ def plot_metrics(
     })
 
     n_metrics = len(metrics)
+    n_cols = len(groups)
+    multi_col = n_cols > 1
     per_metric_h = fig_height_per_metric if n_metrics == 1 else int(fig_height_per_metric * 0.75)
-    fig, axes = plt.subplots(n_metrics, 1, figsize=(fig_width, per_metric_h * n_metrics), sharex=True)
-    if n_metrics == 1:
-        axes = [axes]
+    col_width = fig_width * 0.75 if multi_col else fig_width
+    fig, axes = plt.subplots(
+        n_metrics, n_cols,
+        figsize=(col_width * n_cols, per_metric_h * n_metrics),
+        sharex=True, sharey="row" if multi_col else False,
+        squeeze=False,
+    )
 
-    n_series = max(1, len(run_data))
+    # Colors are assigned per unique series name (in the order groups/series were given) so
+    # that the same planner gets the same color across columns.
+    unique_series_names = list(dict.fromkeys(name for _, run_data in groups for name in run_data))
+    n_series = max(1, len(unique_series_names))
     _cmaps = [plt.cm.tab20, plt.cm.tab20b, plt.cm.tab20c]
     palette = [c for cm in _cmaps for c in (cm(i / (cm.N - 1)) for i in range(cm.N))]
     if len(palette) < n_series:
         existing = len(palette)
         palette += [plt.cm.hsv(i / (n_series - existing)) for i in range(n_series - existing)]
 
-    sorted_run_data = dict(sorted(run_data.items()))
+    palette_iter = iter(palette)
+    series_colors = {
+        name: (normalize_color(colors[i]) if colors and i < len(colors) else next(palette_iter))
+        for i, name in enumerate(unique_series_names)
+    }
+
     plotdata_rows = []
-    for i, (ax, metric) in enumerate(zip(axes, metrics)):
-        color_iter = iter(palette)
-        for name, df in sorted_run_data.items():
-            color = next(color_iter)
-            if metric not in df.columns:
-                continue
-            x = df[x_col].to_numpy()
-            y = df[metric].to_numpy()
-            ax.plot(x, y, label=name, color=color, linewidth=line_width, marker="o", markersize=marker_size)
-            if output:
-                append_plotdata_rows(plotdata_rows, name, metric, x, y)
+    for row_i, metric in enumerate(metrics):
+        for col_i, (group_label, run_data) in enumerate(groups):
+            ax = axes[row_i][col_i]
+            for name, df in run_data.items():
+                if metric not in df.columns:
+                    continue
+                color = series_colors[name]
+                x = df[x_col].to_numpy()
+                y = df[metric].to_numpy()
+                ax.plot(x, y, label=name, color=color, linewidth=line_width, marker="o", markersize=marker_size)
+                if output:
+                    append_plotdata_rows(plotdata_rows, name, metric, x, y)
 
-        ax.set_title(metric.replace("_", " "))
-        ax.grid(True, alpha=0.3)
-        if i == 0:
-            ax.legend(fontsize=font_sizes["legend"])
-        if xlim:
-            ax.set_xlim(xlim[0], xlim[1])
-        ylim = ylims[i] if i < len(ylims) else None
-        if ylim:
-            ax.set_ylim(ylim[0], ylim[1])
+            ax.grid(True, alpha=0.3)
+            if row_i == 0 and col_i == 0:
+                ax.legend(fontsize=font_sizes["legend"])
+            # The metrics-dir name doubles as the subplot title for the top row of its column.
+            if row_i == 0 and multi_col and group_label:
+                ax.set_title(group_label, fontsize=font_sizes["title"], fontweight="normal")
+            # Each metric's name is shown once per row, as the y-axis label of the left column,
+            # rather than a per-subplot title (every column shows the same metrics, so repeating
+            # the title per subplot is redundant).
+            if col_i == 0:
+                ax.set_ylabel(metric.replace("_", " "))
+            else:
+                ax.tick_params(labelleft=False)
+            if xlim:
+                ax.set_xlim(xlim[0], xlim[1])
+            ylim = ylims[row_i] if row_i < len(ylims) else None
+            if ylim:
+                ax.set_ylim(ylim[0], ylim[1])
+            if row_i == n_metrics - 1:
+                ax.set_xlabel(x_col.replace("_", " "))
 
-    axes[-1].set_xlabel(x_col.replace("_", " "))
-    if title:
-        fig.suptitle(title, fontsize=font_sizes["suptitle"], fontweight="bold")
     top = 0.97 if title else 1.0
     plt.tight_layout(rect=[0, 0, 1, top])
+    if multi_col:
+        # wspace/hspace are fractions of axes width/height respectively, which aren't the same
+        # physical size, so equal fractions don't give an equal-looking gap. Scale wspace by the
+        # axes aspect ratio (in inches) so the column gap matches the row gap tight_layout chose.
+        fig_w_in, fig_h_in = fig.get_size_inches()
+        pos = axes[0][0].get_position()
+        axes_w_frac = pos.x1 - pos.x0
+        axes_h_frac = pos.y1 - pos.y0
+        hspace = fig.subplotpars.hspace
+        wspace = hspace * (axes_h_frac * fig_h_in) / (axes_w_frac * fig_w_in)
+        fig.subplots_adjust(wspace=wspace)
+
+    if title:
+        fig.suptitle(title, fontsize=font_sizes["suptitle"], fontweight="bold")
 
     if output:
         out_dir = os.path.dirname(os.path.abspath(output))
@@ -952,17 +1006,27 @@ def main():
             "Use --output-kind to choose exactly one output mode."
         )
     )
-    parser.add_argument("--size", choices=["small", "large"], default="small",
+    parser.add_argument("--size", choices=["small", "large", "xlarge"], default="small",
                         help="Plot canvas and font size.")
 
     parser.add_argument("--runs", nargs="+", metavar="PATH",
                         help="Run directories or evaluation_metrics.json files. Each path becomes a separate series.")
     parser.add_argument("--study", metavar="DIR",
                         help="Study directory whose immediate subdirs are planners; runs are pooled per planner.")
-    parser.add_argument("--metrics-root", metavar="DIR",
-                        help="Metrics root containing tree dirs, each with planner dirs; all matching runs are pooled per planner.")
+    parser.add_argument("--metrics-root", nargs="+", metavar="DIR",
+                        help="One or more metrics roots, each containing tree dirs with planner dirs. Runs are pooled per planner "
+                             "within each root. With --output-kind plot, more than one root renders as side-by-side columns (one "
+                             "per root, sharing the y-axis scale per metric row) labeled with the root directory name; with "
+                             "--output-kind table, same-named planners from different roots are kept as separate rows, suffixed "
+                             "with the root directory name.")
     parser.add_argument("--planners", nargs="+", default=None, metavar="PLANNER",
                         help="Only include these planner directory names.")
+    parser.add_argument("--colors", nargs="+", default=None, metavar="COLOR",
+                        help="Explicit per-series colors (any matplotlib color spec, e.g. hex codes or names). Applied in the "
+                             "order series are discovered: for --metrics-root, that's the order the root dirs were given, then "
+                             "alphabetical within each root; for --study or --runs, it's alphabetical or argument order "
+                             "respectively. A planner that appears in more than one root gets the same color in every column. "
+                             "Series beyond the given colors fall back to the default palette.")
     parser.add_argument("--trees", nargs="+", default=None, metavar="TREE",
                         help="Only include these tree directory names for --metrics-root.")
 
@@ -1066,27 +1130,47 @@ def main():
             if not df.empty:
                 run_data[planner_name] = df
 
-    # --metrics-root: pool all runs across matching trees into one series per planner.
+    # --metrics-root: pool all runs across matching trees into one series per planner, per root.
+    # Each root becomes its own group; when --output-kind plot gets more than one root, groups
+    # are rendered as separate side-by-side columns instead of being pooled together, since they
+    # represent different environments (e.g. Penn State vs. Blender).
+    metrics_root_groups: list[tuple[str, dict[str, pd.DataFrame]]] = []
     if args.metrics_root:
         allowed_trees = set(args.trees) if args.trees else None
         allowed_planners = set(args.planners) if args.planners else None
-        planner_sequences: dict[str, list[tuple[str, list[dict]]]] = {}
-        for tree_name, planners in discover_metrics_root(Path(args.metrics_root)).items():
-            if allowed_trees and tree_name not in allowed_trees:
-                continue
-            for planner_name, runs in planners.items():
-                if allowed_planners and planner_name not in allowed_planners:
+        for root_arg in args.metrics_root:
+            root_path = Path(root_arg)
+            planner_sequences: dict[str, list[tuple[str, list[dict]]]] = {}
+            for tree_name, planners in discover_metrics_root(root_path).items():
+                if allowed_trees and tree_name not in allowed_trees:
                     continue
-                sequences = load_raw_viewpoints_collection(runs)
-                planner_sequences.setdefault(planner_name, []).extend(
-                    (f"{tree_name}/{name}", vps) for name, vps in sequences
-                )
-        for planner_name, sequences in planner_sequences.items():
-            df = compute_pooled_metric_curve(sequences, **pool_kwargs)
-            if not df.empty:
-                run_data[planner_name] = df
+                for planner_name, runs in planners.items():
+                    if allowed_planners and planner_name not in allowed_planners:
+                        continue
+                    sequences = load_raw_viewpoints_collection(runs)
+                    planner_sequences.setdefault(planner_name, []).extend(
+                        (f"{tree_name}/{name}", vps) for name, vps in sequences
+                    )
+            root_run_data: dict[str, pd.DataFrame] = {}
+            for planner_name, sequences in planner_sequences.items():
+                df = compute_pooled_metric_curve(sequences, **pool_kwargs)
+                if not df.empty:
+                    root_run_data[planner_name] = df
+            metrics_root_groups.append((root_path.name, root_run_data))
 
-    if not run_data:
+    multi_root = len(metrics_root_groups) > 1
+    if multi_root:
+        # --runs/--study series (if any) ride along in the first column.
+        groups = list(metrics_root_groups)
+        if run_data:
+            groups[0] = (groups[0][0], {**run_data, **groups[0][1]})
+    else:
+        combined = dict(run_data)
+        for _, root_run_data in metrics_root_groups:
+            combined.update(root_run_data)
+        groups = [(None, combined)]
+
+    if not any(d for _, d in groups):
         print("No data loaded. Exiting.")
         return
 
@@ -1097,7 +1181,7 @@ def main():
             for i in range(len(args.metrics))
         ]
         plot_metrics(
-            run_data=run_data,
+            groups=groups,
             x_col=x_col,
             metrics=args.metrics,
             output=args.output,
@@ -1105,11 +1189,18 @@ def main():
             xlim=args.xlim,
             ylims=per_metric_ylims,
             size=args.size,
+            colors=args.colors,
         )
         return
 
+    table_run_data: dict[str, pd.DataFrame] = {}
+    for group_label, group_run_data in groups:
+        for name, df in group_run_data.items():
+            key = f"{name} ({group_label})" if multi_root and group_label else name
+            table_run_data[key] = df
+
     table_df = build_table_dataframe(
-        run_data=run_data,
+        run_data=table_run_data,
         x_col=x_col,
         metrics=args.metrics,
         x_value=args.table,
