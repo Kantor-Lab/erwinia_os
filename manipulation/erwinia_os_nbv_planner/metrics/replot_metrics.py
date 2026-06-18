@@ -739,6 +739,53 @@ def append_plotdata_rows(
         rows.append({"series": series_name, "metric": metric, "x": xi, "y": yi, "y_std": si})
 
 
+def load_groups_from_plotdata_csv(
+    csv_path: Path,
+    x_col: str,
+    metrics: list[str],
+    root_labels: list[str],
+    planners: Optional[list[str]] = None,
+) -> list[tuple[Optional[str], dict[str, pd.DataFrame]]]:
+    """Rebuild the `groups` structure plot_metrics needs from a previously-saved
+    `*_plotdata.csv` (written by plot_metrics itself), instead of recomputing from raw JSON.
+
+    Series names are disambiguated with a " (root_label)" suffix when the CSV was generated
+    from more than one --metrics-root; this reverses that to recover each series' column.
+    """
+    raw = pd.read_csv(csv_path)
+    multi_root = len(root_labels) > 1
+
+    def split_series(series_name: str) -> tuple[str, Optional[str]]:
+        if multi_root:
+            for root_label in root_labels:
+                suffix = f" ({root_label})"
+                if series_name.endswith(suffix):
+                    return series_name[: -len(suffix)], root_label
+        return series_name, (root_labels[0] if root_labels else None)
+
+    columns: dict[Optional[str], dict[str, pd.DataFrame]] = {}
+    if multi_root:
+        columns = {root_label: {} for root_label in root_labels}
+    else:
+        columns = {(root_labels[0] if root_labels else None): {}}
+
+    for series_name in pd.unique(raw["series"]):
+        planner_name, root_label = split_series(series_name)
+        if planners and planner_name not in planners:
+            continue
+        series_rows = raw[raw["series"] == series_name]
+        wide = series_rows[series_rows["metric"] == metrics[0]][["x"]].rename(columns={"x": x_col})
+        for metric in metrics:
+            metric_rows = series_rows[series_rows["metric"] == metric][["x", "y"]].rename(
+                columns={"x": x_col, "y": metric}
+            )
+            wide = wide.merge(metric_rows, on=x_col, how="outer")
+        wide = wide.sort_values(x_col).reset_index(drop=True)
+        columns.setdefault(root_label, {})[planner_name] = wide
+
+    return [(label, run_data) for label, run_data in columns.items()]
+
+
 def extract_row_at_x(df: pd.DataFrame, x_col: str, x_value: float) -> Optional[pd.Series]:
     if x_col not in df.columns or df.empty:
         return None
@@ -837,23 +884,38 @@ def plot_metrics(
     group with column_label=None for the normal one-column layout."""
     plt = get_pyplot()
     if size == "xlarge":
-        font_sizes = {"title": 42, "label": 38, "legend": 34, "ticks": 34, "suptitle": 48}
-        fig_width = 20
-        fig_height_per_metric = 9
-        line_width = 5.0
-        marker_size = 11
+        # Sized so that, after LaTeX scales this 24in-wide figure down to fit a standard IEEE
+        # single-column width (3.5in), the label text prints at roughly 11pt:
+        # label_pt = 11 * fig_width / column_width = 11 * 24 / 3.5 ≈ 75pt.
+        font_sizes = {"title": 84, "label": 75, "legend": 66, "ticks": 66, "suptitle": 95}
+        fig_width = 24
+        fig_height_per_metric = 16
+        line_width = 16.0
+        marker_size = 0
+        title_pad = 30
+        spine_width = 4.0
+        grid_width = 2.5
+        grid_alpha = 0.45
     elif size == "large":
         font_sizes = {"title": 34, "label": 28, "legend": 24, "ticks": 24, "suptitle": 40}
         fig_width = 18
         fig_height_per_metric = 8
         line_width = 4.5
         marker_size = 10
+        title_pad = 6
+        spine_width = 1.5
+        grid_width = 1.0
+        grid_alpha = 0.35
     else:
         font_sizes = {"title": 13, "label": 11, "legend": 8, "ticks": 10, "suptitle": 14}
         fig_width = 10
         fig_height_per_metric = 4
         line_width = 1.5
         marker_size = 4
+        title_pad = 4
+        spine_width = 1.0
+        grid_width = 0.8
+        grid_alpha = 0.3
 
     plt.rcParams.update({
         "axes.titlesize": font_sizes["title"],
@@ -862,6 +924,13 @@ def plot_metrics(
         "ytick.labelsize": font_sizes["ticks"],
         "legend.fontsize": font_sizes["legend"],
         "figure.titlesize": font_sizes["suptitle"],
+        # IEEE templates (incl. RA-L) set body text in Times New Roman; fall back to its
+        # closest free metric-compatible equivalents if that font isn't installed.
+        "font.family": "serif",
+        "font.serif": ["Times New Roman", "Nimbus Roman", "Liberation Serif", "Times", "DejaVu Serif"],
+        "mathtext.fontset": "stix",
+        "axes.linewidth": spine_width,
+        "grid.linewidth": grid_width,
     })
 
     n_metrics = len(metrics)
@@ -904,14 +973,18 @@ def plot_metrics(
                 y = df[metric].to_numpy()
                 ax.plot(x, y, label=name, color=color, linewidth=line_width, marker="o", markersize=marker_size)
                 if output:
-                    append_plotdata_rows(plotdata_rows, name, metric, x, y)
+                    # Disambiguate by column when there's more than one, so a later --retrieve
+                    # run can tell same-named planners from different metrics roots apart.
+                    csv_name = f"{name} ({group_label})" if multi_col and group_label else name
+                    append_plotdata_rows(plotdata_rows, csv_name, metric, x, y)
 
-            ax.grid(True, alpha=0.3)
-            if row_i == 0 and col_i == 0:
-                ax.legend(fontsize=font_sizes["legend"])
+            ax.grid(True, alpha=grid_alpha)
+            ax.tick_params(width=spine_width, length=spine_width * 2.5)
+            if row_i == 0 and col_i == n_cols - 1:
+                ax.legend(fontsize=font_sizes["legend"], loc="upper left")
             # The metrics-dir name doubles as the subplot title for the top row of its column.
             if row_i == 0 and multi_col and group_label:
-                ax.set_title(group_label, fontsize=font_sizes["title"], fontweight="normal")
+                ax.set_title(group_label, fontsize=font_sizes["title"], fontweight="normal", pad=title_pad)
             # Each metric's name is shown once per row, as the y-axis label of the left column,
             # rather than a per-subplot title (every column shows the same metrics, so repeating
             # the title per subplot is redundant).
@@ -924,11 +997,12 @@ def plot_metrics(
             ylim = ylims[row_i] if row_i < len(ylims) else None
             if ylim:
                 ax.set_ylim(ylim[0], ylim[1])
-            if row_i == n_metrics - 1:
+            if row_i == n_metrics - 1 and not multi_col:
                 ax.set_xlabel(x_col.replace("_", " "))
 
-    top = 0.97 if title else 1.0
-    plt.tight_layout(rect=[0, 0, 1, top])
+    top = 0.93 if title else 1.0
+    bottom = 0.05 if multi_col else 0.0
+    plt.tight_layout(rect=[0, bottom, 1, top])
     if multi_col:
         # wspace/hspace are fractions of axes width/height respectively, which aren't the same
         # physical size, so equal fractions don't give an equal-looking gap. Scale wspace by the
@@ -940,9 +1014,12 @@ def plot_metrics(
         hspace = fig.subplotpars.hspace
         wspace = hspace * (axes_h_frac * fig_h_in) / (axes_w_frac * fig_w_in)
         fig.subplots_adjust(wspace=wspace)
+        # All columns share the same x-axis quantity, so show one shared label centered under
+        # the whole grid instead of repeating it under every column.
+        fig.supxlabel(x_col.replace("_", " "), fontsize=font_sizes["label"])
 
     if title:
-        fig.suptitle(title, fontsize=font_sizes["suptitle"], fontweight="bold")
+        fig.suptitle(title, fontsize=font_sizes["suptitle"], fontweight="bold", y=0.99)
 
     if output:
         out_dir = os.path.dirname(os.path.abspath(output))
@@ -1043,6 +1120,10 @@ def main():
                         help="Select plot generation or table export.")
     parser.add_argument("--output", default=None,
                         help="Output path. Plot mode writes an image and plotdata CSV; table mode writes CSV, PNG, or both.")
+    parser.add_argument("--retrieve", action="store_true", default=False,
+                        help="Skip recomputing metrics from raw JSON; instead load the '<output>_plotdata.csv' already "
+                             "written by a prior run with the same --output (e.g. all_metrics.png -> "
+                             "all_metrics_plotdata.csv). Requires --output and that the CSV already exists.")
     parser.add_argument("--table", type=float, default=None, metavar="XVALUE",
                         help="X value to extract for --output-kind table.")
     parser.add_argument("--table-format", choices=["csv", "png", "both"], default="csv",
@@ -1096,6 +1177,60 @@ def main():
         merge_clusters=not args.disable_cluster_merging,
         x_step=args.x_step,
     )
+
+    if args.retrieve:
+        if not args.output:
+            parser.error("--retrieve requires --output to locate the cached _plotdata.csv.")
+        if args.trees:
+            print("[warn] --trees has no effect with --retrieve; the cached CSV already pools across all trees.")
+        csv_path = Path(plotdata_csv_path(args.output))
+        if not csv_path.exists():
+            parser.error(f"--retrieve was given but {csv_path} doesn't exist. Run once without --retrieve first.")
+        root_labels = [Path(r).name for r in args.metrics_root] if args.metrics_root else []
+        groups = load_groups_from_plotdata_csv(csv_path, x_col, args.metrics, root_labels, args.planners)
+        if not any(d for _, d in groups):
+            print("No data loaded. Exiting.")
+            return
+        if args.output_kind == "plot":
+            raw_ylim = args.ylim or []
+            per_metric_ylims = [
+                [raw_ylim[i * 2], raw_ylim[i * 2 + 1]] if i * 2 + 1 < len(raw_ylim) else None
+                for i in range(len(args.metrics))
+            ]
+            plot_metrics(
+                groups=groups,
+                x_col=x_col,
+                metrics=args.metrics,
+                output=args.output,
+                title=args.title,
+                xlim=args.xlim,
+                ylims=per_metric_ylims,
+                size=args.size,
+                colors=args.colors,
+            )
+            return
+
+        table_run_data: dict[str, pd.DataFrame] = {}
+        multi_root_retrieve = len(root_labels) > 1
+        for group_label, group_run_data in groups:
+            for name, df in group_run_data.items():
+                key = f"{name} ({group_label})" if multi_root_retrieve and group_label else name
+                table_run_data[key] = df
+        table_df = build_table_dataframe(
+            run_data=table_run_data,
+            x_col=x_col,
+            metrics=args.metrics,
+            x_value=args.table,
+        )
+        save_table_outputs(
+            table_df=table_df,
+            output_path=args.output,
+            x_col=x_col,
+            x_value=args.table,
+            title=args.title,
+            table_format=args.table_format,
+        )
+        return
 
     run_data: dict[str, pd.DataFrame] = {}
 

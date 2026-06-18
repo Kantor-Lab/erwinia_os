@@ -542,6 +542,7 @@ namespace erwinia_os_nbv_planner
             return static_cast<int>(tree->getTreeDepth()); }, tree_);
     }
 
+    // This should instead be using average confidence
     std::vector<Cluster> OctoMapInterface::clusterSemanticVoxels(bool verbose) const
     {
         std::vector<Cluster> clusters;
