@@ -2,7 +2,8 @@ import { Immutable, PanelExtensionContext, RenderState, SettingsTreeAction, Sett
 import L from "leaflet";
 import { CachedTileLayer, downloadTilesForArea } from "./CachedTileLayer";
 
-// Inline Leaflet CSS to avoid external file loading issues in extensions
+// ---------- Inline Leaflet CSS + custom HUD styles ----------
+
 const LEAFLET_CSS = `
 .leaflet-pane,.leaflet-tile,.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-tile-container,.leaflet-pane>svg,.leaflet-pane>canvas,.leaflet-zoom-box,.leaflet-image-layer,.leaflet-layer{position:absolute;left:0;top:0}
 .leaflet-container{overflow:hidden;font:12px/1.5 "Helvetica Neue",Arial,Helvetica,sans-serif}
@@ -35,13 +36,372 @@ const LEAFLET_CSS = `
 .leaflet-zoom-box{border:2px dotted #38f;background:rgba(255,255,255,.5)}
 `;
 
+const HUD_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --hud-bg: rgba(8, 12, 21, 0.82);
+  --hud-bg-solid: rgba(8, 12, 21, 0.95);
+  --hud-border: rgba(56, 189, 248, 0.2);
+  --hud-border-bright: rgba(56, 189, 248, 0.45);
+  --hud-accent: #38bdf8;
+  --hud-accent-dim: rgba(56, 189, 248, 0.6);
+  --hud-green: #34d399;
+  --hud-green-dim: rgba(52, 211, 153, 0.5);
+  --hud-amber: #fbbf24;
+  --hud-red: #f87171;
+  --hud-text: #e2e8f0;
+  --hud-text-dim: rgba(148, 163, 184, 0.8);
+  --hud-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  --hud-sans: 'Outfit', 'SF Pro Display', system-ui, sans-serif;
+  --hud-glow: 0 0 12px rgba(56, 189, 248, 0.15), 0 0 4px rgba(56, 189, 248, 0.1);
+  --hud-glow-green: 0 0 12px rgba(52, 211, 153, 0.2);
+}
+
+/* Override Leaflet zoom controls */
+.erwinia-map .leaflet-bar {
+  background: var(--hud-bg-solid) !important;
+  border: 1px solid var(--hud-border) !important;
+  border-radius: 6px !important;
+  box-shadow: var(--hud-glow) !important;
+  overflow: hidden;
+}
+.erwinia-map .leaflet-bar a {
+  background: transparent !important;
+  color: var(--hud-accent) !important;
+  border-bottom: 1px solid var(--hud-border) !important;
+  font-family: var(--hud-mono) !important;
+  font-size: 16px !important;
+  width: 32px !important;
+  height: 32px !important;
+  line-height: 32px !important;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.erwinia-map .leaflet-bar a:hover {
+  background: rgba(56, 189, 248, 0.1) !important;
+  color: #fff !important;
+}
+.erwinia-map .leaflet-bar a:last-child {
+  border-bottom: none !important;
+}
+.erwinia-map .leaflet-control-attribution {
+  background: var(--hud-bg) !important;
+  color: var(--hud-text-dim) !important;
+  font-family: var(--hud-mono) !important;
+  font-size: 9px !important;
+  padding: 2px 6px !important;
+  border-radius: 3px 0 0 0 !important;
+}
+.erwinia-map .leaflet-control-attribution a {
+  color: var(--hud-accent-dim) !important;
+}
+
+/* Keep Leaflet controls clear of the custom status bar */
+.erwinia-map .leaflet-control-container {
+  position: relative;
+  z-index: 1002;
+}
+.erwinia-map .leaflet-top {
+  top: 44px !important;
+}
+
+.erwinia-map .leaflet-heatmap-pane {
+  filter: blur(1px);
+  pointer-events: none;
+}
+
+@keyframes erwinia-fadein {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes erwinia-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Status bar */
+.erwinia-status-bar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  z-index: 1001;
+  height: 36px;
+  background: linear-gradient(180deg, var(--hud-bg-solid) 0%, rgba(8, 12, 21, 0.6) 100%);
+  border-bottom: 1px solid var(--hud-border);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 16px;
+  font-family: var(--hud-mono);
+  font-size: 11px;
+  color: var(--hud-text-dim);
+  pointer-events: none;
+  animation: erwinia-fadein 0.3s ease-out both;
+}
+.erwinia-status-bar::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--hud-accent) 20%, var(--hud-accent) 80%, transparent 100%);
+  opacity: 0.3;
+}
+
+.erwinia-brand {
+  font-family: var(--hud-sans);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--hud-accent);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.erwinia-brand-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--hud-green);
+  box-shadow: var(--hud-glow-green);
+}
+.erwinia-brand-dot[data-status="disconnected"] {
+  background: var(--hud-red);
+  box-shadow: 0 0 12px rgba(248, 113, 113, 0.3);
+  animation: erwinia-blink 1.5s ease-in-out infinite;
+}
+
+.erwinia-status-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--hud-border);
+}
+
+.erwinia-coord {
+  font-variant-numeric: tabular-nums;
+  color: var(--hud-text);
+  letter-spacing: 0.3px;
+}
+.erwinia-coord-label {
+  color: var(--hud-text-dim);
+  margin-right: 4px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.erwinia-status-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Legend */
+.erwinia-legend {
+  position: absolute;
+  right: 12px;
+  top: 52px;
+  z-index: 1000;
+  background: var(--hud-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--hud-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: var(--hud-mono);
+  font-size: 10px;
+  color: var(--hud-text-dim);
+  pointer-events: none;
+  box-shadow: var(--hud-glow);
+  animation: erwinia-fadein 0.4s ease-out 0.15s both;
+  min-width: 90px;
+}
+.erwinia-legend-title {
+  font-family: var(--hud-sans);
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--hud-accent);
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--hud-border);
+}
+.erwinia-legend-gradient {
+  width: 100%;
+  height: 10px;
+  border-radius: 3px;
+  margin: 6px 0 4px;
+}
+.erwinia-legend-range {
+  display: flex;
+  justify-content: space-between;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Buttons */
+.erwinia-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: var(--hud-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--hud-border);
+  border-radius: 6px;
+  color: var(--hud-text);
+  font-family: var(--hud-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--hud-glow);
+  pointer-events: auto;
+}
+.erwinia-btn:hover {
+  background: rgba(56, 189, 248, 0.08);
+  border-color: var(--hud-border-bright);
+  color: #fff;
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.2), 0 0 6px rgba(56, 189, 248, 0.15);
+}
+.erwinia-btn:active {
+  transform: scale(0.97);
+}
+.erwinia-btn-icon {
+  font-size: 13px;
+  opacity: 0.7;
+}
+.erwinia-btn-primary {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: var(--hud-border-bright);
+  color: var(--hud-accent);
+}
+.erwinia-btn-primary:hover {
+  background: rgba(56, 189, 248, 0.2);
+  color: #fff;
+}
+.erwinia-btn-danger {
+  border-color: rgba(248, 113, 113, 0.25);
+}
+.erwinia-btn-danger:hover {
+  background: rgba(248, 113, 113, 0.1);
+  border-color: rgba(248, 113, 113, 0.5);
+  color: var(--hud-red);
+  box-shadow: 0 0 16px rgba(248, 113, 113, 0.15);
+}
+
+.erwinia-btn-group {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 1000;
+  display: flex;
+  gap: 6px;
+  animation: erwinia-fadein 0.4s ease-out 0.2s both;
+}
+
+/* Download overlay */
+.erwinia-dl-overlay {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1001;
+  background: var(--hud-bg-solid);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--hud-border);
+  border-radius: 12px;
+  padding: 20px 24px;
+  color: var(--hud-text);
+  font-family: var(--hud-sans);
+  font-size: 13px;
+  display: none;
+  min-width: 300px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.5), var(--hud-glow);
+}
+.erwinia-dl-title {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--hud-accent);
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--hud-border);
+}
+.erwinia-dl-label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--hud-text-dim);
+}
+.erwinia-dl-input {
+  width: 140px;
+  padding: 6px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--hud-border);
+  background: rgba(15, 23, 42, 0.8);
+  color: var(--hud-text);
+  font-family: var(--hud-mono);
+  font-size: 12px;
+  margin-left: 8px;
+  transition: border-color 0.2s;
+  outline: none;
+}
+.erwinia-dl-input:focus {
+  border-color: var(--hud-accent);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.1);
+}
+.erwinia-dl-slider {
+  width: 100%;
+  margin-top: 6px;
+  accent-color: var(--hud-accent);
+}
+.erwinia-dl-progress {
+  width: 100%;
+  height: 4px;
+  background: rgba(30, 41, 59, 0.8);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.erwinia-dl-progress-fill {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--hud-accent), var(--hud-green));
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+.erwinia-dl-progress-text {
+  font-family: var(--hud-mono);
+  font-size: 10px;
+  color: var(--hud-text-dim);
+  margin-top: 4px;
+}
+.erwinia-dl-btnrow {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+`;
+
 // ---------- color scale utilities ----------
 
-type ColorScale = "viridis" | "red-yellow-green" | "thermal";
+type ColorScale = "viridis" | "red-yellow-green" | "thermal" | "health";
 
 function valueToColor(value: number, scale: ColorScale): string {
   const t = Math.max(0, Math.min(1, value));
   switch (scale) {
+    case "health": {
+      // Binary-ish: t=0 healthy green, t=1 infected red-orange. Narrow palette.
+      return t < 0.5 ? "rgb(52,211,153)" : "rgb(248,80,60)";
+    }
     case "red-yellow-green": {
       const r = t < 0.5 ? 255 : Math.round(255 * (1 - t) * 2);
       const g = t > 0.5 ? 255 : Math.round(255 * t * 2);
@@ -55,13 +415,20 @@ function valueToColor(value: number, scale: ColorScale): string {
     }
     case "viridis":
     default: {
-      // Simplified viridis approximation
       const r = Math.round(68 + (253 - 68) * t * t);
       const g = Math.round(1 + (231 - 1) * t);
       const b = Math.round(84 + (37 - 84) * t + (140 - 84) * Math.sin(Math.PI * t));
       return `rgb(${r},${g},${b})`;
     }
   }
+}
+
+function buildGradientCSS(scale: ColorScale, steps = 8): string {
+  const colors: string[] = [];
+  for (let i = 0; i <= steps; i++) {
+    colors.push(valueToColor(i / steps, scale));
+  }
+  return `linear-gradient(90deg, ${colors.join(", ")})`;
 }
 
 // ---------- tile layer URLs ----------
@@ -81,28 +448,40 @@ const TILE_LAYERS: Record<string, { url: string; attribution: string }> = {
 
 interface PanelSettings {
   gpsTopic: string;
+  odomTopic: string;
   gridTopic: string;
   detectionTopic: string;
+  plannedPathTopic: string;
   mapStyle: "street" | "satellite";
   gridOpacity: number;
   colorScale: ColorScale;
   autoCenter: boolean;
   showTrail: boolean;
   gaussianRadiusMeters: number;
+  rowLateralOffsetMeters: number;
+  rowLagMeters: number;
+  rowMarkLengthMeters: number;
+  rowMarkWidthMeters: number;
   maxIntensity: number;
 }
 
 const DEFAULT_SETTINGS: PanelSettings = {
-  gpsTopic: "/nav_sat_fix",
+  gpsTopic: "/ns/navsatfix",
+  odomTopic: "/odometry/global",
   gridTopic: "/field_heatmap",
   detectionTopic: "/firefly_left/detections",
+  plannedPathTopic: "/aPath",
   mapStyle: "satellite",
-  gridOpacity: 0.6,
-  colorScale: "red-yellow-green",
+  gridOpacity: 0.55,
+  colorScale: "health",
   autoCenter: true,
   showTrail: true,
-  gaussianRadiusMeters: 3,
-  maxIntensity: 50,
+  gaussianRadiusMeters: 6,
+  rowLateralOffsetMeters: 4,
+  rowLagMeters: 2.5,
+  rowMarkLengthMeters: 5,
+  rowMarkWidthMeters: 3,
+  maxIntensity: 1,
 };
 
 function buildSettingsTree(settings: PanelSettings): SettingsTreeNodes {
@@ -114,6 +493,11 @@ function buildSettingsTree(settings: PanelSettings): SettingsTreeNodes {
           label: "GPS Topic",
           input: "string",
           value: settings.gpsTopic,
+        },
+        odomTopic: {
+          label: "Global Odom Topic",
+          input: "string",
+          value: settings.odomTopic,
         },
         gridTopic: {
           label: "Grid Topic",
@@ -157,6 +541,7 @@ function buildSettingsTree(settings: PanelSettings): SettingsTreeNodes {
           input: "select",
           value: settings.colorScale,
           options: [
+            { label: "Health (Green/Red)", value: "health" },
             { label: "Red-Yellow-Green", value: "red-yellow-green" },
             { label: "Viridis", value: "viridis" },
             { label: "Thermal", value: "thermal" },
@@ -172,6 +557,11 @@ function buildSettingsTree(settings: PanelSettings): SettingsTreeNodes {
           input: "string",
           value: settings.detectionTopic,
         },
+        plannedPathTopic: {
+          label: "Planned Path Topic",
+          input: "string",
+          value: settings.plannedPathTopic,
+        },
         gaussianRadiusMeters: {
           label: "Gaussian Radius (m)",
           input: "number",
@@ -179,6 +569,38 @@ function buildSettingsTree(settings: PanelSettings): SettingsTreeNodes {
           min: 1,
           max: 20,
           step: 0.5,
+        },
+        rowLateralOffsetMeters: {
+          label: "Row Offset (m)",
+          input: "number",
+          value: settings.rowLateralOffsetMeters,
+          min: -10,
+          max: 10,
+          step: 0.25,
+        },
+        rowLagMeters: {
+          label: "Row Lag (m)",
+          input: "number",
+          value: settings.rowLagMeters,
+          min: 0,
+          max: 10,
+          step: 0.25,
+        },
+        rowMarkLengthMeters: {
+          label: "Row Mark Length (m)",
+          input: "number",
+          value: settings.rowMarkLengthMeters,
+          min: 2,
+          max: 20,
+          step: 0.5,
+        },
+        rowMarkWidthMeters: {
+          label: "Row Mark Width (m)",
+          input: "number",
+          value: settings.rowMarkWidthMeters,
+          min: 1,
+          max: 10,
+          step: 0.25,
         },
         maxIntensity: {
           label: "Max Intensity (detections)",
@@ -193,95 +615,214 @@ function buildSettingsTree(settings: PanelSettings): SettingsTreeNodes {
   };
 }
 
+// ---------- coordinate formatting ----------
+
+function formatCoord(val: number, pos: string, neg: string): string {
+  const dir = val >= 0 ? pos : neg;
+  const abs = Math.abs(val);
+  const deg = Math.floor(abs);
+  const min = Math.floor((abs - deg) * 60);
+  const sec = ((abs - deg - min / 60) * 3600).toFixed(2);
+  return `${deg}\u00B0${String(min).padStart(2, "0")}'${String(sec).padStart(5, "0")}"${dir}`;
+}
+
+// ---------- helper: create element with text ----------
+
+function createIcon(text: string): HTMLSpanElement {
+  const span = document.createElement("span");
+  span.className = "erwinia-btn-icon";
+  span.textContent = text;
+  return span;
+}
+
 // ---------- panel init ----------
 
 export function initMapPanel(context: PanelExtensionContext): () => void {
   const panelEl = context.panelElement;
+  // Clear any prior content — Foxglove may re-invoke init on remount, and
+  // without this we'd stack duplicate status bars, legends, and buttons.
+  while (panelEl.firstChild) {
+    panelEl.removeChild(panelEl.firstChild);
+  }
   panelEl.style.width = "100%";
   panelEl.style.height = "100%";
   panelEl.style.position = "relative";
   panelEl.style.overflow = "hidden";
 
-  // Inject Leaflet CSS
+  // Inject styles
   const style = document.createElement("style");
-  style.textContent = LEAFLET_CSS;
+  style.textContent = LEAFLET_CSS + HUD_CSS;
   panelEl.appendChild(style);
 
   // Map container
   const mapDiv = document.createElement("div");
+  mapDiv.className = "erwinia-map";
   mapDiv.style.width = "100%";
   mapDiv.style.height = "100%";
   panelEl.appendChild(mapDiv);
 
-  // Color scale legend
+  // ========== STATUS BAR ==========
+  const statusBar = document.createElement("div");
+  statusBar.className = "erwinia-status-bar";
+
+  const brand = document.createElement("div");
+  brand.className = "erwinia-brand";
+  const brandDot = document.createElement("div");
+  brandDot.className = "erwinia-brand-dot";
+  brandDot.dataset.status = "disconnected";
+  brand.appendChild(brandDot);
+  brand.appendChild(document.createTextNode("ERWINIA"));
+  statusBar.appendChild(brand);
+
+  const sep1 = document.createElement("div");
+  sep1.className = "erwinia-status-sep";
+  statusBar.appendChild(sep1);
+
+  // Lat display
+  const latDisplay = document.createElement("div");
+  latDisplay.className = "erwinia-coord";
+  const latLbl = document.createElement("span");
+  latLbl.className = "erwinia-coord-label";
+  latLbl.textContent = "LAT";
+  const latVal = document.createElement("span");
+  latVal.textContent = "--\u00B0--'--\"";
+  latDisplay.appendChild(latLbl);
+  latDisplay.appendChild(latVal);
+  statusBar.appendChild(latDisplay);
+
+  // Lon display
+  const lonDisplay = document.createElement("div");
+  lonDisplay.className = "erwinia-coord";
+  const lonLbl = document.createElement("span");
+  lonLbl.className = "erwinia-coord-label";
+  lonLbl.textContent = "LON";
+  const lonVal = document.createElement("span");
+  lonVal.textContent = "--\u00B0--'--\"";
+  lonDisplay.appendChild(lonLbl);
+  lonDisplay.appendChild(lonVal);
+  statusBar.appendChild(lonDisplay);
+
+  const sep2 = document.createElement("div");
+  sep2.className = "erwinia-status-sep";
+  statusBar.appendChild(sep2);
+
+  // Alt display
+  const altDisplay = document.createElement("div");
+  altDisplay.className = "erwinia-coord";
+  const altLbl = document.createElement("span");
+  altLbl.className = "erwinia-coord-label";
+  altLbl.textContent = "ALT";
+  const altVal = document.createElement("span");
+  altVal.textContent = "--.-m";
+  altDisplay.appendChild(altLbl);
+  altDisplay.appendChild(altVal);
+  statusBar.appendChild(altDisplay);
+
+  // Speed display (left-aligned group, after alt)
+  const speedDisplay = document.createElement("div");
+  speedDisplay.className = "erwinia-coord";
+  const speedLbl = document.createElement("span");
+  speedLbl.className = "erwinia-coord-label";
+  speedLbl.textContent = "SPD";
+  const speedVal = document.createElement("span");
+  speedVal.textContent = "0.00 m/s";
+  speedDisplay.appendChild(speedLbl);
+  speedDisplay.appendChild(speedVal);
+  statusBar.appendChild(speedDisplay);
+
+  // Right side: trail count, detection count
+  const statusRight = document.createElement("div");
+  statusRight.className = "erwinia-status-right";
+  const trailCountEl = document.createElement("div");
+  trailCountEl.style.cssText = "font-variant-numeric:tabular-nums;color:var(--hud-accent-dim)";
+  trailCountEl.textContent = "TRAIL 0";
+  statusRight.appendChild(trailCountEl);
+
+  const sep3 = document.createElement("div");
+  sep3.className = "erwinia-status-sep";
+  statusRight.appendChild(sep3);
+
+  const detCountEl = document.createElement("div");
+  detCountEl.style.cssText = "font-variant-numeric:tabular-nums;color:var(--hud-green-dim)";
+  detCountEl.textContent = "DET 0";
+  statusRight.appendChild(detCountEl);
+  statusBar.appendChild(statusRight);
+
+  panelEl.appendChild(statusBar);
+
+  // ========== LEGEND ==========
   const legend = document.createElement("div");
-  legend.style.cssText = `
-    position:absolute; right:12px; top:12px; z-index:1000;
-    background:rgba(0,0,0,0.75); border-radius:6px; padding:8px 10px;
-    color:#fff; font-size:11px; font-family:sans-serif; pointer-events:none;
-  `;
+  legend.className = "erwinia-legend";
   panelEl.appendChild(legend);
 
-  // Clear heatmap button
+  // ========== BUTTONS ==========
+  const btnGroup = document.createElement("div");
+  btnGroup.className = "erwinia-btn-group";
+
   const clearBtn = document.createElement("button");
-  clearBtn.textContent = "Clear Heatmap";
-  clearBtn.style.cssText = `
-    position:absolute; left:12px; bottom:12px; z-index:1000;
-    background:rgba(0,0,0,0.75); border:1px solid rgba(255,255,255,0.3);
-    border-radius:4px; padding:6px 12px; color:#fff; font-size:12px;
-    font-family:sans-serif; cursor:pointer;
-  `;
+  clearBtn.className = "erwinia-btn erwinia-btn-danger";
+  clearBtn.appendChild(createIcon("\u2715"));
+  clearBtn.appendChild(document.createTextNode(" Clear Heatmap"));
   clearBtn.addEventListener("click", () => {
     heatGrid.clear();
-    if (heatmapLayer) {
-      heatmapLayer.clearLayers();
-    }
+    totalDetections = 0;
+    detCountEl.textContent = "DET 0";
+    renderHeatmap();
   });
-  panelEl.appendChild(clearBtn);
+  btnGroup.appendChild(clearBtn);
 
-  // Download tiles overlay
+  const openDlBtn = document.createElement("button");
+  openDlBtn.className = "erwinia-btn erwinia-btn-primary";
+  openDlBtn.appendChild(createIcon("\u2B73"));
+  openDlBtn.appendChild(document.createTextNode(" Cache Tiles"));
+  openDlBtn.addEventListener("click", () => {
+    if (currentGpsLat !== 0 || currentGpsLon !== 0) {
+      latInput.value = currentGpsLat.toFixed(6);
+      lonInput.value = currentGpsLon.toFixed(6);
+    }
+    downloadOverlay.style.display = downloadOverlay.style.display === "none" ? "block" : "none";
+  });
+  btnGroup.appendChild(openDlBtn);
+  panelEl.appendChild(btnGroup);
+
+  // ========== DOWNLOAD OVERLAY ==========
   const downloadOverlay = document.createElement("div");
-  downloadOverlay.style.cssText = `
-    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
-    z-index:1001; background:rgba(0,0,0,0.9); border-radius:8px;
-    padding:16px 20px; color:#fff; font-size:13px; font-family:sans-serif;
-    display:none; min-width:280px;
-  `;
+  downloadOverlay.className = "erwinia-dl-overlay";
 
   const dlTitle = document.createElement("div");
-  dlTitle.style.cssText = "font-weight:bold;font-size:15px;margin-bottom:12px;";
-  dlTitle.textContent = "Download Field Tiles";
+  dlTitle.className = "erwinia-dl-title";
+  dlTitle.textContent = "Cache Field Tiles";
   downloadOverlay.appendChild(dlTitle);
 
   // Lat input
   const latLabel = document.createElement("label");
-  latLabel.textContent = "Latitude: ";
-  latLabel.style.cssText = "display:block;margin-bottom:8px;";
+  latLabel.className = "erwinia-dl-label";
+  latLabel.textContent = "Latitude ";
   const latInput = document.createElement("input");
   latInput.type = "number";
   latInput.step = "0.0001";
-  latInput.style.cssText = "width:120px;padding:4px;border-radius:3px;border:1px solid #555;background:#222;color:#fff;";
+  latInput.className = "erwinia-dl-input";
   latInput.value = "40.4400";
   latLabel.appendChild(latInput);
   downloadOverlay.appendChild(latLabel);
 
   // Lon input
   const lonLabel = document.createElement("label");
-  lonLabel.textContent = "Longitude: ";
-  lonLabel.style.cssText = "display:block;margin-bottom:8px;";
+  lonLabel.className = "erwinia-dl-label";
+  lonLabel.textContent = "Longitude ";
   const lonInput = document.createElement("input");
   lonInput.type = "number";
   lonInput.step = "0.0001";
-  lonInput.style.cssText = "width:120px;padding:4px;border-radius:3px;border:1px solid #555;background:#222;color:#fff;";
+  lonInput.className = "erwinia-dl-input";
   lonInput.value = "-79.9400";
   lonLabel.appendChild(lonInput);
   downloadOverlay.appendChild(lonLabel);
 
   // Size slider
   const sizeLabel = document.createElement("label");
-  sizeLabel.style.cssText = "display:block;margin-bottom:8px;";
+  sizeLabel.className = "erwinia-dl-label";
   const sizeText = document.createElement("span");
-  sizeText.textContent = "Area: 1 km x 1 km";
+  sizeText.textContent = "Coverage  1 km \u00D7 1 km";
   sizeLabel.appendChild(sizeText);
   sizeLabel.appendChild(document.createElement("br"));
   const sizeSlider = document.createElement("input");
@@ -290,37 +831,36 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
   sizeSlider.max = "5";
   sizeSlider.step = "0.5";
   sizeSlider.value = "1";
-  sizeSlider.style.cssText = "width:100%;margin-top:4px;";
+  sizeSlider.className = "erwinia-dl-slider";
   sizeSlider.addEventListener("input", () => {
-    sizeText.textContent = `Area: ${sizeSlider.value} km x ${sizeSlider.value} km`;
+    sizeText.textContent = `Coverage  ${sizeSlider.value} km \u00D7 ${sizeSlider.value} km`;
   });
   sizeLabel.appendChild(sizeSlider);
   downloadOverlay.appendChild(sizeLabel);
 
-  // Progress bar
+  // Progress
   const progressContainer = document.createElement("div");
-  progressContainer.style.cssText = "display:none;margin-bottom:8px;";
+  progressContainer.style.display = "none";
+  progressContainer.style.marginTop = "12px";
   const progressBar = document.createElement("div");
-  progressBar.style.cssText = "width:100%;height:8px;background:#333;border-radius:4px;overflow:hidden;";
+  progressBar.className = "erwinia-dl-progress";
   const progressFill = document.createElement("div");
-  progressFill.style.cssText = "width:0%;height:100%;background:#4caf50;transition:width 0.2s;";
+  progressFill.className = "erwinia-dl-progress-fill";
   progressBar.appendChild(progressFill);
   progressContainer.appendChild(progressBar);
   const progressText = document.createElement("div");
-  progressText.style.cssText = "font-size:11px;color:#aaa;margin-top:4px;";
+  progressText.className = "erwinia-dl-progress-text";
   progressContainer.appendChild(progressText);
   downloadOverlay.appendChild(progressContainer);
 
-  // Buttons row
+  // Buttons
   const btnRow = document.createElement("div");
-  btnRow.style.cssText = "display:flex;gap:8px;margin-top:12px;";
+  btnRow.className = "erwinia-dl-btnrow";
 
   const dlBtn = document.createElement("button");
+  dlBtn.className = "erwinia-btn erwinia-btn-primary";
+  dlBtn.style.flex = "1";
   dlBtn.textContent = "Download";
-  dlBtn.style.cssText = `
-    flex:1; padding:8px; border:none; border-radius:4px;
-    background:#4caf50; color:#fff; font-size:13px; cursor:pointer;
-  `;
   dlBtn.addEventListener("click", async () => {
     const lat = parseFloat(latInput.value);
     const lon = parseFloat(lonInput.value);
@@ -328,7 +868,8 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     if (isNaN(lat) || isNaN(lon)) return;
 
     dlBtn.disabled = true;
-    dlBtn.textContent = "Downloading...";
+    dlBtn.textContent = "Downloading\u2026";
+    dlBtn.style.opacity = "0.6";
     progressContainer.style.display = "block";
 
     await downloadTilesForArea(lat, lon, sizeKm, (done, total) => {
@@ -339,16 +880,15 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
 
     dlBtn.disabled = false;
     dlBtn.textContent = "Download";
-    progressText.textContent = "Done!";
+    dlBtn.style.opacity = "1";
+    progressText.textContent = "Complete \u2713";
   });
   btnRow.appendChild(dlBtn);
 
   const closeBtn = document.createElement("button");
+  closeBtn.className = "erwinia-btn";
+  closeBtn.style.flex = "1";
   closeBtn.textContent = "Close";
-  closeBtn.style.cssText = `
-    flex:1; padding:8px; border:1px solid rgba(255,255,255,0.3); border-radius:4px;
-    background:transparent; color:#fff; font-size:13px; cursor:pointer;
-  `;
   closeBtn.addEventListener("click", () => {
     downloadOverlay.style.display = "none";
   });
@@ -356,51 +896,259 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
   downloadOverlay.appendChild(btnRow);
   panelEl.appendChild(downloadOverlay);
 
-  // Download tiles button (next to clear heatmap)
-  const openDlBtn = document.createElement("button");
-  openDlBtn.textContent = "Download Tiles";
-  openDlBtn.style.cssText = `
-    position:absolute; left:130px; bottom:12px; z-index:1000;
-    background:rgba(0,0,0,0.75); border:1px solid rgba(255,255,255,0.3);
-    border-radius:4px; padding:6px 12px; color:#fff; font-size:12px;
-    font-family:sans-serif; cursor:pointer;
-  `;
-  openDlBtn.addEventListener("click", () => {
-    // Pre-fill with current GPS if available
-    if (currentGpsLat !== 0 || currentGpsLon !== 0) {
-      latInput.value = currentGpsLat.toFixed(6);
-      lonInput.value = currentGpsLon.toFixed(6);
-    }
-    downloadOverlay.style.display = downloadOverlay.style.display === "none" ? "block" : "none";
-  });
-  panelEl.appendChild(openDlBtn);
-
-  // State
+  // ========== STATE ==========
   let settings: PanelSettings = { ...DEFAULT_SETTINGS };
   let map: L.Map | undefined;
   let tileLayer: L.TileLayer | undefined;
   let robotMarker: L.CircleMarker | undefined;
+  let robotPulse: L.CircleMarker | undefined;
   let trailLine: L.Polyline | undefined;
   const trailCoords: L.LatLng[] = [];
   let gridLayer: L.LayerGroup | undefined;
   let hasCentered = false;
   let lastGpsTopic = settings.gpsTopic;
   let lastGridTopic = settings.gridTopic;
+  const plannedPathCoords: L.LatLng[] = [];
 
-  // Heatmap accumulation grid: key = "lat,lon" quantized to ~1m cells
-  const heatGrid = new Map<string, { lat: number; lon: number; count: number }>();
+  const heatGrid = new Map<
+    string,
+    {
+      lat: number;
+      lon: number;
+      positiveCount: number;
+      negativeCount: number;
+      lastObservationPositive: boolean;
+    }
+  >();
+  const fieldGrid = new Map<string, { lat: number; lon: number; size: number; value: number }>();
   let heatmapLayer: L.LayerGroup | undefined;
+  let plannedPathLine: L.Polyline | undefined;
   let currentGpsLat = 0;
   let currentGpsLon = 0;
+  let currentMapLat = 0;
+  let currentMapLon = 0;
+  let currentAlt = 0;
+  let currentOdomX: number | undefined;
+  let currentOdomY: number | undefined;
+  let currentOdomFrame: string | undefined;
+  let odomAnchorX: number | undefined;
+  let odomAnchorY: number | undefined;
+  let gpsAnchorLat = 0;
+  let gpsAnchorLon = 0;
+  let totalDetections = 0;
+  let lastGpsTime = 0;
+  let lastGpsLat = 0;
+  let lastGpsLon = 0;
+  let currentSpeed = 0;
 
-  // Initialize map
+  // Pulse animation via timer
+  let pulseTimer: ReturnType<typeof setInterval> | undefined;
+  let pulsePhase = 0;
+
+  function makeCellKey(lat: number, lon: number): string {
+    return `${lat.toFixed(6)},${lon.toFixed(6)}`;
+  }
+
+  function makeDetectionCell(lat: number, lon: number): { key: string; lat: number; lon: number } {
+    const metersPerDegLat = 111320;
+    const cosLat = Math.cos((lat * Math.PI) / 180) || 1;
+    const sizeMeters = Math.max(settings.gaussianRadiusMeters * 1.8, 4);
+    const latStep = sizeMeters / metersPerDegLat;
+    const lonStep = sizeMeters / (metersPerDegLat * cosLat);
+    const qLat = Math.round(lat / latStep) * latStep;
+    const qLon = Math.round(lon / lonStep) * lonStep;
+    return { key: makeCellKey(qLat, qLon), lat: qLat, lon: qLon };
+  }
+
+  function getMotionUnit(currentPos?: L.LatLng): { east: number; north: number } | undefined {
+    const end = currentPos ?? trailCoords[trailCoords.length - 1];
+    const start =
+      trailCoords.length >= 2
+        ? trailCoords[trailCoords.length - 2]
+        : trailCoords.length === 1
+          ? trailCoords[0]
+          : undefined;
+    if (!start || !end) return undefined;
+
+    const metersPerDegLat = 111320;
+    const avgLat = (start.lat + end.lat) / 2;
+    const metersPerDegLon = metersPerDegLat * (Math.cos((avgLat * Math.PI) / 180) || 1);
+    const east = (end.lng - start.lng) * metersPerDegLon;
+    const north = (end.lat - start.lat) * metersPerDegLat;
+    const length = Math.hypot(east, north);
+    if (length < 0.1) return undefined;
+    return { east: east / length, north: north / length };
+  }
+
+  function projectToRowSample(lat: number, lon: number, currentPos?: L.LatLng): { lat: number; lon: number } {
+    const motion = getMotionUnit(currentPos);
+    if (!motion) return { lat, lon };
+
+    const metersPerDegLat = 111320;
+    const metersPerDegLon = metersPerDegLat * (Math.cos((lat * Math.PI) / 180) || 1);
+    const forwardMeters = -settings.rowLagMeters;
+    const rightMeters = settings.rowLateralOffsetMeters;
+    const eastMeters = motion.east * forwardMeters + motion.north * rightMeters;
+    const northMeters = motion.north * forwardMeters - motion.east * rightMeters;
+    return {
+      lat: lat + northMeters / metersPerDegLat,
+      lon: lon + eastMeters / metersPerDegLon,
+    };
+  }
+
+  function findNearestPlannedPathSample(
+    lat: number,
+    lon: number,
+  ): { lat: number; lon: number; motion: { east: number; north: number } } | undefined {
+    if (plannedPathCoords.length < 2) return undefined;
+
+    const metersPerDegLat = 111320;
+    const metersPerDegLon = metersPerDegLat * (Math.cos((lat * Math.PI) / 180) || 1);
+    let best:
+      | {
+          eastMeters: number;
+          northMeters: number;
+          distanceSq: number;
+          motion: { east: number; north: number };
+        }
+      | undefined;
+
+    for (let i = 0; i < plannedPathCoords.length - 1; i += 1) {
+      const a = plannedPathCoords[i]!;
+      const b = plannedPathCoords[i + 1]!;
+      const ax = (a.lng - lon) * metersPerDegLon;
+      const ay = (a.lat - lat) * metersPerDegLat;
+      const bx = (b.lng - lon) * metersPerDegLon;
+      const by = (b.lat - lat) * metersPerDegLat;
+      const dx = bx - ax;
+      const dy = by - ay;
+      const lengthSq = dx * dx + dy * dy;
+      if (lengthSq < 0.01) continue;
+
+      const t = Math.max(0, Math.min(1, -(ax * dx + ay * dy) / lengthSq));
+      const length = Math.sqrt(lengthSq);
+      const motion = { east: dx / length, north: dy / length };
+      const eastMeters = ax + dx * t;
+      const northMeters = ay + dy * t;
+      const distanceSq = eastMeters * eastMeters + northMeters * northMeters;
+
+      if (!best || distanceSq < best.distanceSq) {
+        best = { eastMeters, northMeters, distanceSq, motion };
+      }
+    }
+
+    if (!best) return undefined;
+    const snapped = offsetLatLng(lat, lon, best.eastMeters, best.northMeters);
+    return { lat: snapped.lat, lon: snapped.lng, motion: best.motion };
+  }
+
+  function projectToOverlaySample(
+    lat: number,
+    lon: number,
+    currentPos?: L.LatLng,
+  ): { lat: number; lon: number } {
+    const pathSample = findNearestPlannedPathSample(lat, lon);
+    if (pathSample) return pathSample;
+    return projectToRowSample(lat, lon, currentPos);
+  }
+
+  function offsetLatLng(
+    lat: number,
+    lon: number,
+    eastMeters: number,
+    northMeters: number,
+  ): L.LatLng {
+    const metersPerDegLat = 111320;
+    const metersPerDegLon = metersPerDegLat * (Math.cos((lat * Math.PI) / 180) || 1);
+    return L.latLng(lat + northMeters / metersPerDegLat, lon + eastMeters / metersPerDegLon);
+  }
+
+  function projectOdomToLatLng(x: number, y: number): L.LatLng | undefined {
+    if (
+      gpsAnchorLat === 0 ||
+      gpsAnchorLon === 0 ||
+      odomAnchorX == null ||
+      odomAnchorY == null
+    ) {
+      return undefined;
+    }
+
+    const metersPerDegLat = 111320;
+    const metersPerDegLon = metersPerDegLat * (Math.cos((gpsAnchorLat * Math.PI) / 180) || 1);
+    return L.latLng(
+      gpsAnchorLat + (y - odomAnchorY) / metersPerDegLat,
+      gpsAnchorLon + (x - odomAnchorX) / metersPerDegLon,
+    );
+  }
+
+  function updateMapPosition(lat: number, lon: number) {
+    if (!map || !robotMarker || !robotPulse || !trailLine) return;
+    if (lat === 0 && lon === 0) return;
+
+    currentMapLat = lat;
+    currentMapLon = lon;
+
+    const pos = L.latLng(lat, lon);
+    if (trailCoords.length > 0) {
+      const overlaySample = projectToOverlaySample(lat, lon, pos);
+      addSyntheticFieldCells(overlaySample.lat, overlaySample.lon);
+      renderHeatmap();
+    }
+
+    robotMarker.setLatLng(pos);
+    robotPulse.setLatLng(pos);
+    if (!map.hasLayer(robotMarker)) {
+      robotPulse.addTo(map);
+      robotMarker.addTo(map);
+    }
+
+    trailCoords.push(pos);
+    if (trailCoords.length > 5000) {
+      trailCoords.shift();
+    }
+    trailLine.setLatLngs(trailCoords);
+    trailCountEl.textContent = `TRAIL ${trailCoords.length}`;
+
+    if (settings.autoCenter && !hasCentered) {
+      map.setView(pos, 18);
+      hasCentered = true;
+    } else if (settings.autoCenter) {
+      map.panTo(pos);
+    }
+  }
+
+  function addSyntheticFieldCells(lat: number, lon: number) {
+    const metersPerDegLat = 111320;
+    const cosLat = Math.cos((lat * Math.PI) / 180) || 1;
+    const cellSizeMeters = Math.max(settings.gaussianRadiusMeters * 1.8, 4);
+    const latStep = cellSizeMeters / metersPerDegLat;
+    const lonStep = cellSizeMeters / (metersPerDegLat * cosLat);
+    const centerLat = Math.round(lat / latStep) * latStep;
+    const centerLon = Math.round(lon / lonStep) * lonStep;
+
+    const key = makeCellKey(centerLat, centerLon);
+    if (!fieldGrid.has(key)) {
+      fieldGrid.set(key, {
+        lat: centerLat,
+        lon: centerLon,
+        size: Math.max(latStep, lonStep),
+        value: 0,
+      });
+    }
+  }
+
+  // ========== MAP INIT ==========
   function initMap() {
     if (map) {
       map.remove();
     }
+    if (pulseTimer != null) {
+      clearInterval(pulseTimer);
+    }
     hasCentered = false;
     trailCoords.length = 0;
     heatGrid.clear();
+    fieldGrid.clear();
 
     map = L.map(mapDiv, {
       center: [0, 0],
@@ -413,17 +1161,62 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     tileLayer = new CachedTileLayer(layer.url, { attribution: layer.attribution, maxZoom: 22 }).addTo(map);
 
     gridLayer = L.layerGroup().addTo(map);
+
+    // Dedicated pane for the detection heatmap so we can CSS-blur it
+    map.createPane("heatmap");
+    const heatPane = map.getPane("heatmap");
+    if (heatPane) {
+      heatPane.classList.add("leaflet-heatmap-pane");
+      heatPane.style.zIndex = "450";
+    }
     heatmapLayer = L.layerGroup().addTo(map);
 
+    // Planned path — dotted blue
+    plannedPathLine = L.polyline([], {
+      color: "#60a5fa",
+      weight: 3,
+      opacity: 0.9,
+      dashArray: "2, 8",
+      lineCap: "round",
+    }).addTo(map);
+
+    // Robot marker: bright core with outer glow ring
     robotMarker = L.circleMarker([0, 0], {
-      radius: 8,
-      color: "#fff",
-      weight: 2,
-      fillColor: "#2196F3",
+      radius: 7,
+      color: "#38bdf8",
+      weight: 2.5,
+      fillColor: "#0ea5e9",
       fillOpacity: 1,
     });
 
-    trailLine = L.polyline([], { color: "#2196F3", weight: 2, opacity: 0.7 });
+    // Pulsing outer ring
+    robotPulse = L.circleMarker([0, 0], {
+      radius: 7,
+      color: "#38bdf8",
+      weight: 1.5,
+      fillColor: "transparent",
+      fillOpacity: 0,
+      opacity: 0.6,
+    });
+
+    // Animate pulse
+    pulsePhase = 0;
+    pulseTimer = setInterval(() => {
+      if (!robotPulse) return;
+      pulsePhase = (pulsePhase + 1) % 60;
+      const t = pulsePhase / 60;
+      const r = 7 + t * 18;
+      const o = 0.6 * (1 - t);
+      robotPulse.setRadius(r);
+      robotPulse.setStyle({ opacity: o });
+    }, 33);
+
+    trailLine = L.polyline([], {
+      color: "#38bdf8",
+      weight: 2,
+      opacity: 0.5,
+      dashArray: "6, 4",
+    });
     if (settings.showTrail) {
       trailLine.addTo(map);
     }
@@ -432,27 +1225,29 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
   }
 
   function updateLegend() {
-    const steps = 6;
-    // Build legend using DOM methods
     legend.textContent = "";
+
     const title = document.createElement("div");
-    title.style.cssText = "margin-bottom:4px;font-weight:bold;text-align:center;";
-    title.textContent = "Detections";
+    title.className = "erwinia-legend-title";
+    title.textContent = settings.colorScale === "health" ? "Detection Overlay" : "Detections";
     legend.appendChild(title);
 
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      const detCount = Math.round(t * settings.maxIntensity);
-      const row = document.createElement("div");
-      row.style.cssText = "display:flex;align-items:center;gap:6px;";
-      const swatch = document.createElement("div");
-      swatch.style.cssText = `width:16px;height:12px;border-radius:2px;background:${valueToColor(t, settings.colorScale)};`;
-      const label = document.createElement("span");
-      label.textContent = String(detCount);
-      row.appendChild(swatch);
-      row.appendChild(label);
-      legend.appendChild(row);
-    }
+    // Gradient bar
+    const gradBar = document.createElement("div");
+    gradBar.className = "erwinia-legend-gradient";
+    gradBar.style.background = buildGradientCSS(settings.colorScale);
+    legend.appendChild(gradBar);
+
+    // Range labels
+    const range = document.createElement("div");
+    range.className = "erwinia-legend-range";
+    const minLabel = document.createElement("span");
+    minLabel.textContent = settings.colorScale === "health" ? "clear" : "0";
+    const maxLabel = document.createElement("span");
+    maxLabel.textContent = settings.colorScale === "health" ? "positive" : String(settings.maxIntensity);
+    range.appendChild(minLabel);
+    range.appendChild(maxLabel);
+    legend.appendChild(range);
   }
 
   function switchTileLayer() {
@@ -462,7 +1257,7 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     tileLayer = new CachedTileLayer(layer.url, { attribution: layer.attribution, maxZoom: 22 }).addTo(map);
   }
 
-  // Settings
+  // ========== SETTINGS ==========
   function handleSettingsAction(action: SettingsTreeAction) {
     if (action.action !== "update" || !action.payload) return;
     const { path, value } = action.payload;
@@ -474,8 +1269,9 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     if (field === "mapStyle") {
       switchTileLayer();
     }
-    if (field === "colorScale") {
+    if (field === "colorScale" || field === "maxIntensity") {
       updateLegend();
+      renderHeatmap();
     }
     if (field === "showTrail" && map && trailLine) {
       if (settings.showTrail) {
@@ -485,8 +1281,13 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
       }
     }
 
-    // Re-subscribe if topics changed
-    if (field === "gpsTopic" || field === "gridTopic" || field === "detectionTopic") {
+    if (
+      field === "gpsTopic" ||
+      field === "odomTopic" ||
+      field === "gridTopic" ||
+      field === "detectionTopic" ||
+      field === "plannedPathTopic"
+    ) {
       resubscribe();
     }
 
@@ -497,7 +1298,6 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     context.saveState(settings);
   }
 
-  // Load saved state
   const savedState = context.initialState as Partial<PanelSettings> | undefined;
   if (savedState) {
     settings = { ...DEFAULT_SETTINGS, ...savedState };
@@ -510,50 +1310,46 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
 
   initMap();
 
-  // Subscribe to topics
+  // ========== SUBSCRIPTIONS ==========
   function resubscribe() {
-    const topics: Record<string, { preload: boolean }> = {};
-    if (settings.gpsTopic) {
-      topics[settings.gpsTopic] = { preload: false };
-    }
-    if (settings.gridTopic) {
-      topics[settings.gridTopic] = { preload: false };
-    }
-    if (settings.detectionTopic) {
-      topics[settings.detectionTopic] = { preload: false };
-    }
-    context.subscribe(Object.keys(topics));
+    const topics: string[] = [];
+    if (settings.gpsTopic) topics.push(settings.gpsTopic);
+    if (settings.odomTopic) topics.push(settings.odomTopic);
+    if (settings.gridTopic) topics.push(settings.gridTopic);
+    if (settings.detectionTopic) topics.push(settings.detectionTopic);
+    if (settings.plannedPathTopic) topics.push(settings.plannedPathTopic);
+    context.subscribe(topics);
     lastGpsTopic = settings.gpsTopic;
     lastGridTopic = settings.gridTopic;
   }
 
   resubscribe();
 
-  // Handle messages
+  // ========== MESSAGE HANDLERS ==========
   context.onRender = (renderState: Immutable<RenderState>, done: () => void) => {
     if (!map) {
       done();
       return;
     }
 
-    // Process incoming messages
     if (renderState.currentFrame) {
       for (const msg of renderState.currentFrame) {
         const topic = msg.topic;
-
         if (topic === settings.gpsTopic) {
           handleGpsMessage(msg.message as Record<string, unknown>);
+        } else if (topic === settings.odomTopic) {
+          handleOdomMessage(msg.message as Record<string, unknown>);
         } else if (topic === settings.gridTopic) {
           handleGridMessage(msg.message as Record<string, unknown>);
         } else if (topic === settings.detectionTopic) {
           handleDetectionMessage(msg.message as Record<string, unknown>);
+        } else if (topic === settings.plannedPathTopic) {
+          handlePlannedPathMessage(msg.message as Record<string, unknown>);
         }
       }
     }
 
-    // Invalidate map size on render (panel may have resized)
     map.invalidateSize();
-
     done();
   };
 
@@ -561,45 +1357,59 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
   context.watch("topics");
 
   function handleGpsMessage(msg: Record<string, unknown>) {
-    if (!map || !robotMarker || !trailLine) return;
-
-    // Support both sensor_msgs/NavSatFix and generic {latitude, longitude}
     const lat = (msg.latitude as number) ?? 0;
     const lon = (msg.longitude as number) ?? 0;
+    const alt = (msg.altitude as number) ?? 0;
     currentGpsLat = lat;
     currentGpsLon = lon;
+    currentAlt = alt;
 
     if (lat === 0 && lon === 0) return;
-
-    const pos = L.latLng(lat, lon);
-
-    robotMarker.setLatLng(pos);
-    if (!map.hasLayer(robotMarker)) {
-      robotMarker.addTo(map);
+    if (currentOdomX != null && currentOdomY != null && odomAnchorX == null && odomAnchorY == null) {
+      gpsAnchorLat = lat;
+      gpsAnchorLon = lon;
+      odomAnchorX = currentOdomX;
+      odomAnchorY = currentOdomY;
     }
 
-    // Trail
-    trailCoords.push(pos);
-    if (trailCoords.length > 5000) {
-      trailCoords.shift();
+    // Speed (haversine / dt) using wall-clock; smoothed
+    const nowMs = Date.now();
+    if (lastGpsTime > 0) {
+      const dt = (nowMs - lastGpsTime) / 1000;
+      if (dt > 0.05) {
+        const R = 6371000;
+        const toRad = Math.PI / 180;
+        const dLat = (lat - lastGpsLat) * toRad;
+        const dLon = (lon - lastGpsLon) * toRad;
+        const a =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos(lastGpsLat * toRad) * Math.cos(lat * toRad) * Math.sin(dLon / 2) ** 2;
+        const d = 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+        const instant = d / dt;
+        currentSpeed = currentSpeed * 0.7 + instant * 0.3;
+      }
     }
-    trailLine.setLatLngs(trailCoords);
+    lastGpsTime = nowMs;
+    lastGpsLat = lat;
+    lastGpsLon = lon;
 
-    // Auto-center
-    if (settings.autoCenter && !hasCentered) {
-      map.setView(pos, 18);
-      hasCentered = true;
-    } else if (settings.autoCenter) {
-      map.panTo(pos);
+    // Update status bar
+    brandDot.dataset.status = "connected";
+    latVal.textContent = formatCoord(lat, "N", "S");
+    lonVal.textContent = formatCoord(lon, "E", "W");
+    altVal.textContent = `${alt.toFixed(1)}m`;
+    speedVal.textContent = `${currentSpeed.toFixed(2)} m/s`;
+
+    if (odomAnchorX == null || odomAnchorY == null) {
+      updateMapPosition(lat, lon);
     }
   }
 
   function handleGridMessage(msg: Record<string, unknown>) {
     if (!map || !gridLayer) return;
     gridLayer.clearLayers();
+    fieldGrid.clear();
 
-    // Expected format: { cells: [{lat, lon, value, size?},...] }
-    // or { data: [{lat, lon, value, size?},...] }
     const cells = (msg.cells ?? msg.data) as
       | Array<{ lat: number; lon: number; value: number; size?: number }>
       | undefined;
@@ -607,7 +1417,14 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
     if (!Array.isArray(cells)) return;
 
     for (const cell of cells) {
-      const halfSize = (cell.size ?? 0.00005) / 2; // ~5m default
+      const size = cell.size ?? 0.00005;
+      const halfSize = size / 2;
+      fieldGrid.set(makeCellKey(cell.lat, cell.lon), {
+        lat: cell.lat,
+        lon: cell.lon,
+        size,
+        value: cell.value,
+      });
       const bounds: L.LatLngBoundsExpression = [
         [cell.lat - halfSize, cell.lon - halfSize],
         [cell.lat + halfSize, cell.lon + halfSize],
@@ -620,71 +1437,236 @@ export function initMapPanel(context: PanelExtensionContext): () => void {
         weight: 0,
       }).addTo(gridLayer);
     }
+
+    renderHeatmap();
+  }
+
+  function handleOdomMessage(msg: Record<string, unknown>) {
+    const pose = msg.pose as Record<string, unknown> | undefined;
+    const posePose = pose?.pose as Record<string, unknown> | undefined;
+    const position = posePose?.position as Record<string, unknown> | undefined;
+    const header = msg.header as Record<string, unknown> | undefined;
+
+    const x = Number(position?.x);
+    const y = Number(position?.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return;
+    }
+
+    currentOdomX = x;
+    currentOdomY = y;
+    currentOdomFrame = typeof header?.frame_id === "string" ? header.frame_id : currentOdomFrame;
+
+    if (currentGpsLat !== 0 || currentGpsLon !== 0) {
+      if (odomAnchorX == null || odomAnchorY == null) {
+        gpsAnchorLat = currentGpsLat;
+        gpsAnchorLon = currentGpsLon;
+        odomAnchorX = x;
+        odomAnchorY = y;
+      }
+
+      const odomLatLng = projectOdomToLatLng(x, y);
+      if (odomLatLng) {
+        updateMapPosition(odomLatLng.lat, odomLatLng.lng);
+      }
+    }
+  }
+
+  function projectPlanPointToLatLng(x: number, y: number): L.LatLng | undefined {
+    if (
+      currentGpsLat === 0 ||
+      currentGpsLon === 0 ||
+      currentOdomX == null ||
+      currentOdomY == null
+    ) {
+      return undefined;
+    }
+
+    const metersPerDegLat = 111320;
+    const cosLat = Math.cos((currentGpsLat * Math.PI) / 180) || 1;
+    const deltaX = x - currentOdomX;
+    const deltaY = y - currentOdomY;
+    const lat = currentGpsLat + deltaY / metersPerDegLat;
+    const lon = currentGpsLon + deltaX / (metersPerDegLat * cosLat);
+    return L.latLng(lat, lon);
   }
 
   function handleDetectionMessage(msg: Record<string, unknown>) {
     if (!map || !heatmapLayer) return;
-    if (currentGpsLat === 0 && currentGpsLon === 0) return; // No GPS fix yet
+    const sourceLat = currentMapLat || currentGpsLat;
+    const sourceLon = currentMapLon || currentGpsLon;
+    if (sourceLat === 0 && sourceLon === 0) return;
 
-    // vision_msgs/Detection2DArray has a `detections` array
-    const detections = msg.detections as Array<Record<string, unknown>> | undefined;
-    if (!Array.isArray(detections) || detections.length === 0) return;
+    const detections = Array.isArray(msg.detections)
+      ? (msg.detections as Array<Record<string, unknown>>)
+      : [];
 
-    // Quantize GPS to ~1m grid cells (~0.00001 deg = 1.1m)
-    const resolution = 0.00001;
-    const qLat = Math.round(currentGpsLat / resolution) * resolution;
-    const qLon = Math.round(currentGpsLon / resolution) * resolution;
-    const key = `${qLat.toFixed(6)},${qLon.toFixed(6)}`;
+    const overlaySample = projectToOverlaySample(sourceLat, sourceLon);
+    const nearestFieldCell = makeDetectionCell(overlaySample.lat, overlaySample.lon);
+
+    const key = nearestFieldCell.key;
 
     const existing = heatGrid.get(key);
     if (existing) {
-      existing.count += detections.length;
+      if (detections.length > 0) {
+        existing.positiveCount += detections.length;
+        existing.lastObservationPositive = true;
+      } else if (!existing.lastObservationPositive) {
+        existing.negativeCount += 1;
+      }
     } else {
-      heatGrid.set(key, { lat: qLat, lon: qLon, count: detections.length });
+      heatGrid.set(key, {
+        lat: nearestFieldCell.lat,
+        lon: nearestFieldCell.lon,
+        positiveCount: detections.length,
+        negativeCount: detections.length > 0 ? 0 : 1,
+        lastObservationPositive: detections.length > 0,
+      });
+    }
+
+    if (detections.length > 0) {
+      totalDetections += detections.length;
+      detCountEl.textContent = `DET ${totalDetections}`;
     }
 
     renderHeatmap();
   }
 
+  function handlePlannedPathMessage(msg: Record<string, unknown>) {
+    if (!plannedPathLine) return;
+    // /aPath is published in a global Cartesian frame (for example "enu").
+    // Re-anchor it against the robot's live global odom pose plus current GPS fix.
+    const poses = msg.poses as Array<Record<string, unknown>> | undefined;
+    if (!Array.isArray(poses) || poses.length === 0) {
+      plannedPathCoords.length = 0;
+      plannedPathLine.setLatLngs([]);
+      return;
+    }
+
+    const header = msg.header as Record<string, unknown> | undefined;
+    const pathFrame =
+      typeof header?.frame_id === "string" && header.frame_id.length > 0
+        ? header.frame_id
+        : typeof ((poses[0]?.header as Record<string, unknown> | undefined)?.frame_id) === "string"
+          ? (((poses[0]?.header as Record<string, unknown> | undefined)?.frame_id) as string)
+          : undefined;
+
+    if (
+      pathFrame != null &&
+      currentOdomFrame != null &&
+      pathFrame.length > 0 &&
+      currentOdomFrame.length > 0 &&
+      pathFrame !== currentOdomFrame
+    ) {
+      plannedPathCoords.length = 0;
+      plannedPathLine.setLatLngs([]);
+      return;
+    }
+
+    const coords: L.LatLng[] = [];
+    for (const p of poses) {
+      const pose = (p.pose as Record<string, unknown>) ?? p;
+      const position = (pose.position as Record<string, unknown>) ?? pose;
+      const x = Number(position.x ?? 0);
+      const y = Number(position.y ?? 0);
+      const latLng = projectPlanPointToLatLng(x, y);
+      if (latLng) {
+        coords.push(latLng);
+      }
+    }
+    plannedPathCoords.length = 0;
+    plannedPathCoords.push(...coords);
+    plannedPathLine.setLatLngs(coords);
+  }
+
   function renderHeatmap() {
     if (!map || !heatmapLayer) return;
+    const targetHeatmapLayer = heatmapLayer;
     heatmapLayer.clearLayers();
 
-    for (const cell of heatGrid.values()) {
-      const intensity = Math.min(cell.count / settings.maxIntensity, 1);
-      if (intensity <= 0) continue;
+    const cellsToRender = new Map<string, { lat: number; lon: number; size: number }>();
+    for (const [key, fieldCell] of fieldGrid.entries()) {
+      cellsToRender.set(key, fieldCell);
+    }
+    for (const [key, detectionState] of heatGrid.entries()) {
+      if (!cellsToRender.has(key)) {
+        const metersPerDegLat = 111320;
+        const cosLat = Math.cos((detectionState.lat * Math.PI) / 180) || 1;
+        const sizeMeters = Math.max(settings.gaussianRadiusMeters * 1.8, 4);
+        cellsToRender.set(key, {
+          lat: detectionState.lat,
+          lon: detectionState.lon,
+          size: Math.max(sizeMeters / metersPerDegLat, sizeMeters / (metersPerDegLat * cosLat)),
+        });
+      }
+    }
 
-      // Outer ring (low opacity, wide)
-      L.circle([cell.lat, cell.lon], {
-        radius: settings.gaussianRadiusMeters * 1.5,
-        color: "transparent",
-        fillColor: valueToColor(intensity, settings.colorScale),
-        fillOpacity: intensity * settings.gridOpacity * 0.3,
-        weight: 0,
-      }).addTo(heatmapLayer);
+    function drawCell(key: string, cell: { lat: number; lon: number; size: number }) {
+      const detectionState = heatGrid.get(key);
+      const hasPositiveDetection = detectionState?.lastObservationPositive === true;
+      const normalizedValue = hasPositiveDetection
+        ? settings.colorScale === "health"
+          ? 1
+          : Math.min(1, (detectionState?.positiveCount ?? 0) / Math.max(settings.maxIntensity, 1))
+        : 0;
+      const color =
+        !hasPositiveDetection && settings.colorScale === "health"
+          ? "rgb(52, 211, 153)"
+          : valueToColor(normalizedValue, settings.colorScale);
+      const fillOpacity = hasPositiveDetection
+        ? 0.95
+        : detectionState != null
+          ? Math.min(0.24, 0.12 + detectionState.negativeCount * 0.03)
+          : 0.05;
+      const pathSample = findNearestPlannedPathSample(cell.lat, cell.lon);
+      const rowMotion = pathSample?.motion ?? getMotionUnit();
+      const rowEast = rowMotion?.east ?? 0;
+      const rowNorth = rowMotion?.north ?? 1;
+      const centerLat = pathSample?.lat ?? cell.lat;
+      const centerLon = pathSample?.lon ?? cell.lon;
+      const halfLength = Math.max(1.5, Math.min(settings.rowMarkLengthMeters, 5) / 2);
+      const segment: L.LatLngExpression[] = [
+        offsetLatLng(
+          centerLat,
+          centerLon,
+          -rowEast * halfLength,
+          -rowNorth * halfLength,
+        ),
+        offsetLatLng(
+          centerLat,
+          centerLon,
+          rowEast * halfLength,
+          rowNorth * halfLength,
+        ),
+      ];
 
-      // Middle ring
-      L.circle([cell.lat, cell.lon], {
-        radius: settings.gaussianRadiusMeters,
-        color: "transparent",
-        fillColor: valueToColor(intensity, settings.colorScale),
-        fillOpacity: intensity * settings.gridOpacity * 0.6,
-        weight: 0,
-      }).addTo(heatmapLayer);
+      L.polyline(segment, {
+        pane: "heatmap",
+        color,
+        opacity: fillOpacity,
+        weight: Math.max(6, settings.rowMarkWidthMeters * 3),
+        lineCap: "round",
+      }).addTo(targetHeatmapLayer);
+    }
 
-      // Inner core (high opacity, tight)
-      L.circle([cell.lat, cell.lon], {
-        radius: settings.gaussianRadiusMeters * 0.5,
-        color: "transparent",
-        fillColor: valueToColor(intensity, settings.colorScale),
-        fillOpacity: intensity * settings.gridOpacity,
-        weight: 0,
-      }).addTo(heatmapLayer);
+    for (const [key, cell] of cellsToRender.entries()) {
+      if (heatGrid.get(key)?.lastObservationPositive !== true) {
+        drawCell(key, cell);
+      }
+    }
+
+    for (const [key, cell] of cellsToRender.entries()) {
+      if (heatGrid.get(key)?.lastObservationPositive === true) {
+        drawCell(key, cell);
+      }
     }
   }
 
-  // Cleanup
+  // ========== CLEANUP ==========
   return () => {
+    if (pulseTimer != null) {
+      clearInterval(pulseTimer);
+    }
     if (map) {
       map.remove();
       map = undefined;
